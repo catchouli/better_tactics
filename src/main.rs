@@ -6,11 +6,17 @@ use std::io::Write;
 
 use crate::db::PuzzleDatabase;
 
+const MIN_RATING: i32 = 1000;
+const MAX_RATING: i32 = 1100;
+const MAX_PUZZLES: i32 = 50;
+
 const LICHESS_DB_NAME: &'static str = "lichess_db_puzzle.csv.zst";
 const SQLITE_DB_NAME: &'static str = "puzzles.sqlite";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
     log::info!("Better tactics starting!");
 
     // Open puzzle database.
@@ -28,10 +34,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Get puzzles in rating range.
-    const MIN_RATING: i32 = 0;
-    const MAX_RATING: i32 = 500;
-    const MAX_PUZZLES: i32 = 1000;
-
     log::info!("Getting up to {MAX_PUZZLES} puzzles in rating range {MIN_RATING} to {MAX_RATING}");
     let puzzles = puzzle_db.get_puzzles_by_rating(MIN_RATING, MAX_RATING, MAX_PUZZLES)?;
 
