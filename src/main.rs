@@ -1,4 +1,4 @@
-mod db;
+pub mod db;
 
 use std::error::Error;
 use std::fs::File;
@@ -28,16 +28,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Get puzzles in rating range.
-    const MIN_RATING: i32 = 1000;
-    const MAX_RATING: i32 = 1100;
-    const MAX_PUZZLES: i32 = 5;
-    let output_path = format!("Puzzles_from_{MIN_RATING}_to_{MAX_RATING}.pgn");
+    const MIN_RATING: i32 = 0;
+    const MAX_RATING: i32 = 500;
+    const MAX_PUZZLES: i32 = 1000;
 
-    log::info!("Getting {MAX_PUZZLES} puzzles in rating range {MIN_RATING} to {MAX_RATING}");
+    log::info!("Getting up to {MAX_PUZZLES} puzzles in rating range {MIN_RATING} to {MAX_RATING}");
     let puzzles = puzzle_db.get_puzzles_by_rating(MIN_RATING, MAX_RATING, MAX_PUZZLES)?;
 
     {
-        log::info!("Writing puzzles to {output_path}");
+        let output_path = format!("Puzzles_x{}_from_{}_to_{}.pgn", MAX_PUZZLES, MIN_RATING, MAX_RATING);
+        log::info!("Writing {} puzzles to {}", puzzles.len(), output_path);
         let mut output_file = File::create(&output_path)?;
         for puzzle in puzzles {
             let pgn = puzzle.to_pgn();

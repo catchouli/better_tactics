@@ -57,8 +57,8 @@ impl PuzzleDatabase {
     }
 
     pub fn init_database(&mut self, lichess_db_path: &str) -> Result<(), Box<dyn Error>> {
-        const MAX_PUZZLES_TO_IMPORT: usize = 1000;
-        const PUZZLES_PER_PROGRESS_UPDATE: usize = 1000;
+        const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
+        const PUZZLES_PER_PROGRESS_UPDATE: usize = 10000;
 
         log::info!("Importing lichess puzzle database from {lichess_db_path}");
 
@@ -73,6 +73,8 @@ impl PuzzleDatabase {
         if let Ok(decoder) = zstd::stream::Decoder::new(file?) {
             let mut csv_reader = csv::Reader::from_reader(decoder);
             let mut puzzles_imported = 0;
+
+            let mut puzzles = Vec::new();
 
             for result in csv_reader.records().take(MAX_PUZZLES_TO_IMPORT) {
                 const EXPECTED_ROWS: usize = 10;
@@ -90,8 +92,13 @@ impl PuzzleDatabase {
                 let moves = &record[2];
                 let rating = record[3].parse::<i32>()?;
 
-                let puzzle = Puzzle::new(puzzle_id, fen, moves, rating);
-                self.add_puzzle(puzzle)?;
+                puzzles.push(Puzzle::new(puzzle_id, fen, moves, rating));
+
+                // Bulk insert if we have enough.
+                if puzzles.len() >= PUZZLES_PER_PROGRESS_UPDATE {
+                    self.add_puzzles(&puzzles)?;
+                    puzzles.clear();
+                }
 
                 // Update counter and report progress.
                 puzzles_imported += 1;
@@ -100,13 +107,19 @@ impl PuzzleDatabase {
                 }
             }
 
+            // Add last batch (should be less than the batch size or it'll be empty).
+            if !puzzles.is_empty() {
+                self.add_puzzles(&puzzles)?;
+                puzzles.clear();
+            }
+
             log::info!("Finished importing {puzzles_imported} puzzles");
         }
 
         Ok(())
     }
 
-    fn add_puzzle(&mut self, puzzle: Puzzle) -> Result<(), Box<dyn Error>> {
+    pub fn add_puzzle(&mut self, puzzle: &Puzzle) -> Result<(), Box<dyn Error>> {
         const QUERY: &'static str = "
             INSERT INTO puzzles (puzzle_id, fen, moves, rating) VALUES (?, ?, ?, ?)
         ";
@@ -121,6 +134,20 @@ impl PuzzleDatabase {
             .next();
 
         Ok(())
+    }
+
+    pub fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> Result<(), Box<dyn Error>> {
+        // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
+        // batch insert api that lets you supply an iterator but I'm not sure how to do that with
+        // the sqlite crate. Reusing the prepared statement was about the same overhead as just
+        // creating it every time, but building the query is much faster.
+        let rows = puzzles.iter().map(|puzzle|
+           format!("(\"{}\", \"{}\", \"{}\", {})", puzzle.puzzle_id, puzzle.fen, puzzle.moves, puzzle.rating)
+        ).collect::<Vec<_>>().join(",");
+
+        let finished_query = format!("INSERT INTO puzzles (puzzle_id, fen, moves, rating) VALUES {}", rows);
+
+        Ok(self.conn.execute(finished_query)?)
     }
 
     pub fn get_puzzles_by_rating(&self, min_rating: i32, max_rating: i32, max_puzzles: i32)
