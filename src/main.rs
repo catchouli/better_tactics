@@ -1,51 +1,84 @@
+#![feature(associated_type_bounds)]
 pub mod db;
+pub mod route;
+pub mod controllers;
+pub mod util;
 
 use std::error::Error;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Write, SeekFrom, Seek};
+use std::sync::Arc;
+use futures::StreamExt;
+use tokio::sync::Mutex;
 
 use crate::db::PuzzleDatabase;
 
 const MIN_RATING: i32 = 1000;
-const MAX_RATING: i32 = 1100;
+const MAX_RATING: i32 = MIN_RATING + 100;
 const MAX_PUZZLES: i32 = 50;
 
-const LICHESS_DB_NAME: &'static str = "lichess_db_puzzle.csv.zst";
 const SQLITE_DB_NAME: &'static str = "puzzles.sqlite";
 
-fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
-        .init();
-    log::info!("Better tactics starting!");
+/// Download the lichess puzzles db as a temporary file.
+async fn download_puzzle_db() -> Result<File, Box<dyn Error>> {
+    const LICHESS_DB_URL: &'static str = "https://database.lichess.org/lichess_db_puzzle.csv.zst";
 
+    let mut file = tempfile::tempfile()?;
+
+    log::info!("Downloading {LICHESS_DB_URL}");
+    let response = reqwest::get(LICHESS_DB_URL).await?;
+    let mut response_stream = response.bytes_stream();
+
+    let mut counter = 0;
+    while let Some(v) = response_stream.next().await {
+        let bytes = v?;
+        counter += bytes.len();
+        file.write_all(&bytes)?;
+    }
+
+    log::info!("Downloaded {counter} bytes");
+
+    Ok(file)
+}
+
+/// Open the puzzle database and initialize it if needed.
+async fn init_db() -> Result<PuzzleDatabase, Box<dyn Error>> {
     // Open puzzle database.
     let mut puzzle_db = PuzzleDatabase::open(SQLITE_DB_NAME)?;
 
     // If no puzzles are loaded into the db yet, initialise it from a copy of the lichess database.
     let puzzle_count = puzzle_db.count()?;
     if puzzle_count == 0 {
-        log::info!("Puzzle database empty, initialising from {LICHESS_DB_NAME}");
-        puzzle_db.init_database(LICHESS_DB_NAME)?;
+        log::info!("Puzzle database empty, initialising from lichess puzzles database");
+
+        // Download the lichess database.
+        let mut lichess_db = download_puzzle_db().await?;
+        lichess_db.seek(SeekFrom::Start(0))?;
+
+        // Initialise our database with it.
+        puzzle_db.init_database(lichess_db)?;
         log::info!("Done initialising puzzle database");
     }
     else {
         log::info!("Loaded puzzle database with {puzzle_count} puzzles");
     }
 
-    // Get puzzles in rating range.
-    log::info!("Getting up to {MAX_PUZZLES} puzzles in rating range {MIN_RATING} to {MAX_RATING}");
-    let puzzles = puzzle_db.get_puzzles_by_rating(MIN_RATING, MAX_RATING, MAX_PUZZLES)?;
+    Ok(puzzle_db)
+}
 
-    {
-        let output_path = format!("Puzzles_x{}_from_{}_to_{}.pgn", MAX_PUZZLES, MIN_RATING, MAX_RATING);
-        log::info!("Writing {} puzzles to {}", puzzles.len(), output_path);
-        let mut output_file = File::create(&output_path)?;
-        for puzzle in puzzles {
-            let pgn = puzzle.to_pgn();
-            write!(output_file, "{}\n\n", pgn?)?;
-        }
-    }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+    log::info!("Better tactics starting!");
+
+    // Initialise puzzle database.
+    let puzzle_db = Arc::new(Mutex::new(init_db().await?));
+
+    // Create routes and serve service
+    let routes = route::routes(puzzle_db);
+    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 
     Ok(())
 }

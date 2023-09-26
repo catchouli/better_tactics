@@ -1,0 +1,8 @@
+.chessground {
+    aspect-ratio: 1;
+	max-width: 500px;
+}
+
+cg-board {
+	background-color: #bfcfdd;
+}

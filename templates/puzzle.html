@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Better Tactics</title>
+
+        <link rel="stylesheet" type="text/css" href="assets/style.css" />
+
+        <link rel="stylesheet" type="text/css" href="assets/deps/chessground.base.css" />
+        <link rel="stylesheet" type="text/css" href="assets/deps/chessground.brown.css" />
+        <link rel="stylesheet" type="text/css" href="assets/deps/chessground.cburnett.css" />
+    </head>
+    <body>
+        <div>Puzzle id: {{ puzzle.puzzle_id }}</div>
+        <div>FEN: {{ puzzle.fen }}</div>
+        <div>Moves: {{ puzzle.moves }}</div>
+        <div>Rating: {{ puzzle.rating }}</div>
+        <div><div class="chessground" id="board"></div></div>
+        <script type="module">
+            import { Puzzle } from '/assets/better-tactics.js';
+
+            const container = document.getElementById("board");
+
+            const puzzle_id = "{{ puzzle.puzzle_id }}";
+            const fen = "{{ puzzle.fen }}";
+            const moves = "{{ puzzle.moves }}";
+            const rating = {{ puzzle.rating }};
+
+            document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating);
+        </script>
+    </body>
+</html>

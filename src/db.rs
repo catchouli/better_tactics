@@ -56,21 +56,13 @@ impl PuzzleDatabase {
         }
     }
 
-    pub fn init_database(&mut self, lichess_db_path: &str) -> Result<(), Box<dyn Error>> {
+    pub fn init_database(&mut self, lichess_db_raw: File) -> Result<(), Box<dyn Error>> {
         const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
         const PUZZLES_PER_PROGRESS_UPDATE: usize = 10000;
 
-        log::info!("Importing lichess puzzle database from {lichess_db_path}");
+        log::info!("Importing lichess puzzle database");
 
-        let file = File::open(lichess_db_path);
-
-        // Log nice error before returning if the puzzle database was missing or inaccessible.
-        if let Err(err) = file {
-            log::error!("{lichess_db_path} not found or innaccessible: download from https://database.lichess.org");
-            return Err(Box::new(err));
-        }
-
-        if let Ok(decoder) = zstd::stream::Decoder::new(file?) {
+        if let Ok(decoder) = zstd::stream::Decoder::new(lichess_db_raw) {
             let mut csv_reader = csv::Reader::from_reader(decoder);
             let mut puzzles_imported = 0;
 
