@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use warp::reject::{self, Rejection};
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
+use static_dir::static_dir;
 
 use crate::controllers::index::IndexTemplate;
 use crate::controllers::puzzle;
@@ -18,7 +19,7 @@ impl reject::Reject for InvalidParameter {}
 pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> impl Filter::<Extract: Reply, Error = Infallible> + Clone + Send + Sync + 'static
 {
-    warp::path("assets").and(warp::fs::dir("./assets"))
+    warp::path("assets").and(static_dir!("assets"))
         .or(warp::path::end().map(move || IndexTemplate {}))
         .or(warp::path("tactics").and_then(move || puzzle::random_puzzle(puzzle_db.clone()) ))
         .recover(handle_rejection)
