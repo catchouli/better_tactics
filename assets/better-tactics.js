@@ -3,12 +3,16 @@ console.log("Better tactics");
 import { Chess } from './deps/chess.js';
 import { Chessground } from './deps/chessground.min.js';
 
+const COMPUTER_MOVE_DELAY = 200;
+
 export class Puzzle {
-    constructor(container, puzzle_id, fen, moves, rating) {
+    constructor(container, puzzle_id, fen, moves, rating, on_success, on_failure) {
         this._puzzle_id = puzzle_id;
         this._fen = fen;
         this._moves = moves.split(" ");
         this._rating = rating;
+        this._on_success = on_success;
+        this._on_failure = on_failure;
 
         this._game = new Chess(fen);
         this._board = Chessground(container);
@@ -31,19 +35,21 @@ export class Puzzle {
 
         this._board.set({
             movable: {
-                // TODO: only accept legal moves.
-                free: true,
                 showDests: true,
-                events: {
-                    after: this._after_move.bind(this)
-                },
+                color: this._player_color == 'w' ? 'white' : 'black',
+            },
+            premovable: {
+                enabled: false,
+            },
+            events: {
+                move: this._move.bind(this)
             },
             orientation: this._player_color == 'w' ? 'white' : 'black',
             turnColor: this._computer_color == 'w' ? 'white' : 'black',
             fen: this._fen
         });
 
-        this._make_next_move();
+        setTimeout(this._make_next_move.bind(this), COMPUTER_MOVE_DELAY);
     }
 
     _make_next_move() {
@@ -59,37 +65,63 @@ export class Puzzle {
             let source = next_move.slice(0, 2);
             let dest = next_move.slice(2);
 
+            this._last_move = [source, dest];
+
             this._game.move(next_move);
             this._board.set({
                 fen: this._game.fen(),
-                lastMove: [source, dest],
+                lastMove: this._last_move,
                 turnColor: this._player_color == 'w' ? 'white' : 'black'
             });
             this._board.move(next_move);
         }
     }
 
-    _after_move(orig, dest, metadata) {
-        if (this._remaining_moves.length > 0) {
-            // Make the move in chess.js.
-            let move = orig + dest;
+    _move(orig, dest, _) {
+        let move = orig + dest;
+
+        // If the puzzle is over, reject any moves.
+        if (this._remaining_moves.length == 0) {
+            this._board.set({
+                fen: this._game.fen(),
+                lastMove: this._last_move,
+                turnColor: this._player_color == 'w' ? 'white' : 'black'
+            });
+        }
+
+        // Make the move in chess.js, and if it was an illegal move, reject it.
+        try {
             this._game.move(move);
+        }
+        catch (_) {
+            this._board.set({
+                fen: this._game.fen(),
+                lastMove: this._last_move,
+                turnColor: this._player_color == 'w' ? 'white' : 'black'
+            });
+            return;
+        }
 
-            if (this._remaining_moves[0] == move) {
-                console.log('Right move!');
-                this._remaining_moves.shift();
+        if (this._remaining_moves[0] == move) {
+            console.log('Right move!');
+            this._remaining_moves.shift();
 
-                // If there are no moves left, the puzzle is complete.
-                if (this._remaining_moves.length == 0) {
-                    console.log("Puzzle complete!");
-                }
-                else {
-                    this._make_next_move();
-                }
+            // If there are no moves left, the puzzle is complete.
+            if (this._remaining_moves.length == 0) {
+                this._on_success();
             }
             else {
-                console.log('Wrong move :(');
+                setTimeout(this._make_next_move.bind(this), COMPUTER_MOVE_DELAY);
             }
+        }
+        else {
+            this._remaining_moves.length = 0;
+            this._board.set({
+                movable: {
+                    color: 'none'
+                }
+            });
+            this._on_failure();
         }
     }
 }

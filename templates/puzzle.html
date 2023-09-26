@@ -1,33 +1,40 @@
-<!doctype html>
-<html>
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Better Tactics</title>
+{% extends "base.html" %}
 
-        <link rel="stylesheet" type="text/css" href="assets/style.css" />
+{% block content %}
 
-        <link rel="stylesheet" type="text/css" href="assets/deps/chessground.base.css" />
-        <link rel="stylesheet" type="text/css" href="assets/deps/chessground.brown.css" />
-        <link rel="stylesheet" type="text/css" href="assets/deps/chessground.cburnett.css" />
-    </head>
-    <body>
-        <div>Puzzle id: {{ puzzle.puzzle_id }}</div>
-        <div>FEN: {{ puzzle.fen }}</div>
-        <div>Moves: {{ puzzle.moves }}</div>
-        <div>Rating: {{ puzzle.rating }}</div>
-        <div><div class="chessground" id="board"></div></div>
-        <script type="module">
-            import { Puzzle } from '/assets/better-tactics.js';
+<div class="columns">
+    <div class="column is-two-thirds bt-panel" id="board-container">
+        <div class="chessground" id="board"></div>
+    </div>
+    <div class="column sidebar">
+        <div id="puzzle-info" class="bt-panel">
+            <p>Lichess puzzle {{ puzzle.puzzle_id }}</p>
+            <p>Rating: {{ puzzle.rating }}</p>
+        </div>
+        <div id="puzzle-info" class="bt-panel sidebar-fill">
+            <p>other stuff goes here, you win etc</p>
+        </div>
+    </div>
+</div>
 
-            const container = document.getElementById("board");
+<script type="module">
+    import { Puzzle } from '/assets/better-tactics.js';
 
-            const puzzle_id = "{{ puzzle.puzzle_id }}";
-            const fen = "{{ puzzle.fen }}";
-            const moves = "{{ puzzle.moves }}";
-            const rating = {{ puzzle.rating }};
+    const container = document.getElementById("board");
 
-            document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating);
-        </script>
-    </body>
-</html>
+    const puzzle_id = "{{ puzzle.puzzle_id }}";
+    const fen = "{{ puzzle.fen }}";
+    const moves = "{{ puzzle.moves }}";
+    const rating = {{ puzzle.rating }};
+
+    function on_success() {
+        console.log("You win! :)");
+    }
+
+    function on_failure() {
+        console.log("You lose :(");
+    }
+
+    document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating, on_success, on_failure);
+</script>
+{% endblock %}

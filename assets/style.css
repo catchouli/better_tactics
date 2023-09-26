@@ -1,6 +1,62 @@
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300&display=swap');
+
+* {
+    color: rgb(248, 242, 242) !important;
+}
+
+body {
+    font-family: 'Kanit', sans-serif;
+    background: #352F44;
+}
+
+#main-container {
+    margin: 0 auto;
+    max-width: 1000px;
+    min-height: 100vh;
+}
+
+.column {
+    padding: 0;
+}
+
+.bt-panel {
+    background: #2A2537;
+    padding: 0.5em;
+    margin: 0.5em;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-fill {
+    flex-grow: 1;
+}
+
+.header {
+    margin-top: 1em;
+}
+
+.footer {
+    background: #352F44;
+
+    img#ferris {
+        width: 100px;
+    }
+
+    #ferris-container {
+        display: inline-block;
+        margin: 0 auto;
+    }
+
+    #ferris-container:hover {
+        transform: rotate(5deg);
+    }
+}
+
 .chessground {
     aspect-ratio: 1;
-	max-width: 500px;
 }
 
 cg-board {
