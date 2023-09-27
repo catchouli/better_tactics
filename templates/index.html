@@ -1,5 +1,29 @@
 {% extends "base.html" %}
 
 {% block content %}
-<a href="/tactics">tactics</a>
+<div id="tactics" class="bt-panel">
+    <table id="stats">
+        <caption>Stats</caption>
+        <tbody>
+            <tr>
+                <th scope="row">Unique puzzles done</th>
+                <td>0</td>
+            </tr>
+            <tr>
+                <th scope="row">Puzzle completions</th>
+                <td>0</td>
+            </tr>
+            <tr>
+                <th scope="row">Reviews due</th>
+                <td>0</td>
+            </tr>
+            <tr>
+                <th scope="row">Next review due</th>
+                <td>0 minutes</td>
+            </tr>
+        </tbody>
+    </table>
+    <a href="/tactics/review" class="button">Review</a>
+    <a href="/tactics/random" class="button">New puzzle</a>
+</div>
 {% endblock %}

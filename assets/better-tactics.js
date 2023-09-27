@@ -103,7 +103,16 @@ export class Puzzle {
 
         // Make the move in chess.js, and if it was an illegal move, reject it.
         try {
-            this._game.move(move);
+            let move_result = this._game.move(move);
+
+            // Since chessground doesn't support promotion by default, just assume auto-queen and add "q"
+            // onto the end of the move so it matches the puzzle.
+            // TODO: hopefully support promotion properly in the UI before coming across cases that need it.
+            if (move_result.promotion) {
+                move = move + "q";
+                console.log("Move was promotion, adding q");
+                console.log(move);
+            }
         }
         catch (_) {
             this._board.set({
@@ -113,9 +122,6 @@ export class Puzzle {
             });
             return;
         }
-
-        console.log('move: ' + move);
-        console.log('p: ' + p);
 
         // Call on move callback now that we've validated it.
         this._on_move();

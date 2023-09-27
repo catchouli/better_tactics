@@ -35,7 +35,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 let puzzle_db = puzzle_db.clone();
                 move |id| puzzle::specific_puzzle(puzzle_db.clone(), id)
             }))
-        .or(warp::path("tactics")
+        .or(warp::path!("tactics" / "review")
             .and(warp::path::end())
             .and_then({
                 move || puzzle::random_puzzle(puzzle_db.clone())

@@ -47,20 +47,45 @@ a {
     padding: 0;
 }
 
-
 /* Custom interface stuff */
 
 /* The mini panels e.g. the one around the puzzle board, or around each panel in the sidebar */
 .bt-panel {
     background: #2A2537;
     padding: 0.5rem;
+    padding-bottom: 1rem;
     margin: 0.5rem;
 }
 
-/* The sidebar (e.g. on the puzzle interface) */
+/* Sidebars (e.g. on the puzzle interface) */
 .sidebar {
     display: flex;
     flex-direction: column;
+}
+
+/* Index page */
+#tactics {
+    text-align: center;
+}
+
+#tactics #stats {
+    margin: 0 auto;
+    margin-bottom: 2rem;
+}
+
+#tactics #stats > caption {
+    font-size: 24pt;
+    margin-bottom: 1rem;
+}
+
+#tactics #stats > tbody > tr > th {
+    padding-right: 2rem;
+    text-align: left;
+}
+
+#tactics a.button {
+    background: #416c86;
+    text-decoration: none;
 }
 
 /* Puzzle interface */
