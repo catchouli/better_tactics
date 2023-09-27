@@ -20,26 +20,44 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> impl Filter::<Extract: Reply, Error = Infallible> + Clone + Send + Sync + 'static
 {
     warp::path("assets").and(static_dir!("assets"))
+
         .or(warp::path::end()
             .map(move || IndexTemplate {}))
+
         .or(warp::path!("tactics" / "random")
             .and(warp::path::end())
+            .and(warp::get())
             .and_then({
                 // A bit ugly and there's probably a better way to do this than cloning it twice...
                 let puzzle_db = puzzle_db.clone();
                 move || puzzle::random_puzzle(puzzle_db.clone())
             }))
+
         .or(warp::path!("tactics" / "single" / String)
             .and(warp::path::end())
+            .and(warp::get())
             .and_then({
                 let puzzle_db = puzzle_db.clone();
                 move |id| puzzle::specific_puzzle(puzzle_db.clone(), id)
             }))
+
         .or(warp::path!("tactics" / "review")
             .and(warp::path::end())
+            .and(warp::get())
             .and_then({
+                let puzzle_db = puzzle_db.clone();
                 move || puzzle::random_puzzle(puzzle_db.clone())
             }))
+
+        // TODO: figure out how to get post variables, and either redirect the user back to the
+        // appropriate page, or use ajax.
+        .or(warp::path!("review")
+            .and(warp::path::end())
+            .and(warp::post())
+            .and_then({
+                move || puzzle::review_puzzle(puzzle_db.clone(), "".to_string(), crate::srs::Difficulty::Good)
+            }))
+
         .recover(handle_rejection)
 }
 

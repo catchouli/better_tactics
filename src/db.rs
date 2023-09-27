@@ -30,13 +30,21 @@ impl PuzzleDatabase {
         log::info!("Initialising db schema");
         const QUERY: &'static str = "
             CREATE TABLE IF NOT EXISTS puzzles (
-                puzzle_id TEXT NOT NULL,
+                puzzle_id TEXT PRIMARY KEY,
                 fen TEXT NOT NULL,
                 moves TEXT NOT NULL,
                 rating INTEGER NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS id_rating ON puzzles(puzzle_id);
-            CREATE INDEX IF NOT EXISTS rating_index ON puzzles(rating);
+            CREATE TABLE IF NOT EXISTS cards (
+                puzzle_id TEXT PRIMARY KEY,
+                due TEXT NOT NULL,
+                interval TEXT NOT NULL,
+                review_count INTEGER NOT NULL,
+                ease FLOAT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS card_id ON cards(puzzle_id);
+            CREATE INDEX IF NOT EXISTS puzzle_id ON puzzles(puzzle_id);
+            CREATE INDEX IF NOT EXISTS puzzle_rating ON puzzles(rating);
         ";
         conn.execute(QUERY)?;
         Ok(conn)

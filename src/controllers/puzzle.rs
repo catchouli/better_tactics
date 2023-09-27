@@ -3,6 +3,7 @@ use askama::Template;
 use tokio::sync::Mutex;
 
 use crate::db::{Puzzle, PuzzleDatabase};
+use crate::srs::{self, Difficulty};
 
 /// The template for displaying puzzles.
 #[derive(Template)]
@@ -40,4 +41,10 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     else {
         Err(warp::reject::not_found())
     }
+}
+
+pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: String, difficulty: Difficulty)
+    -> Result<impl warp::Reply, warp::Rejection>
+{
+    Ok(warp::reply())
 }

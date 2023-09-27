@@ -110,8 +110,7 @@ export class Puzzle {
             // TODO: hopefully support promotion properly in the UI before coming across cases that need it.
             if (move_result.promotion) {
                 move = move + "q";
-                console.log("Move was promotion, adding q");
-                console.log(move);
+                console.warn(`Encountered promotion, assuming auto-queen (${move})`);
             }
         }
         catch (_) {

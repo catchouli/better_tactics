@@ -3,6 +3,7 @@ pub mod db;
 pub mod route;
 pub mod controllers;
 pub mod util;
+pub mod srs;
 
 use std::error::Error;
 use std::fs::File;

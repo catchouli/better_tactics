@@ -132,11 +132,15 @@ cg-board {
     justify-content: space-around;
 }
 
-#puzzle-controls .button-container > div > button {
+#puzzle-controls .button-container > div > form {
+    width: 100%;
+}
+
+#puzzle-controls .button-container > div button {
     display: initial;
     height: initial;
     flex-grow: 1;
-    max-width: 80%;
+    width: 80%;
 }
 
 #puzzle-controls button > .main-text {

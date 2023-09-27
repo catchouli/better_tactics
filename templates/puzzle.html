@@ -51,10 +51,14 @@
 
                 <div class="columns button-container">
                     <div class="column">
-                        <button class="button" id="again">
-                            <p class="main-text">Again</p>
-                            <p class="sub-text"></p>
-                        </button>
+                        <form method="POST" action="/review">
+                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
+                            <input type="hidden" name="score" value="0" />
+                            <button class="button" id="again">
+                                <p class="main-text">Again</p>
+                                <p class="sub-text"></p>
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -63,30 +67,46 @@
 
                 <div class="columns button-container">
                     <div class="column">
-                        <button class="button" id="again">
-                            <p class="main-text">Again</p>
-                            <p class="sub-text"></p>
-                        </button>
+                        <form method="POST" action="/review">
+                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
+                            <input type="hidden" name="score" value="0" />
+                            <button class="button" id="again">
+                                <p class="main-text">Again</p>
+                                <p class="sub-text"></p>
+                            </button>
+                        </form>
                     </div>
                     <div class="column">
-                        <button class="button" id="hard">
-                            <p class="main-text">Hard</p>
-                            <p class="sub-text"></p>
-                        </button>
+                        <form method="POST" action="/review">
+                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
+                            <input type="hidden" name="score" value="0" />
+                            <button class="button" id="hard">
+                                <p class="main-text">Hard</p>
+                                <p class="sub-text"></p>
+                            </button>
+                        </form>
                     </div>
                 </div>
                 <div class="columns button-container last">
                     <div class="column">
-                        <button class="button" id="good">
-                            <p class="main-text">Good</p>
-                            <p class="sub-text"></p>
-                        </button>
+                        <form method="POST" action="/review">
+                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
+                            <input type="hidden" name="score" value="0" />
+                            <button class="button" id="good">
+                                <p class="main-text">Good</p>
+                                <p class="sub-text"></p>
+                            </button>
+                        </form>
                     </div>
                     <div class="column">
-                        <button class="button" id="easy">
-                            <p class="main-text">Easy</p>
-                            <p class="sub-text"></p>
-                        </button>
+                        <form method="POST" action="/review">
+                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
+                            <input type="hidden" name="score" value="0" />
+                            <button class="button" id="easy">
+                                <p class="main-text">Easy</p>
+                                <p class="sub-text"></p>
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
