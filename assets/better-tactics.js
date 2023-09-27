@@ -6,13 +6,16 @@ import { Chessground } from './deps/chessground.min.js';
 const COMPUTER_MOVE_DELAY = 200;
 
 export class Puzzle {
-    constructor(container, puzzle_id, fen, moves, rating, on_success, on_failure) {
+    constructor(container, puzzle_id, fen, moves, rating, on_success, on_move, right_move, wrong_move) {
         this._puzzle_id = puzzle_id;
         this._fen = fen;
         this._moves = moves.split(" ");
         this._rating = rating;
+
         this._on_success = on_success;
-        this._on_failure = on_failure;
+        this._on_move = on_move;
+        this._right_move = right_move;
+        this._wrong_move = wrong_move;
 
         this._game = new Chess(fen);
         this._board = Chessground(container);
@@ -52,6 +55,14 @@ export class Puzzle {
         setTimeout(this._make_next_move.bind(this), COMPUTER_MOVE_DELAY);
     }
 
+    color_to_move() {
+        return this._game.turn();
+    }
+
+    computer_to_move() {
+        return this.color_to_move() == this._computer_color;
+    }
+
     _make_next_move() {
         if (this._game.turn() != this._computer_color) {
             console.warn("_make_next_move(): called when it's the player's turn");
@@ -74,10 +85,11 @@ export class Puzzle {
                 turnColor: this._player_color == 'w' ? 'white' : 'black'
             });
             this._board.move(next_move);
+            this._on_move();
         }
     }
 
-    _move(orig, dest, _) {
+    _move(orig, dest, p) {
         let move = orig + dest;
 
         // If the puzzle is over, reject any moves.
@@ -102,8 +114,14 @@ export class Puzzle {
             return;
         }
 
+        console.log('move: ' + move);
+        console.log('p: ' + p);
+
+        // Call on move callback now that we've validated it.
+        this._on_move();
+
+        // Check if it was the right or wrong move.
         if (this._remaining_moves[0] == move) {
-            console.log('Right move!');
             this._remaining_moves.shift();
 
             // If there are no moves left, the puzzle is complete.
@@ -111,6 +129,7 @@ export class Puzzle {
                 this._on_success();
             }
             else {
+                this._right_move();
                 setTimeout(this._make_next_move.bind(this), COMPUTER_MOVE_DELAY);
             }
         }
@@ -121,7 +140,7 @@ export class Puzzle {
                     color: 'none'
                 }
             });
-            this._on_failure();
+            this._wrong_move();
         }
     }
 }

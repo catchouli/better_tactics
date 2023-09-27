@@ -142,6 +142,39 @@ impl PuzzleDatabase {
         Ok(self.conn.execute(finished_query)?)
     }
 
+    pub fn get_puzzle_by_id(&self, puzzle_id: &str)
+        -> Result<Puzzle, Box<dyn Error>>
+    {
+        const QUERY: &'static str = "
+            SELECT fen, moves, rating
+            FROM puzzles
+            WHERE puzzle_id = ?
+        ";
+
+        let puzzle_id = puzzle_id.to_string();
+
+        log::info!("Getting puzzle {puzzle_id}");
+
+        let result: Result<Puzzle, Box<dyn Error>> = self.conn
+            .prepare(QUERY)?
+            .into_iter()
+            .bind((1, puzzle_id.as_str()))?
+            .next()
+            .map(|result| {
+                let row = result?;
+                Ok(Puzzle::new(
+                    puzzle_id.as_str(), 
+                    row.read::<&str, _>("fen"),
+                    row.read::<&str, _>("moves"),
+                    row.read::<i64, _>("rating") as i32
+                ))
+            })
+            // TODO: proper error types
+            .ok_or(format!("No such puzzle {puzzle_id}"))?;
+
+            Ok(result?)
+    }
+
     pub fn get_puzzles_by_rating(&self, min_rating: i32, max_rating: i32, max_puzzles: i32)
         -> Result<Vec<Puzzle>, Box<dyn Error>>
     {

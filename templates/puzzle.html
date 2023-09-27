@@ -8,11 +8,88 @@
     </div>
     <div class="column sidebar">
         <div id="puzzle-info" class="bt-panel">
-            <p>Lichess puzzle {{ puzzle.puzzle_id }}</p>
+            <p>
+                Lichess puzzle
+                <a href="/tactics/single/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a>
+            </p>
             <p>Rating: {{ puzzle.rating }}</p>
+            <a id="analysis-link" target="_blank">Analyse</a>
         </div>
-        <div id="puzzle-info" class="bt-panel sidebar-fill">
-            <p>other stuff goes here, you win etc</p>
+        <div id="white-to-move" class="bt-panel move-indicator">
+            <img class="to-move-piece" src="/assets/images/white-queen.svg"><br>
+            White to move
+        </div>
+        <div id="black-to-move" class="bt-panel move-indicator">
+            <img class="to-move-piece" src="/assets/images/black-queen.svg"><br>
+            Black to move
+        </div>
+        <div id="white-to-move-computer" class="bt-panel move-indicator">
+            <img class="to-move-piece" src="/assets/images/white-queen.svg"><br>
+            Computer to move
+        </div>
+        <div id="black-to-move-computer" class="bt-panel move-indicator">
+            <img class="to-move-piece" src="/assets/images/black-queen.svg"><br>
+            Computer to move
+        </div>
+        <div id="puzzle-controls" class="bt-panel sidebar-fill">
+            <div class="bt-subpanel" id="default-text">
+                <p>Find the line</p>
+            </div>
+            <div class="bt-subpanel" id="right-move">
+                <p>Right move!</p>
+            </div>
+            <div class="bt-subpanel" id="wrong-move">
+                <p>Wrong move :(</p>
+                <div class="columns button-container">
+                    <div class="column">
+                        <button class="button" id="try-again">Reset puzzle</button>
+                    </div>
+                </div>
+            </div>
+            <div class="bt-subpanel" id="puzzle-failure">
+                <p>Puzzle complete</p>
+
+                <div class="columns button-container">
+                    <div class="column">
+                        <button class="button" id="again">
+                            <p class="main-text">Again</p>
+                            <p class="sub-text"></p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="bt-subpanel" id="puzzle-success">
+                <p>Puzzle complete</p>
+
+                <div class="columns button-container">
+                    <div class="column">
+                        <button class="button" id="again">
+                            <p class="main-text">Again</p>
+                            <p class="sub-text"></p>
+                        </button>
+                    </div>
+                    <div class="column">
+                        <button class="button" id="hard">
+                            <p class="main-text">Hard</p>
+                            <p class="sub-text"></p>
+                        </button>
+                    </div>
+                </div>
+                <div class="columns button-container last">
+                    <div class="column">
+                        <button class="button" id="good">
+                            <p class="main-text">Good</p>
+                            <p class="sub-text"></p>
+                        </button>
+                    </div>
+                    <div class="column">
+                        <button class="button" id="easy">
+                            <p class="main-text">Easy</p>
+                            <p class="sub-text"></p>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -27,14 +104,122 @@
     const moves = "{{ puzzle.moves }}";
     const rating = {{ puzzle.rating }};
 
+    // TODO: placeholder, get this info from the server.
+    const again_time = "10 minutes";
+    const hard_time = "1 day";
+    const good_time = "2 days";
+    const easy_time = "4 days";
+
+    // Add review time to buttons.
+    $('button#again > .sub-text').text(again_time);
+    $('button#hard > .sub-text').text(hard_time);
+    $('button#good > .sub-text').text(good_time);
+    $('button#easy > .sub-text').text(easy_time);
+
+    // Set the analyze link to point to lichess's analysis board.
+    let fen_url_safe = fen.replace(' ', '_');
+    let analysis_link = `https://lichess.org/analysis/standard/${fen_url_safe}`;
+    $('#analysis-link').attr('href', analysis_link);
+
+    // Hide move indicators.
+    function hide_move_indicators() {
+        $('.move-indicator').css('display', 'none');
+    }
+
+    // Hide all puzzle control subpanels.
+    function hide_puzzle_control_subpanels() {
+        $('#puzzle-controls .bt-subpanel').css('display', 'none');
+    }
+
+    // Update the side to move interface.
+    function update_side_to_move() {
+        let color_to_move = document.puzzle.color_to_move();
+        let computer_to_move = document.puzzle.computer_to_move();
+
+        hide_move_indicators();
+
+        if (!computer_to_move) {
+            if (color_to_move == 'w') {
+                $('#white-to-move').css('display', 'initial');
+            }
+            else {
+                $('#black-to-move').css('display', 'initial');
+            }
+        }
+        else {
+            if (color_to_move == 'w') {
+                $('#white-to-move-computer').css('display', 'initial');
+            }
+            else {
+                $('#black-to-move-computer').css('display', 'initial');
+            }
+        }
+    }
+
+    // Callbacks for puzzle module.
     function on_success() {
-        console.log("You win! :)");
+        hide_puzzle_control_subpanels();
+        hide_move_indicators();
+
+        if (document.first_try) {
+            $('#puzzle-success').css('display', 'initial');
+        }
+        else {
+            $('#puzzle-failure').css('display', 'initial');
+        }
     }
 
-    function on_failure() {
-        console.log("You lose :(");
+    function on_move(side_moved, move) {
+        update_side_to_move();
     }
 
-    document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating, on_success, on_failure);
+    function right_move() {
+        hide_puzzle_control_subpanels();
+        $('#right-move').css('display', 'initial');
+    }
+
+    function wrong_move() {
+        document.first_try = false;
+
+        hide_puzzle_control_subpanels();
+        hide_move_indicators();
+
+        $('#wrong-move').css('display', 'initial');
+    }
+
+    // Bind buttons.
+    $('button#try-again').click(function() {
+        hide_puzzle_control_subpanels();
+        hide_move_indicators();
+        $('#find-the-line').css('display', 'initial');
+        document.puzzle.reset();
+    });
+
+    $('button#again').click(function() {
+        // TODO: report result to server and load next puzzle.
+        document.location.reload();
+    });
+
+    $('button#hard').click(function() {
+        // TODO: report result to server and load next puzzle.
+        document.location.reload();
+    });
+
+    $('button#good').click(function() {
+        // TODO: report result to server and load next puzzle.
+        document.location.reload();
+    });
+
+    $('button#easy').click(function() {
+        // TODO: report result to server and load next puzzle.
+        document.location.reload();
+    });
+
+    // Store whether it's currently the first try or not, so we know if it's a successful solve or not.
+    document.first_try = true;
+
+    // Create puzzle.
+    document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating, on_success, on_move,
+        right_move, wrong_move);
 </script>
 {% endblock %}

@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300&display=swap');
 
+/* Main layout */
+
 * {
     color: rgb(248, 242, 242) !important;
 }
@@ -9,33 +11,12 @@ body {
     background: #352F44;
 }
 
-#main-container {
-    margin: 0 auto;
-    max-width: 1000px;
-    min-height: 100vh;
-}
-
-.column {
-    padding: 0;
-}
-
-.bt-panel {
-    background: #2A2537;
-    padding: 0.5em;
-    margin: 0.5em;
-}
-
-.sidebar {
-    display: flex;
-    flex-direction: column;
-}
-
-.sidebar-fill {
-    flex-grow: 1;
+a {
+    text-decoration: underline;
 }
 
 .header {
-    margin-top: 1em;
+    margin-top: 1rem;
 }
 
 .footer {
@@ -55,10 +36,108 @@ body {
     }
 }
 
+#main-container {
+    margin: 0 auto;
+    max-width: 1000px;
+    min-height: 100vh;
+}
+
+.column {
+    /* The default padding on columns makes it hard to align threm when they're nested */
+    padding: 0;
+}
+
+
+/* Custom interface stuff */
+
+/* The mini panels e.g. the one around the puzzle board, or around each panel in the sidebar */
+.bt-panel {
+    background: #2A2537;
+    padding: 0.5rem;
+    margin: 0.5rem;
+}
+
+/* The sidebar (e.g. on the puzzle interface) */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Puzzle interface */
+
 .chessground {
     aspect-ratio: 1;
 }
 
 cg-board {
 	background-color: #bfcfdd;
+}
+
+/* The sidebar panels that show up on success failure etc. They should all be hidden until needed. */
+.move-indicator, #puzzle-controls .bt-subpanel
+{
+    display: none;
+}
+
+#white-to-move, #black-to-move, #white-to-move-computer, #black-to-move-computer, #puzzle-info {
+    text-align: center;
+}
+
+.to-move-piece {
+    width: 100px;
+}
+
+#puzzle-controls {
+    flex-grow: 10;
+    text-align: center;
+}
+
+#puzzle-controls .button-container {
+    margin-top: 1rem;
+    margin-left: 0.25rem;
+    margin-right: 0.25rem;
+}
+
+#puzzle-controls .button-container:last-of-type {
+    margin-bottom: 1rem;
+}
+
+#puzzle-controls .button-container > div {
+    display: flex;
+    justify-content: space-around;
+}
+
+#puzzle-controls .button-container > div > button {
+    display: initial;
+    height: initial;
+    flex-grow: 1;
+    max-width: 80%;
+}
+
+#puzzle-controls button > .main-text {
+    font-weight: bold;
+}
+
+#puzzle-controls button > .sub-text {
+    font-size: 0.8em;
+}
+
+#puzzle-controls button#try-again {
+    background: #624344;
+}
+
+#puzzle-controls button#again {
+    background: #434b62;
+}
+
+#puzzle-controls button#hard {
+    background: #b7881a;
+}
+
+#puzzle-controls button#good {
+    background: #2e680d;
+}
+
+#puzzle-controls button#easy {
+    background: #269326;
 }
