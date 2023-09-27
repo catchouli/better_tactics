@@ -154,6 +154,7 @@ dependencies = [
  "log",
  "owlchess",
  "reqwest",
+ "serde",
  "sqlite",
  "static_dir",
  "tempfile",

@@ -1,9 +1,13 @@
 use std::error::Error;
 use std::fs::File;
+use std::time::Duration;
+use chrono::{DateTime, FixedOffset, Local};
 use sqlite::Connection;
 use owlchess::board::Board;
 use owlchess::moves::Style;
 use owlchess::chain::{MoveChain, NumberPolicy, GameStatusPolicy};
+
+use crate::srs::Card;
 
 pub struct PuzzleDatabase {
     conn: Connection,
@@ -15,6 +19,14 @@ pub struct Puzzle {
     pub fen: String,
     pub moves: String,
     pub rating: i32,
+}
+
+#[derive(Debug)]
+pub struct Stats {
+    pub card_count: i64,
+    pub review_count: i64,
+    pub reviews_due: i64,
+    pub next_review_due: DateTime<FixedOffset>,
 }
 
 impl PuzzleDatabase {
@@ -38,7 +50,7 @@ impl PuzzleDatabase {
             CREATE TABLE IF NOT EXISTS cards (
                 puzzle_id TEXT PRIMARY KEY,
                 due TEXT NOT NULL,
-                interval TEXT NOT NULL,
+                interval INTEGER NOT NULL,
                 review_count INTEGER NOT NULL,
                 ease FLOAT NOT NULL
             );
@@ -216,6 +228,155 @@ impl PuzzleDatabase {
         log::info!("Done");
 
         Ok(puzzles?)
+    }
+
+    pub fn get_card_by_id(&self, puzzle_id: &str) -> Result<Card, Box<dyn Error>> {
+        const QUERY: &'static str = "
+            SELECT due, interval, review_count, ease
+            FROM cards
+            WHERE puzzle_id = ?
+        ";
+
+        log::info!("Getting card for puzzle {puzzle_id}");
+        let card: Result<Card, Box<dyn Error>> = self.conn
+            .prepare(QUERY)?
+            .into_iter()
+            .bind((1, puzzle_id))?
+            .map(|result| {
+                let row = result?;
+
+                log::info!("Converting datetime");
+                let due = DateTime::parse_from_rfc3339(row.read::<&str, _>("due"))?;
+                log::info!("Converting interval");
+                let interval = Duration::from_secs(row.read::<i64, _>("interval") as u64);
+                log::info!("huh?");
+
+                Ok(Card {
+                    id: puzzle_id.to_string(),
+                    due: Some(due),
+                    interval: Some(interval),
+                    review_count: row.read::<i64, _>("review_count") as i32,
+                    ease: row.read::<f64, _>("ease") as f32,
+                })
+            })
+            .next()
+            .unwrap_or(Ok(Card::new(puzzle_id)));
+
+        Ok(card?)
+    }
+
+    pub fn update_card(&mut self, card: &Card) -> Result<(), Box<dyn Error>> {
+        const QUERY: &'static str="
+            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease)
+            VALUES (?, ?, ?, ?, ?)
+        ";
+
+        log::info!("Updating card for puzzle {}", card.id);
+
+        // TODO: unsafe unwrap and type conversion.
+        let due = card.due.unwrap().to_rfc3339();
+        let interval = card.interval.unwrap().as_secs() as i64;
+
+        self.conn
+            .prepare(QUERY)?
+            .into_iter()
+            .bind((1, card.id.as_str()))?
+            .bind((2, due.as_str()))?
+            .bind((3, interval as i64))?
+            .bind((4, card.review_count as i64))?
+            .bind((5, card.ease as f64))?
+            .next();
+
+        Ok(())
+    }
+
+    pub fn get_stats(&self) -> Result<Stats, Box<dyn Error>> {
+        // Get card and review count.
+        const QUERY: &'static str = "
+            SELECT
+                COUNT(*) AS card_count,
+                SUM(review_count) AS review_count
+            FROM cards
+        ";
+
+        let (card_count, review_count) = self.conn
+            .prepare(QUERY)?
+            .into_iter()
+            .next()
+            .map(|result| {
+                let row = result?;
+                Ok((
+                    row.read::<i64, _>("card_count"),
+                    row.read::<i64, _>("review_count"),
+                )) as Result<(i64, i64), Box<dyn Error>>
+            })
+            .unwrap_or(Ok((0, 0)))?;
+
+        // Get the number of reviews due.
+        const QUERY_2: &'static str = "
+            SELECT COUNT(*) as reviews_due
+            FROM cards
+            WHERE date(due) < date(?)
+        ";
+
+        let due_time = Self::due_time().to_rfc3339();
+        let reviews_due = self.conn
+            .prepare(QUERY_2)?
+            .into_iter()
+            .bind((1, due_time.as_str()))?
+            .next()
+            .map(|result| {
+                let row = result?;
+                Ok(row.read::<i64, _>("reviews_due")) as Result<i64, Box<dyn Error>>
+            })
+            .unwrap_or(Ok(0))?;
+
+        // Get next review due time.
+        const QUERY_3: &'static str = "
+            SELECT due
+            FROM cards
+            ORDER BY due ASC
+            LIMIT 1
+        ";
+
+        let next_review_due = self.conn
+            .prepare(QUERY_3)?
+            .into_iter()
+            .next()
+            .map(|result| {
+                let row = result?;
+                let due = row.read::<&str, _>("due");
+                let due = DateTime::parse_from_rfc3339(due).unwrap();
+                Ok(due) as Result<DateTime<FixedOffset>, Box<dyn Error>>
+            })
+            .unwrap_or(Ok(Local::now().fixed_offset()))?;
+
+        Ok(Stats {
+            card_count,
+            review_count,
+            reviews_due,
+            next_review_due,
+        })
+    }
+
+    pub fn due_time() -> DateTime<FixedOffset> {
+        // For now we just use tommorow at 4am as the end of the day, and all cards before that are
+        // due today.
+        let now = Local::now();
+
+        // TODO: unsafe unwrap and quite ugly
+        let tommorow_4am = (now + Duration::from_secs(60 * 60 * 24))
+            .date_naive()
+            .and_hms_opt(4, 0, 0)
+            .unwrap()
+            .and_local_timezone(Local)
+            .latest()
+            .unwrap()
+            .fixed_offset();
+
+        log::info!("Tommorow at 4am: {tommorow_4am:?}");
+
+        tommorow_4am
     }
 }
 

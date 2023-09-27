@@ -1,15 +1,24 @@
 use std::sync::Arc;
 use askama::Template;
+use chrono::Utc;
 use tokio::sync::Mutex;
+use serde::Deserialize;
 
 use crate::db::{Puzzle, PuzzleDatabase};
-use crate::srs::{self, Difficulty};
+use crate::srs::Difficulty;
 
 /// The template for displaying puzzles.
 #[derive(Template)]
 #[template(path = "puzzle.html")]
 pub struct PuzzleTemplate {
     puzzle: Puzzle,
+}
+
+/// The POST request for reviewing a card.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReviewRequest {
+    pub id: String,
+    pub difficulty: i32,
 }
 
 pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: String)
@@ -43,8 +52,26 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     }
 }
 
-pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: String, difficulty: Difficulty)
+pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: ReviewRequest)
     -> Result<impl warp::Reply, warp::Rejection>
 {
+    let mut puzzle_db = puzzle_db.lock().await;
+
+    // TODO: unsafe panic
+    let difficulty = match request.difficulty {
+        0 => Difficulty::Again,
+        1 => Difficulty::Hard,
+        2 => Difficulty::Good,
+        3 => Difficulty::Easy,
+        _ => panic!("Invalid difficulty {}", request.difficulty)
+    };
+
+    if let Ok(mut card) = puzzle_db.get_card_by_id(request.id.as_str()) {
+        // TODO: unsafe unwrap
+        card.review(Utc::now().fixed_offset(), difficulty).unwrap();
+        log::info!("Updating card: {card:?}");
+        puzzle_db.update_card(&card).unwrap();
+    }
+
     Ok(warp::reply())
 }

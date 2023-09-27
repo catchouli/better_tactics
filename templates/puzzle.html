@@ -51,14 +51,10 @@
 
                 <div class="columns button-container">
                     <div class="column">
-                        <form method="POST" action="/review">
-                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
-                            <input type="hidden" name="score" value="0" />
-                            <button class="button" id="again">
-                                <p class="main-text">Again</p>
-                                <p class="sub-text"></p>
-                            </button>
-                        </form>
+                        <button class="button review-button" id="again" data-difficulty="0">
+                            <p class="main-text">Again</p>
+                            <p class="sub-text"></p>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -67,46 +63,30 @@
 
                 <div class="columns button-container">
                     <div class="column">
-                        <form method="POST" action="/review">
-                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
-                            <input type="hidden" name="score" value="0" />
-                            <button class="button" id="again">
-                                <p class="main-text">Again</p>
-                                <p class="sub-text"></p>
-                            </button>
-                        </form>
+                        <button class="button review-button" id="again" data-difficulty="0">
+                            <p class="main-text">Again</p>
+                            <p class="sub-text"></p>
+                        </button>
                     </div>
                     <div class="column">
-                        <form method="POST" action="/review">
-                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
-                            <input type="hidden" name="score" value="0" />
-                            <button class="button" id="hard">
-                                <p class="main-text">Hard</p>
-                                <p class="sub-text"></p>
-                            </button>
-                        </form>
+                        <button class="button review-button" id="hard" data-difficulty="1">
+                            <p class="main-text">Hard</p>
+                            <p class="sub-text"></p>
+                        </button>
                     </div>
                 </div>
                 <div class="columns button-container last">
                     <div class="column">
-                        <form method="POST" action="/review">
-                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
-                            <input type="hidden" name="score" value="0" />
-                            <button class="button" id="good">
-                                <p class="main-text">Good</p>
-                                <p class="sub-text"></p>
-                            </button>
-                        </form>
+                        <button class="button review-button" id="good" data-difficulty="2">
+                            <p class="main-text">Good</p>
+                            <p class="sub-text"></p>
+                        </button>
                     </div>
                     <div class="column">
-                        <form method="POST" action="/review">
-                            <input type="hidden" name="id" value="{{ puzzle.puzzle_id }}" />
-                            <input type="hidden" name="score" value="0" />
-                            <button class="button" id="easy">
-                                <p class="main-text">Easy</p>
-                                <p class="sub-text"></p>
-                            </button>
-                        </form>
+                        <button class="button review-button" id="easy" data-difficulty="3">
+                            <p class="main-text">Easy</p>
+                            <p class="sub-text"></p>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -215,24 +195,30 @@
         document.puzzle.reset();
     });
 
-    $('button#again').click(function() {
-        // TODO: report result to server and load next puzzle.
-        document.location.reload();
-    });
+    $('button.review-button').click(function() {
+        let puzzle_id = "{{ puzzle.puzzle_id }}";
+        let difficulty = $(this).data('difficulty');
+        console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
 
-    $('button#hard').click(function() {
-        // TODO: report result to server and load next puzzle.
-        document.location.reload();
-    });
+        $('button.review-button').prop('disabled', true);
 
-    $('button#good').click(function() {
-        // TODO: report result to server and load next puzzle.
-        document.location.reload();
-    });
-
-    $('button#easy').click(function() {
-        // TODO: report result to server and load next puzzle.
-        document.location.reload();
+        $.ajax({
+            type: "POST",
+            url: "/review",
+            data: JSON.stringify({
+                id: puzzle_id,
+                difficulty: difficulty
+            }),
+            contentType: 'application/json; charset=utf-8',
+        })
+        .done(function() {
+            console.log("Done, reloading");
+            window.location.reload();
+        })
+        .fail(function() {
+            console.error("Failed to submit review");
+            $('button.review-button').prop('disabled', false);
+        });
     });
 
     // Store whether it's currently the first try or not, so we know if it's a successful solve or not.

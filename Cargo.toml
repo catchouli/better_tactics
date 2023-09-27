@@ -16,6 +16,7 @@ lazy_static = "1.4.0"
 log = "0.4.20"
 owlchess = "0.4.0"
 reqwest = { version = "0.11.20", features = ["stream"] }
+serde = { version = "1.0.188", features = ["derive"] }
 sqlite = "0.31.1"
 static_dir = "0.2.0"
 tempfile = "3.8.0"

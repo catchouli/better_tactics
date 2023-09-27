@@ -6,8 +6,8 @@ use warp::reject::{self, Rejection};
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use static_dir::static_dir;
 
-use crate::controllers::index::IndexTemplate;
-use crate::controllers::puzzle;
+use crate::controllers::index;
+use crate::controllers::puzzle::{self, ReviewRequest};
 use crate::db::PuzzleDatabase;
 
 /// Our error type for bad requests.
@@ -22,13 +22,16 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     warp::path("assets").and(static_dir!("assets"))
 
         .or(warp::path::end()
-            .map(move || IndexTemplate {}))
+            .and_then({
+                // A bit ugly and there's probably a better way to do this than cloning it twice...
+                let puzzle_db = puzzle_db.clone();
+                move || index::index_page(puzzle_db.clone())
+            }))
 
         .or(warp::path!("tactics" / "random")
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
-                // A bit ugly and there's probably a better way to do this than cloning it twice...
                 let puzzle_db = puzzle_db.clone();
                 move || puzzle::random_puzzle(puzzle_db.clone())
             }))
@@ -54,8 +57,13 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .or(warp::path!("review")
             .and(warp::path::end())
             .and(warp::post())
+            .and(warp::body::content_length_limit(1024 * 16))
+            .and(warp::body::json())
             .and_then({
-                move || puzzle::review_puzzle(puzzle_db.clone(), "".to_string(), crate::srs::Difficulty::Good)
+                move |request: ReviewRequest| {
+                    log::info!("Got review request: {request:?}");
+                    puzzle::review_puzzle(puzzle_db.clone(), request)
+                }
             }))
 
         .recover(handle_rejection)

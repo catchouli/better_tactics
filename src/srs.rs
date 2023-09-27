@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use lazy_static::lazy_static;
-use chrono::{NaiveDateTime, DateTime, Local};
+use chrono::{DateTime, FixedOffset};
 
 lazy_static! {
     /// The initial intervals for new cards
@@ -42,17 +42,17 @@ pub enum Difficulty {
 #[derive(Debug)]
 pub struct Card {
     pub id: String,
-    pub due: Option<NaiveDateTime>,
+    pub due: Option<DateTime<FixedOffset>>,
     pub interval: Option<Duration>,
     pub review_count: i32,
     pub ease: f32,
 }
 
 impl Card {
-    pub fn new(id: String) -> Self
+    pub fn new(id: &str) -> Self
     {
         Self {
-            id,
+            id: id.to_string(),
             due: None,
             interval: None,
             review_count: 0,
@@ -60,19 +60,7 @@ impl Card {
         }
     }
 
-    pub fn from_db_entry(id: String, due: Option<NaiveDateTime>, interval: Option<Duration>,
-        review_count: i32, ease: f32) -> Self
-    {
-        Self {
-            id,
-            due,
-            interval,
-            review_count,
-            ease,
-        }
-    }
-
-    pub fn review(&mut self, time_now: DateTime<Local>, score: Difficulty) -> SrsResult<()> {
+    pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) -> SrsResult<()> {
         // https://faqs.ankiweb.net/what-spaced-repetition-algorithm.html
         // For learning/relearning the algorithm is a bit different. We track if a card is
         // currently in the learning stage by its review count, if there's a corresponding entry in
@@ -98,7 +86,7 @@ impl Card {
             let new_due = time_now + chrono::Duration::from_std(new_interval)?;
 
             self.interval = Some(new_interval);
-            self.due = Some(new_due.naive_utc());
+            self.due = Some(new_due.fixed_offset());
         }
         else {
             // For cards that have graduated learning:
@@ -129,7 +117,7 @@ impl Card {
             let new_due = time_now + chrono::Duration::from_std(new_interval)?;
 
             self.interval = Some(new_interval);
-            self.due = Some(new_due.naive_utc());
+            self.due = Some(new_due.fixed_offset());
             self.ease = f32::max(MINIMUM_EASE, new_ease);
             self.review_count = new_review_count;
         }

@@ -5,6 +5,7 @@ pub mod controllers;
 pub mod util;
 pub mod srs;
 
+use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::io::{Write, SeekFrom, Seek};
@@ -69,9 +70,12 @@ async fn init_db() -> Result<PuzzleDatabase, Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
-        .init();
+    // Set RUST_LOG to info by default for other peoples' convenience.
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info");
+    }
+
+    env_logger::builder().init();
     log::info!("Better tactics starting!");
 
     // Initialise puzzle database.
