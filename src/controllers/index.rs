@@ -23,20 +23,26 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // TODO: unsafe unwrap
     let stats = puzzle_db.get_stats().unwrap();
 
-    PuzzleDatabase::due_time();
+    // Format 'next review due' time.
+    let now = Local::now().fixed_offset();
 
-    log::info!("Next review due: {}", stats.next_review_due.to_string());
+    let next_review_due = if stats.next_review_due < now {
+        "now".to_string()
+    }
+    else {
+        let time_until_next_review = stats.next_review_due - now;
 
-    let time_until_next_review = stats.next_review_due - Local::now().fixed_offset();
+        let hours = time_until_next_review.num_hours();
+        let mins = time_until_next_review.num_minutes() - hours * 60;
+        let secs = time_until_next_review.num_seconds() - hours * 60 * 60 - mins * 60;
 
-    let hours = time_until_next_review.num_hours();
-    let mins = time_until_next_review.num_minutes() - hours * 60;
-    let secs = time_until_next_review.num_seconds() - hours * 60 * 60 - mins * 60;
+        format!("{}h {}m {}s", hours, mins, secs)
+    };
 
     Ok(IndexTemplate {
         card_count: stats.card_count,
         review_count: stats.review_count,
         reviews_due: stats.reviews_due,
-        next_review_due: format!("{}h {}m {}s", hours, mins, secs),
+        next_review_due,
     })
 }

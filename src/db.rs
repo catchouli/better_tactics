@@ -359,7 +359,7 @@ impl PuzzleDatabase {
         })
     }
 
-    pub fn due_time() -> DateTime<FixedOffset> {
+    fn due_time() -> DateTime<FixedOffset> {
         // For now we just use tommorow at 4am as the end of the day, and all cards before that are
         // due today.
         let now = Local::now();
@@ -373,8 +373,6 @@ impl PuzzleDatabase {
             .latest()
             .unwrap()
             .fixed_offset();
-
-        log::info!("Tommorow at 4am: {tommorow_4am:?}");
 
         tommorow_4am
     }
