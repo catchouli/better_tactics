@@ -76,6 +76,10 @@ impl Card {
 
     /// Check whether the card is in 'learning' state.
     fn card_in_learning(&self) -> bool {
+        if self.interval.is_none() {
+            return true;
+        }
+
         let is_learning_review = self.review_count < INITIAL_INTERVALS.len() as i64;
 
         if is_learning_review {
@@ -103,6 +107,8 @@ impl Card {
     /// rewriting to keep track of whether the card is mature yet, and what learning review we're on.
     pub fn next_interval(&self, score: Difficulty) -> Duration {
         let in_learning = self.card_in_learning();
+        let review_count = self.review_count;
+        let interval = self.interval.unwrap_or(INITIAL_INTERVALS[0]);
 
         // Choose the new interval based on the score and if the card is in learning still.
         match score {
@@ -112,23 +118,23 @@ impl Card {
             }
             Difficulty::Hard => if in_learning {
                 // We never want hard or good to be less than again.
-                let interval_index = i64::clamp(self.review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
+                let interval_index = i64::clamp(review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
                 Duration::max(
                     Self::mul_duration(INITIAL_INTERVALS[interval_index as usize], HARD_INTERVAL),
                     INITIAL_INTERVALS[1])
             }
             else {
                 Duration::max(
-                    Self::mul_duration(self.interval.unwrap(), HARD_INTERVAL),
+                    Self::mul_duration(interval, HARD_INTERVAL),
                     INITIAL_INTERVALS[1])
             },
             Difficulty::Good => {
                 let good_duration = Duration::max(
-                    Self::mul_duration(self.interval.unwrap(), self.ease),
+                    Self::mul_duration(interval, self.ease),
                     INITIAL_INTERVALS[1]);
 
                 if in_learning {
-                    let interval_index = i64::clamp(self.review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
+                    let interval_index = i64::clamp(review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
                     Duration::max(INITIAL_INTERVALS[interval_index as usize], good_duration)
                 }
                 else {
@@ -138,7 +144,7 @@ impl Card {
                 }
             },
             Difficulty::Easy => {
-                let easy_duration = Self::mul_duration(self.interval.unwrap(), self.ease * EASY_BONUS);
+                let easy_duration = Self::mul_duration(interval, self.ease * EASY_BONUS);
 
                 // If we're in learning and it's easy, we can just skip the card past learning by
                 // putting it tommorow.

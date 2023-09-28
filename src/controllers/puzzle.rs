@@ -164,12 +164,20 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
         _ => panic!("Invalid difficulty {}", request.difficulty)
     };
 
+    // Update the card.
     if let Ok(mut card) = puzzle_db.get_card_by_id(request.id.as_str()) {
         // TODO: unsafe unwrap
         card.review(Utc::now().fixed_offset(), difficulty).unwrap();
         log::info!("Updating card: {card:?}");
         puzzle_db.update_or_create_card(&card).unwrap();
     }
+
+    // Increase the user's rating by 1 every time they complete a review.
+    // TODO: very temporary, we need to figure out a better scheme for increasing the user's
+    // rating.
+    let mut user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id()).unwrap().unwrap();
+    user.rating += 1;
+    puzzle_db.update_user(&user).unwrap();
 
     Ok(warp::reply())
 }
