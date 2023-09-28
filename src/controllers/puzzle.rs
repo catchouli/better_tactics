@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 use serde::Deserialize;
 use warp::reply::Reply;
 
+use crate::route::{InvalidParameter, InternalError};
 use crate::util;
 use crate::db::{Puzzle, PuzzleDatabase, Stats};
 use crate::srs::{Difficulty, Card};
@@ -65,15 +66,16 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
 
     // Get the user's stats.
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?;
 
     // Get the puzzle.
     let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?
+        .unwrap_or(Card::new(&puzzle_id));
 
     Ok(PuzzleTemplate {
         mode: PuzzleMode::Specific,
@@ -93,7 +95,7 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Get the user's stats.
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?;
 
     // Get the min and max ratings for puzzles.
     // TODO: base this on the user's rating.
@@ -104,12 +106,13 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // TODO: unsafe unwrap.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
         .map(|vec| vec.into_iter().nth(0))
-        .map_err(|_| warp::reject())?
+        .map_err(|e| InternalError::new(e.to_string()))?
         .unwrap();
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?
+        .unwrap_or(Card::new(&puzzle.puzzle_id));
 
     Ok(PuzzleTemplate {
         mode: PuzzleMode::Random,
@@ -129,11 +132,11 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Get the user's stats.
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?;
 
     // Get the user's next due review.
     let next_review = puzzle_db.get_next_review_due()
-        .map_err(|_| warp::reject())?;
+        .map_err(|e| InternalError::new(e.to_string()))?;
 
     if let Some((card, puzzle)) = next_review {
         Ok(PuzzleTemplate {
@@ -165,19 +168,27 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
     };
 
     // Update the card.
-    if let Ok(mut card) = puzzle_db.get_card_by_id(request.id.as_str()) {
-        // TODO: unsafe unwrap
-        card.review(Utc::now().fixed_offset(), difficulty).unwrap();
-        log::info!("Updating card: {card:?}");
-        puzzle_db.update_or_create_card(&card).unwrap();
+    if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()) {
+        let mut card = card.unwrap_or(Card::new(&request.id));
+
+        card.review(Utc::now().fixed_offset(), difficulty);
+
+        puzzle_db.update_or_create_card(&card)
+            .map_err(|e| {
+                InternalError::new(format!("{}", e.to_string()))
+            })?;
     }
 
     // Increase the user's rating by 1 every time they complete a review.
     // TODO: very temporary, we need to figure out a better scheme for increasing the user's
     // rating.
-    let mut user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id()).unwrap().unwrap();
+    let mut user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
+        .map_err(|_| InternalError::new(format!("3")))?
+        .unwrap();
+
     user.rating += 1;
-    puzzle_db.update_user(&user).unwrap();
+    puzzle_db.update_user(&user)
+        .map_err(|_| InternalError::new(format!("4")))?;
 
     Ok(warp::reply())
 }

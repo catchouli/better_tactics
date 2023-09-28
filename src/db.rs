@@ -69,7 +69,9 @@ impl PuzzleDatabase {
                 due TEXT NOT NULL,
                 interval INTEGER NOT NULL,
                 review_count INTEGER NOT NULL,
-                ease FLOAT NOT NULL
+                ease FLOAT NOT NULL,
+                learning INTEGER NOT NULL,
+                learning_stage INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -285,12 +287,17 @@ impl PuzzleDatabase {
                 let puzzle_id = row.read::<&str, _>("puzzle_id");
 
                 // Construct card.
+                let due = DateTime::parse_from_rfc3339(row.read("due"))?;
+                let interval = Duration::seconds(row.read("interval"));
+
                 let card = Card {
                     id: puzzle_id.to_string(),
-                    due: None,
-                    interval: None,
-                    review_count: 0,
-                    ease: 0.0,
+                    due,
+                    interval,
+                    review_count: row.read("review_count"),
+                    ease: row.read("ease"),
+                    learning: false,
+                    learning_stage: 0,
                 };
 
                 // Construct puzzle.
@@ -308,7 +315,7 @@ impl PuzzleDatabase {
     }
 
     /// Get a single card by ID.
-    pub fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Card> {
+    pub fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
         const QUERY: &'static str = "
             SELECT due, interval, review_count, ease
             FROM cards
@@ -316,7 +323,7 @@ impl PuzzleDatabase {
         ";
 
         log::info!("Getting card for puzzle {puzzle_id}");
-        let card: DbResult<Card> = self.conn
+        self.conn
             .prepare(QUERY)?
             .into_iter()
             .bind((1, puzzle_id))?
@@ -328,32 +335,32 @@ impl PuzzleDatabase {
 
                 Ok(Card {
                     id: puzzle_id.to_string(),
-                    due: Some(due),
-                    interval: Some(interval),
+                    due,
+                    interval,
                     review_count: row.read("review_count"),
                     ease: row.read("ease"),
+                    learning: false,
+                    learning_stage: 0,
                 })
             })
             .next()
-            .unwrap_or(Ok(Card::new(puzzle_id)));
-
-        Ok(card?)
+            .transpose()
     }
 
     /// Update (or create) a card by ID.
     pub fn update_or_create_card(&mut self, card: &Card) -> DbResult<()> {
         const QUERY: &'static str="
-            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease,
+                learning, learning_stage)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ";
 
-        log::info!("Updating card for puzzle {}", card.id);
+        log::info!("Updating card for puzzle {}: {card:?}", card.id);
 
-        // TODO: unsafe unwrap and type conversion.
-        let due = card.due.unwrap().to_rfc3339();
-        let interval = card.interval.unwrap().num_seconds();
+        let due = card.due.to_rfc3339();
+        let interval = card.interval.num_seconds();
 
-        self.conn
+        Ok(self.conn
             .prepare(QUERY)?
             .into_iter()
             .bind((1, card.id.as_str()))?
@@ -361,9 +368,12 @@ impl PuzzleDatabase {
             .bind((3, interval))?
             .bind((4, card.review_count as i64))?
             .bind((5, card.ease as f64))?
-            .next();
-
-        Ok(())
+            .bind((6, if card.learning { 1 } else { 0 }))?
+            .bind((7, card.learning_stage))?
+            .next()
+            .transpose()
+            // Discard the value from the Result (which is empty anyway) and return the result.
+            .map(|_| ())?)
     }
 
     /// Get the stats for the local user.
@@ -374,7 +384,7 @@ impl PuzzleDatabase {
         const QUERY: &'static str = "
             SELECT
                 COUNT(*) AS card_count,
-                SUM(review_count) AS review_count
+                COALESCE(SUM(review_count), 0) AS review_count
             FROM cards
         ";
 
@@ -384,12 +394,14 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
+
                 Ok((
-                    row.read("card_count"),
-                    row.read("review_count"),
+                    row.read::<i64, _>("card_count"),
+                    row.read::<i64, _>("review_count"),
                 )) as DbResult<(i64, i64)>
             })
-            .unwrap_or(Ok((0, 0)))?;
+            .unwrap_or(Ok((0, 0)))
+            .unwrap_or((0, 0));
 
         // Get the number of reviews due.
         const QUERY_2: &'static str = "
@@ -408,7 +420,8 @@ impl PuzzleDatabase {
                 let row = result?;
                 Ok(row.read("reviews_due")) as DbResult<i64>
             })
-            .unwrap_or(Ok(0))?;
+            .unwrap_or(Ok(0))
+            .unwrap_or(0);
 
         // Get next review due time.
         const QUERY_3: &'static str = "
@@ -427,7 +440,8 @@ impl PuzzleDatabase {
                 let due = DateTime::parse_from_rfc3339(row.read("due")).unwrap();
                 Ok(due) as DbResult<DateTime<FixedOffset>>
             })
-            .unwrap_or(Ok(Local::now().fixed_offset()))?;
+            .unwrap_or(Ok(Local::now().fixed_offset()))
+            .unwrap_or(Local::now().fixed_offset());
 
         Ok(Stats {
             card_count,
@@ -457,7 +471,6 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
-                log::info!("Converting row to user record");
                 Ok(User {
                     id: user_id.to_string(),
                     rating: row.read("rating"),

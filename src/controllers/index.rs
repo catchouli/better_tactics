@@ -5,6 +5,7 @@ use chrono::Local;
 use tokio::sync::Mutex;
 
 use crate::db::{PuzzleDatabase, Stats, User};
+use crate::route::InternalError;
 
 /// The template for displaying the index page.
 #[derive(Template)]
@@ -25,9 +26,10 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // TODO: the warp reject returns 404 by default, we need to handle all the errors more
     // appropriately or it's going to get confusing when they happen.
     let user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
-        .map_err(|_| warp::reject())?
+        .map_err(|e| InternalError::new(e.to_string()))?
         .unwrap();
-    let stats = puzzle_db.get_local_user_stats().unwrap();
+    let stats = puzzle_db.get_local_user_stats()
+        .map_err(|e| InternalError::new(e.to_string()))?;
 
     // Format 'next review due' time as a human readable time.
     let now = Local::now().fixed_offset();

@@ -12,8 +12,35 @@ use crate::db::PuzzleDatabase;
 
 /// Our error type for bad requests.
 #[derive(Debug)]
-pub struct InvalidParameter;
+pub struct InvalidParameter {
+    pub param: String,
+}
+
+impl InvalidParameter {
+    pub fn new(param: &str) -> Self {
+        Self {
+            param: param.to_string()
+        }
+    }
+}
+
 impl reject::Reject for InvalidParameter {}
+
+/// Our error type for internal errors.
+#[derive(Debug)]
+pub struct InternalError {
+    pub description: String,
+}
+
+impl InternalError {
+    pub fn new(description: String) -> Self {
+        Self {
+            description,
+        }
+    }
+}
+
+impl reject::Reject for InternalError {}
 
 /// Our routes.
 pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
@@ -76,10 +103,16 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert
         log::info!("Not found");
         Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
     }
-    else if let Some(_) = err.find::<InvalidParameter>() {
+    else if let Some(err) = err.find::<InvalidParameter>() {
+        log::warn!("Invalid parameter: {}", err.param);
+        Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
+    }
+    else if let Some(err) = err.find::<InternalError>() {
+        log::error!("Internal error: {}", err.description);
         Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
     }
     else {
+        log::error!("Unspecified internal error!");
         Ok(reply::with_status("INTERNAL_SERVER_ERROR", StatusCode::INTERNAL_SERVER_ERROR))
     }
 }

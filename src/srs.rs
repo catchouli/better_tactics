@@ -41,10 +41,12 @@ pub enum Difficulty {
 #[derive(Debug)]
 pub struct Card {
     pub id: String,
-    pub due: Option<DateTime<FixedOffset>>,
-    pub interval: Option<Duration>,
+    pub due: DateTime<FixedOffset>,
+    pub interval: Duration,
     pub review_count: i64,
     pub ease: f64,
+    pub learning: bool,
+    pub learning_stage: i64,
 }
 
 impl Card {
@@ -52,10 +54,12 @@ impl Card {
     {
         Self {
             id: id.to_string(),
-            due: None,
-            interval: None,
+            due: Local::now().fixed_offset(),
+            interval: INITIAL_INTERVALS[0],
             review_count: 0,
             ease: DEFAULT_EASE,
+            learning: true,
+            learning_stage: 0,
         }
     }
 
@@ -76,10 +80,6 @@ impl Card {
 
     /// Check whether the card is in 'learning' state.
     fn card_in_learning(&self) -> bool {
-        if self.interval.is_none() {
-            return true;
-        }
-
         let is_learning_review = self.review_count < INITIAL_INTERVALS.len() as i64;
 
         if is_learning_review {
@@ -90,7 +90,7 @@ impl Card {
             // because the user pressed 'easy' previously), we can just consider the card not in
             // learning. This seems overly complex though and we probably just want to store if the
             // card is mature or not yet and update it whenever it goes out of learning.
-            if self.interval.unwrap() < standard_learning_interval {
+            if self.interval < standard_learning_interval {
                 true
             }
             else {
@@ -108,7 +108,7 @@ impl Card {
     pub fn next_interval(&self, score: Difficulty) -> Duration {
         let in_learning = self.card_in_learning();
         let review_count = self.review_count;
-        let interval = self.interval.unwrap_or(INITIAL_INTERVALS[0]);
+        let interval = self.interval;
 
         // Choose the new interval based on the score and if the card is in learning still.
         match score {
@@ -155,7 +155,9 @@ impl Card {
 
     // TODO: a bit unnecessarily complicated and messy now I've tweaked it to work better. We
     // should just track if the card is mature or not, and update it as necessary.
-    pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) -> SrsResult<()> {
+    pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) {
+        let new_interval = self.next_interval(score);
+
         // https://faqs.ankiweb.net/what-spaced-repetition-algorithm.html
         // For learning/relearning the algorithm is a bit different. We track if a card is
         // currently in the learning stage by its review count, if there's a corresponding entry in
@@ -171,20 +173,17 @@ impl Card {
             // There are no ease adjustments for new cards.
             self.review_count = match score {
                 Difficulty::Again => 0,
-                Difficulty::Hard => self.review_count,
+                Difficulty::Hard => self.review_count + 1,
                 Difficulty::Good => self.review_count + 1,
-                Difficulty::Easy => INITIAL_INTERVALS.len() as i64,
+                Difficulty::Easy => self.review_count + 1,
             };
 
-            let new_interval = self.next_interval(score);
             let new_due = time_now + new_interval;
 
-            self.interval = Some(new_interval);
-            self.due = Some(new_due.fixed_offset());
+            self.interval = new_interval;
+            self.due = new_due.fixed_offset();
         }
         else {
-            let new_interval = self.next_interval(score);
-
             // For cards that have graduated learning:
             // * Again puts the card back into learning mode, and decreases the ease by 20%
             // * Hard multiplies the current interval by the hard interval (1.2 by default) and
@@ -209,13 +208,11 @@ impl Card {
 
             let new_due = time_now + new_interval;
 
-            self.interval = Some(new_interval);
-            self.due = Some(new_due.fixed_offset());
+            self.interval = new_interval;
+            self.due = new_due.fixed_offset();
             self.ease = f64::max(MINIMUM_EASE, new_ease);
             self.review_count = new_review_count;
         }
-
-        Ok(())
     }
 
     /// Multiply a duration by a float.
@@ -224,18 +221,14 @@ impl Card {
         Duration::seconds(new_interval_secs as i64)
     }
 
-    /// Get whether the card is due. (A new card with due == None is always due.)
+    /// Get whether the card is due.
     pub fn is_due(&self) -> bool {
-        self.due.map(|due| {
-            (due - Self::due_time()).num_seconds() <= 0
-        }).unwrap_or(true)
+        (self.due - Self::due_time()).num_seconds() <= 0
     }
 
-    /// Get a human readable time until due. (A new card with due == None is always due "now".)
+    /// Get a human readable time until due.
     pub fn human_readable_due(&self) -> String {
-        self.due.map(|due| {
-            let time_until_due = due - Local::now().fixed_offset();
-            crate::util::review_duration_to_human(&time_until_due)
-        }).unwrap_or("now".to_string())
+        let time_until_due = self.due - Local::now().fixed_offset();
+        crate::util::review_duration_to_human(&time_until_due)
     }
 }
