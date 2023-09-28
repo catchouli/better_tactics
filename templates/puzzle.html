@@ -22,7 +22,13 @@
 
     {% if mode == PuzzleMode::Review %}
         <div class="column bt-panel">
-            Reviewing puzzle {{ puzzle.puzzle_id }}
+            Reviewing next puzzle
+
+            {% if stats.reviews_due > 0 %}
+                ({{ stats.reviews_due }} reviews left today)
+            {% else %}
+                (reviewing ahead)
+            {% endif %}
         </div>
     {% endif %}
 </div>
@@ -179,11 +185,10 @@
     const moves = "{{ puzzle.moves }}";
     const rating = {{ puzzle.rating }};
 
-    // TODO: placeholder, get this info from the server.
-    const again_time = "10 minutes";
-    const hard_time = "1 day";
-    const good_time = "2 days";
-    const easy_time = "4 days";
+    const again_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Again)) }}";
+    const hard_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Hard)) }}";
+    const good_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Good)) }}";
+    const easy_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Easy)) }}";
 
     // Add review time to buttons.
     $('button#again > .sub-text').text(again_time);

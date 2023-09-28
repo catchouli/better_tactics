@@ -4,8 +4,10 @@ use askama::Template;
 use chrono::Utc;
 use tokio::sync::Mutex;
 use serde::Deserialize;
+use warp::reply::Reply;
 
-use crate::db::{Puzzle, PuzzleDatabase};
+use crate::util;
+use crate::db::{Puzzle, PuzzleDatabase, Stats};
 use crate::srs::{Difficulty, Card};
 
 /// The puzzle mode.
@@ -38,9 +40,15 @@ pub struct PuzzleTemplate {
     mode: PuzzleMode,
     puzzle: Puzzle,
     card: Card,
+    stats: Stats,
     min_rating: i64,
     max_rating: i64,
 }
+
+/// The tempalte for when there are no remaining reviews.
+#[derive(Template)]
+#[template(path = "reviews-done.html")]
+pub struct ReviewsDone;
 
 /// The POST request for reviewing a card.
 #[derive(Debug, Clone, Deserialize)]
@@ -55,17 +63,22 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
 
+    // Get the user's stats.
+    let stats = puzzle_db.get_local_user_stats()
+        .map_err(|_| warp::reject())?;
+
     // Get the puzzle.
     let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
-        .map_err(|_| warp::reject::not_found())?;
+        .map_err(|_| warp::reject())?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
-        .map_err(|_| warp::reject::not_found())?;
+        .map_err(|_| warp::reject())?;
 
     Ok(PuzzleTemplate {
         mode: PuzzleMode::Specific,
         puzzle,
+        stats,
         card,
         min_rating: 0,
         max_rating: 0,
@@ -78,6 +91,10 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
 
+    // Get the user's stats.
+    let stats = puzzle_db.get_local_user_stats()
+        .map_err(|_| warp::reject())?;
+
     // Get the min and max ratings for puzzles.
     // TODO: base this on the user's rating.
     let min_rating = crate::MIN_RATING;
@@ -87,20 +104,50 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // TODO: unsafe unwrap.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
         .map(|vec| vec.into_iter().nth(0))
-        .map_err(|_| warp::reject::not_found())?
+        .map_err(|_| warp::reject())?
         .unwrap();
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
-        .map_err(|_| warp::reject::not_found())?;
+        .map_err(|_| warp::reject())?;
 
     Ok(PuzzleTemplate {
         mode: PuzzleMode::Random,
         puzzle,
+        stats,
         card,
         min_rating,
         max_rating,
     })
+}
+
+pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
+    -> Result<impl warp::Reply, warp::Rejection>
+{
+    // Get connection to puzzle db.
+    let puzzle_db = puzzle_db.lock().await;
+
+    // Get the user's stats.
+    let stats = puzzle_db.get_local_user_stats()
+        .map_err(|_| warp::reject())?;
+
+    // Get the user's next due review.
+    let next_review = puzzle_db.get_next_review_due()
+        .map_err(|_| warp::reject())?;
+
+    if let Some((card, puzzle)) = next_review {
+        Ok(PuzzleTemplate {
+            mode: PuzzleMode::Review,
+            puzzle,
+            stats,
+            card,
+            min_rating: 0,
+            max_rating: 0,
+        }.into_response())
+    }
+    else {
+        Ok(ReviewsDone {}.into_response())
+    }
 }
 
 pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: ReviewRequest)

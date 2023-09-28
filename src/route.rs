@@ -44,12 +44,12 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move |id| puzzle::specific_puzzle(puzzle_db.clone(), id)
             }))
 
-        .or(warp::path!("tactics" / "review")
+        .or(warp::path!("tactics")
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
                 let puzzle_db = puzzle_db.clone();
-                move || puzzle::random_puzzle(puzzle_db.clone())
+                move || puzzle::next_review(puzzle_db.clone())
             }))
 
         // TODO: figure out how to get post variables, and either redirect the user back to the

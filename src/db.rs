@@ -260,6 +260,53 @@ impl PuzzleDatabase {
         Ok(puzzles?)
     }
 
+    /// Get the next due review.
+    pub fn get_next_review_due(&self) -> DbResult<Option<(Card, Puzzle)>> {
+        const QUERY: &'static str = "
+            SELECT * FROM cards
+            CROSS JOIN puzzles
+                ON cards.puzzle_id = puzzles.puzzle_id
+            WHERE due < ?
+            ORDER BY due ASC
+            LIMIT 1
+        ";
+
+        // Get the due cutoff time tommorow morning, so we can get all reviews due today.
+        let due_time = Card::due_time().to_rfc3339();
+
+        self.conn
+            .prepare(QUERY)?
+            .into_iter()
+            .bind((1, due_time.as_str()))?
+            .map(|result| {
+                let row = result?;
+
+                // Get puzzle id.
+                let puzzle_id = row.read::<&str, _>("puzzle_id");
+
+                // Construct card.
+                let card = Card {
+                    id: puzzle_id.to_string(),
+                    due: None,
+                    interval: None,
+                    review_count: 0,
+                    ease: 0.0,
+                };
+
+                // Construct puzzle.
+                let puzzle = Puzzle {
+                    puzzle_id: puzzle_id.to_string(),
+                    fen: row.read::<&str, _>("fen").to_string(),
+                    moves: row.read::<&str, _>("moves").to_string(),
+                    rating: row.read("rating"),
+                };
+
+                Ok((card, puzzle)) as DbResult<(Card, Puzzle)>
+            })
+            .next()
+            .transpose()
+    }
+
     /// Get a single card by ID.
     pub fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Card> {
         const QUERY: &'static str = "
