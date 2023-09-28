@@ -15,9 +15,9 @@ use tokio::sync::Mutex;
 
 use crate::db::PuzzleDatabase;
 
-const MIN_RATING: i32 = 1000;
-const MAX_RATING: i32 = MIN_RATING + 100;
-const MAX_PUZZLES: i32 = 50;
+const MIN_RATING: i64 = 1000;
+const MAX_RATING: i64 = MIN_RATING + 100;
+const MAX_PUZZLES: i64 = 50;
 
 const SQLITE_DB_NAME: &'static str = "puzzles.sqlite";
 
@@ -49,7 +49,7 @@ async fn init_db() -> Result<PuzzleDatabase, Box<dyn Error>> {
     let mut puzzle_db = PuzzleDatabase::open(SQLITE_DB_NAME)?;
 
     // If no puzzles are loaded into the db yet, initialise it from a copy of the lichess database.
-    let puzzle_count = puzzle_db.count()?;
+    let puzzle_count = puzzle_db.get_puzzle_count()?;
     if puzzle_count == 0 {
         log::info!("Puzzle database empty, initialising from lichess puzzles database");
 
@@ -58,7 +58,7 @@ async fn init_db() -> Result<PuzzleDatabase, Box<dyn Error>> {
         lichess_db.seek(SeekFrom::Start(0))?;
 
         // Initialise our database with it.
-        puzzle_db.init_database(lichess_db)?;
+        puzzle_db.import_lichess_database(lichess_db)?;
         log::info!("Done initialising puzzle database");
     }
     else {

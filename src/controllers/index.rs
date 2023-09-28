@@ -4,45 +4,39 @@ use askama::Template;
 use chrono::Local;
 use tokio::sync::Mutex;
 
-use crate::db::PuzzleDatabase;
+use crate::db::{PuzzleDatabase, Stats, User};
 
 /// The template for displaying the index page.
 #[derive(Template)]
 #[template(path = "index.html")]
 pub struct IndexTemplate {
-    card_count: i64,
-    review_count: i64,
-    reviews_due: i64,
-    next_review_due: String,
+    user: User,
+    stats: Stats,
+    next_review_due_human: String,
 }
 
 pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> Result<IndexTemplate, warp::Rejection>
 {
     let puzzle_db = puzzle_db.lock().await;
-    // TODO: unsafe unwrap
-    let stats = puzzle_db.get_stats().unwrap();
 
-    // Format 'next review due' time.
+    // Get user details and stats.
+    // TODO: unsafe unwraps.
+    // TODO: the warp reject returns 404 by default, we need to handle all the errors more
+    // appropriately or it's going to get confusing when they happen.
+    let user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
+        .map_err(|_| warp::reject())?
+        .unwrap();
+    let stats = puzzle_db.get_local_user_stats().unwrap();
+
+    // Format 'next review due' time as a human readable time.
     let now = Local::now().fixed_offset();
-
-    let next_review_due = if stats.next_review_due < now {
-        "now".to_string()
-    }
-    else {
-        let time_until_next_review = stats.next_review_due - now;
-
-        let hours = time_until_next_review.num_hours();
-        let mins = time_until_next_review.num_minutes() - hours * 60;
-        let secs = time_until_next_review.num_seconds() - hours * 60 * 60 - mins * 60;
-
-        format!("{}h {}m {}s", hours, mins, secs)
-    };
+    let time_until_next_review = stats.next_review_due - now;
+    let next_review_due_human = crate::util::review_duration_to_human(&time_until_next_review);
 
     Ok(IndexTemplate {
-        card_count: stats.card_count,
-        review_count: stats.review_count,
-        reviews_due: stats.reviews_due,
-        next_review_due,
+        user,
+        stats,
+        next_review_due_human,
     })
 }

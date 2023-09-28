@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::fs::File;
-use std::time::Duration;
-use chrono::{DateTime, FixedOffset, Local};
+use chrono::{DateTime, FixedOffset, Local, Duration};
 use sqlite::Connection;
 use owlchess::board::Board;
 use owlchess::moves::Style;
@@ -9,19 +8,27 @@ use owlchess::chain::{MoveChain, NumberPolicy, GameStatusPolicy};
 
 use crate::srs::Card;
 
+// TODO: this whole file (and project) could do with unit tests once the proof of concept is working :)
+
+/// A result type that boxes errors to a Box<dyn Error>.
+pub type DbResult<T> = Result<T, Box<dyn Error>>;
+
+/// The puzzle database interface type.
 pub struct PuzzleDatabase {
     conn: Connection,
 }
 
-#[derive(Debug)]
+/// A puzzle record from the db.
+#[derive(Debug, Clone)]
 pub struct Puzzle {
     pub puzzle_id: String,
     pub fen: String,
     pub moves: String,
-    pub rating: i32,
+    pub rating: i64,
 }
 
-#[derive(Debug)]
+/// A stats record from the db (for the local user, for now).
+#[derive(Debug, Clone)]
 pub struct Stats {
     pub card_count: i64,
     pub review_count: i64,
@@ -29,8 +36,17 @@ pub struct Stats {
     pub next_review_due: DateTime<FixedOffset>,
 }
 
+/// A user record from the db.
+#[derive(Debug, Clone)]
+pub struct User {
+    pub id: String,
+    pub rating: i64,
+    pub rating_provisional: bool,
+}
+
 impl PuzzleDatabase {
-    pub fn open(path: &str) -> Result<Self, Box<dyn Error>> {
+    /// Open the given sqlite database, initialising it with schema if necessary.
+    pub fn open(path: &str) -> DbResult<Self> {
         let conn = Self::init_schema(sqlite::open(path)?)?;
 
         Ok(Self {
@@ -38,7 +54,8 @@ impl PuzzleDatabase {
         })
     }
 
-    fn init_schema(conn: Connection) -> Result<Connection, Box<dyn Error>> {
+    /// Initialise the database schema if it isn't already.
+    fn init_schema(conn: Connection) -> DbResult<Connection> {
         log::info!("Initialising db schema");
         const QUERY: &'static str = "
             CREATE TABLE IF NOT EXISTS puzzles (
@@ -54,29 +71,25 @@ impl PuzzleDatabase {
                 review_count INTEGER NOT NULL,
                 ease FLOAT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                rating INTEGER NOT NULL,
+                rating_provisional INTEGER NOT NULL
+            );
+            INSERT OR IGNORE INTO users (id, rating, rating_provisional) VALUES ('local', 1000, 1);
+            CREATE INDEX IF NOT EXISTS user_id ON users(id);
             CREATE INDEX IF NOT EXISTS card_id ON cards(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_id ON puzzles(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_rating ON puzzles(rating);
         ";
+        // TODO: the errors when we run into sql errors are kind of rubbish and don't tell you
+        // what/where went wrong.
         conn.execute(QUERY)?;
         Ok(conn)
     }
 
-    pub fn count(&self) -> Result<usize, Box<dyn Error>> {
-        const QUERY: &'static str = "
-            SELECT COUNT(puzzle_id) FROM puzzles;
-        ";
-
-        if let Some(result) = self.conn.prepare(QUERY)?.into_iter().next() {
-            let count = result?.read::<i64, _>(0);
-            Ok(count as usize)
-        }
-        else {
-            Ok(0)
-        }
-    }
-
-    pub fn init_database(&mut self, lichess_db_raw: File) -> Result<(), Box<dyn Error>> {
+    /// Import lichess database from file.
+    pub fn import_lichess_database(&mut self, lichess_db_raw: File) -> DbResult<()> {
         const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
         const PUZZLES_PER_PROGRESS_UPDATE: usize = 10000;
 
@@ -102,7 +115,7 @@ impl PuzzleDatabase {
                 let puzzle_id = &record[0];
                 let fen = &record[1];
                 let moves = &record[2];
-                let rating = record[3].parse::<i32>()?;
+                let rating = record[3].parse()?;
 
                 puzzles.push(Puzzle::new(puzzle_id, fen, moves, rating));
 
@@ -131,7 +144,22 @@ impl PuzzleDatabase {
         Ok(())
     }
 
-    pub fn add_puzzle(&mut self, puzzle: &Puzzle) -> Result<(), Box<dyn Error>> {
+    /// Get the number of puzzles in the database.
+    pub fn get_puzzle_count(&self) -> DbResult<usize> {
+        const QUERY: &'static str = "
+            SELECT COUNT(puzzle_id) FROM puzzles;
+        ";
+
+        if let Some(result) = self.conn.prepare(QUERY)?.into_iter().next() {
+            Ok(result?.read::<i64, _>(0) as usize)
+        }
+        else {
+            Ok(0)
+        }
+    }
+
+    /// Add a single puzzle to the database.
+    pub fn add_puzzle(&mut self, puzzle: &Puzzle) -> DbResult<()> {
         const QUERY: &'static str = "
             INSERT INTO puzzles (puzzle_id, fen, moves, rating) VALUES (?, ?, ?, ?)
         ";
@@ -148,7 +176,8 @@ impl PuzzleDatabase {
         Ok(())
     }
 
-    pub fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> Result<(), Box<dyn Error>> {
+    /// Add a batch of puzzles to the database.
+    pub fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
         // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
         // batch insert api that lets you supply an iterator but I'm not sure how to do that with
         // the sqlite crate. Reusing the prepared statement was about the same overhead as just
@@ -162,8 +191,8 @@ impl PuzzleDatabase {
         Ok(self.conn.execute(finished_query)?)
     }
 
-    pub fn get_puzzle_by_id(&self, puzzle_id: &str)
-        -> Result<Puzzle, Box<dyn Error>>
+    /// Get a puzzle by ID.
+    pub fn get_puzzle_by_id(&self, puzzle_id: &str) -> DbResult<Puzzle>
     {
         const QUERY: &'static str = "
             SELECT fen, moves, rating
@@ -175,7 +204,7 @@ impl PuzzleDatabase {
 
         log::info!("Getting puzzle {puzzle_id}");
 
-        let result: Result<Puzzle, Box<dyn Error>> = self.conn
+        let result: DbResult<Puzzle> = self.conn
             .prepare(QUERY)?
             .into_iter()
             .bind((1, puzzle_id.as_str()))?
@@ -184,9 +213,9 @@ impl PuzzleDatabase {
                 let row = result?;
                 Ok(Puzzle::new(
                     puzzle_id.as_str(), 
-                    row.read::<&str, _>("fen"),
-                    row.read::<&str, _>("moves"),
-                    row.read::<i64, _>("rating") as i32
+                    row.read("fen"),
+                    row.read("moves"),
+                    row.read("rating")
                 ))
             })
             // TODO: proper error types
@@ -195,8 +224,9 @@ impl PuzzleDatabase {
             Ok(result?)
     }
 
-    pub fn get_puzzles_by_rating(&self, min_rating: i32, max_rating: i32, max_puzzles: i32)
-        -> Result<Vec<Puzzle>, Box<dyn Error>>
+    /// Get a random set of puzzles by rating.
+    pub fn get_puzzles_by_rating(&self, min_rating: i64, max_rating: i64, max_puzzles: i64)
+        -> DbResult<Vec<Puzzle>>
     {
         const QUERY: &'static str = "
             SELECT puzzle_id, fen, moves, rating
@@ -215,13 +245,13 @@ impl PuzzleDatabase {
             .bind((2, max_rating as i64))?
             .bind((3, max_puzzles as i64))?
             .map(|result| {
-                result.map(|row| {
-                    let id = row.read::<&str, _>("puzzle_id");
-                    let fen = row.read::<&str, _>("fen");
-                    let moves = row.read::<&str, _>("moves");
-                    let rating = row.read::<i64, _>("rating");
-                    Puzzle::new(id, fen, moves, rating as i32)
-                })
+                let row = result?;
+                Ok(Puzzle::new(
+                    row.read("puzzle_id"), 
+                    row.read("fen"),
+                    row.read("moves"),
+                    row.read("rating")
+                ))
             })
             .into_iter()
             .collect();
@@ -230,7 +260,8 @@ impl PuzzleDatabase {
         Ok(puzzles?)
     }
 
-    pub fn get_card_by_id(&self, puzzle_id: &str) -> Result<Card, Box<dyn Error>> {
+    /// Get a single card by ID.
+    pub fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Card> {
         const QUERY: &'static str = "
             SELECT due, interval, review_count, ease
             FROM cards
@@ -238,25 +269,22 @@ impl PuzzleDatabase {
         ";
 
         log::info!("Getting card for puzzle {puzzle_id}");
-        let card: Result<Card, Box<dyn Error>> = self.conn
+        let card: DbResult<Card> = self.conn
             .prepare(QUERY)?
             .into_iter()
             .bind((1, puzzle_id))?
             .map(|result| {
                 let row = result?;
 
-                log::info!("Converting datetime");
-                let due = DateTime::parse_from_rfc3339(row.read::<&str, _>("due"))?;
-                log::info!("Converting interval");
-                let interval = Duration::from_secs(row.read::<i64, _>("interval") as u64);
-                log::info!("huh?");
+                let due = DateTime::parse_from_rfc3339(row.read("due"))?;
+                let interval = Duration::seconds(row.read("interval"));
 
                 Ok(Card {
                     id: puzzle_id.to_string(),
                     due: Some(due),
                     interval: Some(interval),
-                    review_count: row.read::<i64, _>("review_count") as i32,
-                    ease: row.read::<f64, _>("ease") as f32,
+                    review_count: row.read("review_count"),
+                    ease: row.read("ease"),
                 })
             })
             .next()
@@ -265,7 +293,8 @@ impl PuzzleDatabase {
         Ok(card?)
     }
 
-    pub fn update_card(&mut self, card: &Card) -> Result<(), Box<dyn Error>> {
+    /// Update (or create) a card by ID.
+    pub fn update_or_create_card(&mut self, card: &Card) -> DbResult<()> {
         const QUERY: &'static str="
             INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease)
             VALUES (?, ?, ?, ?, ?)
@@ -275,14 +304,14 @@ impl PuzzleDatabase {
 
         // TODO: unsafe unwrap and type conversion.
         let due = card.due.unwrap().to_rfc3339();
-        let interval = card.interval.unwrap().as_secs() as i64;
+        let interval = card.interval.unwrap().num_seconds();
 
         self.conn
             .prepare(QUERY)?
             .into_iter()
             .bind((1, card.id.as_str()))?
             .bind((2, due.as_str()))?
-            .bind((3, interval as i64))?
+            .bind((3, interval))?
             .bind((4, card.review_count as i64))?
             .bind((5, card.ease as f64))?
             .next();
@@ -290,7 +319,10 @@ impl PuzzleDatabase {
         Ok(())
     }
 
-    pub fn get_stats(&self) -> Result<Stats, Box<dyn Error>> {
+    /// Get the stats for the local user.
+    /// TODO: we should probably include this in the user record, and have a function for just
+    /// updating it before we need a new reading.
+    pub fn get_local_user_stats(&self) -> DbResult<Stats> {
         // Get card and review count.
         const QUERY: &'static str = "
             SELECT
@@ -306,9 +338,9 @@ impl PuzzleDatabase {
             .map(|result| {
                 let row = result?;
                 Ok((
-                    row.read::<i64, _>("card_count"),
-                    row.read::<i64, _>("review_count"),
-                )) as Result<(i64, i64), Box<dyn Error>>
+                    row.read("card_count"),
+                    row.read("review_count"),
+                )) as DbResult<(i64, i64)>
             })
             .unwrap_or(Ok((0, 0)))?;
 
@@ -319,7 +351,7 @@ impl PuzzleDatabase {
             WHERE date(due) < date(?)
         ";
 
-        let due_time = Self::due_time().to_rfc3339();
+        let due_time = Card::due_time().to_rfc3339();
         let reviews_due = self.conn
             .prepare(QUERY_2)?
             .into_iter()
@@ -327,7 +359,7 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
-                Ok(row.read::<i64, _>("reviews_due")) as Result<i64, Box<dyn Error>>
+                Ok(row.read("reviews_due")) as DbResult<i64>
             })
             .unwrap_or(Ok(0))?;
 
@@ -345,9 +377,8 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
-                let due = row.read::<&str, _>("due");
-                let due = DateTime::parse_from_rfc3339(due).unwrap();
-                Ok(due) as Result<DateTime<FixedOffset>, Box<dyn Error>>
+                let due = DateTime::parse_from_rfc3339(row.read("due")).unwrap();
+                Ok(due) as DbResult<DateTime<FixedOffset>>
             })
             .unwrap_or(Ok(Local::now().fixed_offset()))?;
 
@@ -359,27 +390,62 @@ impl PuzzleDatabase {
         })
     }
 
-    fn due_time() -> DateTime<FixedOffset> {
-        // For now we just use tommorow at 4am as the end of the day, and all cards before that are
-        // due today.
-        let now = Local::now();
+    /// Get the local user ID. (for now, we just have the local user, but if we ever want to turn
+    /// this into a 'proper' web app, we can switch over to using an account system.)
+    pub fn local_user_id() -> &'static str {
+        "local"
+    }
 
-        // TODO: unsafe unwrap and quite ugly
-        let tommorow_4am = (now + Duration::from_secs(60 * 60 * 24))
-            .date_naive()
-            .and_hms_opt(4, 0, 0)
-            .unwrap()
-            .and_local_timezone(Local)
-            .latest()
-            .unwrap()
-            .fixed_offset();
+    /// Get the user record with the given ID.
+    pub fn get_user_by_id(&self, user_id: &str) -> DbResult<Option<User>> {
+        const QUERY: &'static str = "
+            SELECT rating, rating_provisional
+            FROM users
+            WHERE id = ?
+        ";
 
-        tommorow_4am
+        self.conn.prepare(QUERY)?
+            .into_iter()
+            .bind((1, user_id))?
+            .next()
+            .map(|result| {
+                let row = result?;
+                log::info!("Converting row to user record");
+                Ok(User {
+                    id: user_id.to_string(),
+                    rating: row.read("rating"),
+                    rating_provisional: row.read::<i64, _>("rating_provisional") != 0,
+                })
+            })
+            .transpose()
+    }
+
+    /// Update the user record with the given ID.
+    pub fn update_user(&mut self, user: &User) -> DbResult<()> {
+        const QUERY: &'static str = "
+            UPDATE users
+            SET rating = ?,
+                rating_provisional = ?
+            WHERE id = ?
+        ";
+
+        let rating_provisional = if user.rating_provisional { 1 } else { 0 };
+
+        // TODO: make sure the error gets reported properly if e.g. the user doesn't exist.
+        self.conn.prepare(QUERY)?
+            .into_iter()
+            .bind((1, user.rating))?
+            .bind((2, rating_provisional))?
+            .bind((3, user.id.as_str()))?
+            .next();
+
+        Ok(())
     }
 }
 
 impl Puzzle {
-    pub fn new(id: &str, fen: &str, moves: &str, rating: i32) -> Self {
+    /// Create a new puzzle with the given values.
+    pub fn new(id: &str, fen: &str, moves: &str, rating: i64) -> Self {
         Puzzle {
             puzzle_id: id.to_string(),
             fen: fen.to_string(),
@@ -388,9 +454,14 @@ impl Puzzle {
         }
     }
 
-    // Convert the embedded fen and moves from UCI format to a PGN.
+    /// Convert the embedded fen and moves from UCI format to a PGN.
     pub fn to_pgn(&self) -> Result<String, Box<dyn Error>> {
-        let pgn = Self::uci_to_pgn(&self.fen, &self.moves);
+        let board = Board::from_fen(&self.fen)?;
+        let movechain = MoveChain::from_uci_list(board, &self.moves)?;
+        let pgn = movechain.styled(NumberPolicy::FromBoard, Style::San, GameStatusPolicy::Show).to_string();
+
+        // Weird indentation thing so the resulting PGN doesn't have a bunch of random indentation
+        // in it.
         Ok(format!("[Event \"Lichess puzzle {} (rating {})\"]
 [Site \"?\"]
 [Date \"????.??.??\"]
@@ -401,12 +472,6 @@ impl Puzzle {
 [SetUp \"1\"]
 [FEN \"{}\"]
 
-{}", self.puzzle_id, self.rating, self.fen, pgn?))
-    }
-
-    fn uci_to_pgn(fen: &str, moves: &str) -> Result<String, Box<dyn Error>> {
-        let board = Board::from_fen(fen)?;
-        let movechain = MoveChain::from_uci_list(board, moves)?;
-        Ok(movechain.styled(NumberPolicy::FromBoard, Style::San, GameStatusPolicy::Show).to_string())
+{}", self.puzzle_id, self.rating, self.fen, pgn))
     }
 }

@@ -2,6 +2,8 @@ use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 
+use chrono::Duration;
+
 use crate::db::PuzzleDatabase;
 use crate::{MIN_RATING, MAX_RATING, MAX_PUZZLES};
 
@@ -22,4 +24,28 @@ pub fn output_random_pgn(puzzle_db: &PuzzleDatabase) -> Result<(), Box<dyn Error
     }
 
     Ok(())
+}
+
+// Convert a review duration to a human readable string, or "now" if it's negative.
+pub fn review_duration_to_human(duration: &Duration) -> String {
+    if duration.num_seconds() < 0 {
+        "now".to_string()
+    }
+    else if duration.num_hours() > 0 {
+        let hours = duration.num_hours();
+        let mins = duration.num_minutes() - hours * 60;
+
+        format!("{}h {}m", hours, mins)
+    }
+    else if duration.num_minutes() > 0 {
+        let mins = duration.num_minutes();
+        let secs = duration.num_seconds() - mins * 60;
+
+        format!("{}m {}s", mins, secs)
+    }
+    else {
+        let secs = duration.num_seconds();
+
+        format!("{}s", secs)
+    }
 }

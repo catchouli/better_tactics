@@ -2,11 +2,41 @@
 
 {% block content %}
 
+<!-- The bars at the top -->
 <div class="columns">
+    {% if mode == PuzzleMode::Random %}
+        <div class="column bt-panel">
+            Reviewing random puzzle in rating range {{ min_rating }}-{{ max_rating }}
+        </div>
+    {% endif %}
+
+    {% if mode == PuzzleMode::Specific %}
+        <div class="column bt-panel">
+            Reviewing specific puzzle {{ puzzle.puzzle_id }}
+
+            {% if card.review_count == 0 %}
+                (unseen)
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if mode == PuzzleMode::Review %}
+        <div class="column bt-panel">
+            Reviewing puzzle {{ puzzle.puzzle_id }}
+        </div>
+    {% endif %}
+</div>
+
+<!-- The main container, with the puzzle and other panels in it -->
+<div class="columns">
+    <!-- The board column on the left -->
     <div class="column is-two-thirds bt-panel" id="board-container">
         <div class="chessground" id="board"></div>
     </div>
+
+    <!-- The sidebar -->
     <div class="column sidebar">
+        <!-- The puzzle info - always visible -->
         <div id="puzzle-info" class="bt-panel">
             <p>
                 Lichess puzzle
@@ -15,6 +45,31 @@
             <p>Rating: {{ puzzle.rating }}</p>
             <a id="analysis-link" target="_blank">Analyse</a>
         </div>
+
+        <!-- The card details (e.g. when it's due, how many times it's been reviewed, etc) -->
+        {% if card.review_count != 0 %}
+            <div id="card-details" class="bt-panel">
+                <table class="stats">
+                    <caption>Puzzle stats</caption>
+                    <tbody>
+                        <tr>
+                            <th scope="row">Review count</th>
+                            <td>{{ card.review_count }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Ease</th>
+                            <td>{{ format!("{:.2}", self.card.ease) }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Due</th>
+                            <td>{{ card.human_readable_due() }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+
+        <!-- The move indicators, visible when waiting for a move to be played -->
         <div id="white-to-move" class="bt-panel move-indicator">
             <img class="to-move-piece" src="/assets/images/white-queen.svg"><br>
             White to move
@@ -31,21 +86,31 @@
             <img class="to-move-piece" src="/assets/images/black-queen.svg"><br>
             Computer to move
         </div>
+
+        <!-- The puzzle controls panel, always visible but with various switchable sub-panels -->
         <div id="puzzle-controls" class="bt-panel sidebar-fill">
-            <div class="bt-subpanel" id="default-text">
-                <p>Find the line</p>
+            <!-- The initial panel shown -->
+            <div class="bt-subpanel" id="find-the-line">
+                <p>Find the line!</p>
             </div>
+
+            <!-- Shown when the user makes the right move -->
             <div class="bt-subpanel" id="right-move">
                 <p>Right move!</p>
             </div>
+
+            <!-- Shown when the user makes the wrong move -->
             <div class="bt-subpanel" id="wrong-move">
                 <p>Wrong move :(</p>
+                <!-- A button that lets them retry the puzzle -->
                 <div class="columns button-container">
                     <div class="column">
                         <button class="button" id="try-again">Reset puzzle</button>
                     </div>
                 </div>
             </div>
+
+            <!-- Shown when the user completes the puzzle after making a mistake -->
             <div class="bt-subpanel" id="puzzle-failure">
                 <p>Puzzle complete</p>
 
@@ -58,6 +123,8 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Shown when the user completes the puzzle first try -->
             <div class="bt-subpanel" id="puzzle-success">
                 <p>Puzzle complete</p>
 
@@ -90,6 +157,14 @@
                     </div>
                 </div>
             </div>
+
+            {% if !card.is_due() %}
+                <br>
+                <div>
+                    Warning: you are reviewing ahead, which is fine, but it will push this card further
+                    into the future each time you complete it.
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -220,6 +295,9 @@
             $('button.review-button').prop('disabled', false);
         });
     });
+
+    // Show the initial subpanel.
+    $("#find-the-line").css('display', 'initial');
 
     // Store whether it's currently the first try or not, so we know if it's a successful solve or not.
     document.first_try = true;

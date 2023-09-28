@@ -2,28 +2,32 @@
 
 {% block content %}
 <div id="tactics" class="bt-panel is-half">
-    <table id="stats">
+    <table class="stats">
         <caption>Stats</caption>
         <tbody>
             <tr>
+                <th scope="row">User rating</th>
+                <td>{{ user.rating }}{% if user.rating_provisional %}?{% endif %}</td>
+            </tr>
+            <tr>
                 <th scope="row">Unique puzzles done</th>
-                <td>{{ card_count }}</td>
+                <td>{{ stats.card_count }}</td>
             </tr>
             <tr>
                 <th scope="row">Puzzle completions</th>
-                <td>{{ review_count }}</td>
+                <td>{{ stats.review_count }}</td>
             </tr>
             <tr>
                 <th scope="row">Reviews due</th>
-                <td>{{ reviews_due }}</td>
+                <td>{{ stats.reviews_due }}</td>
             </tr>
             <tr>
                 <th scope="row">Next review due</th>
-                <td>{{ next_review_due }}</td>
+                <td>{{ next_review_due_human }}</td>
             </tr>
         </tbody>
     </table>
     <a href="/tactics/review" class="button">Review</a>
-    <a href="/tactics/random" class="button">New puzzle</a>
+    <a href="/tactics/random" class="button">New Puzzle</a>
 </div>
 {% endblock %}
