@@ -4,8 +4,7 @@ use chrono::{DateTime, FixedOffset, Local, Duration};
 
 lazy_static! {
     /// The initial intervals for new cards
-    static ref INITIAL_INTERVALS: [Duration; 3] = [
-        Duration::seconds(1 * 60),
+    static ref INITIAL_INTERVALS: [Duration; 2] = [
         Duration::seconds(10 * 60),
         Duration::seconds(24 * 60 * 60),
     ];
@@ -19,9 +18,6 @@ const MINIMUM_EASE: f64 = 1.3;
 
 /// The easy bonus
 const EASY_BONUS: f64 = 1.3;
-
-/// The hard interval
-const HARD_INTERVAL: f64 = 1.2;
 
 /// A result type that boxes errors to a Box<dyn Error>.
 pub type SrsResult<T> = Result<T, Box<dyn Error>>;
@@ -45,7 +41,6 @@ pub struct Card {
     pub interval: Duration,
     pub review_count: i64,
     pub ease: f64,
-    pub learning: bool,
     pub learning_stage: i64,
 }
 
@@ -58,7 +53,6 @@ impl Card {
             interval: INITIAL_INTERVALS[0],
             review_count: 0,
             ease: DEFAULT_EASE,
-            learning: true,
             learning_stage: 0,
         }
     }
@@ -79,139 +73,79 @@ impl Card {
 
     /// Check whether the card is in 'learning' state.
     fn card_in_learning(&self) -> bool {
-        let is_learning_review = self.review_count < INITIAL_INTERVALS.len() as i64;
-
-        if is_learning_review {
-            let interval_index = i64::clamp(self.review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
-            let standard_learning_interval = INITIAL_INTERVALS[interval_index as usize];
-
-            // If the interval is already past the normal interval for this 'learning' level, (e.g.
-            // because the user pressed 'easy' previously), we can just consider the card not in
-            // learning. This seems overly complex though and we probably just want to store if the
-            // card is mature or not yet and update it whenever it goes out of learning.
-            if self.interval < standard_learning_interval {
-                true
-            }
-            else {
-                false
-            }
-        }
-        else {
-            false
-        }
+        self.learning_stage < INITIAL_INTERVALS.len() as i64 &&
+        self.interval <= INITIAL_INTERVALS[self.learning_stage as usize]
     }
 
     /// Get the next interval after a review with score `score`.
-    /// TODO: oh my god this got complicated as I tweaked it to work better. It needs fully
-    /// rewriting to keep track of whether the card is mature yet, and what learning review we're on.
     pub fn next_interval(&self, score: Difficulty) -> Duration {
-        let in_learning = self.card_in_learning();
-        let review_count = self.review_count;
-        let interval = self.interval;
+        // If the card is still in learning, use the initial learning stages.
+        let is_learning = self.card_in_learning();
 
-        // Choose the new interval based on the score and if the card is in learning still.
-        match score {
-            Difficulty::Again => {
-                // Failing a card always just resets it to e.g. 10 mins.
-                INITIAL_INTERVALS[1]
-            }
-            Difficulty::Hard => if in_learning {
-                // We never want hard or good to be less than again.
-                let interval_index = i64::clamp(review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
-                Duration::max(
-                    Self::mul_duration(INITIAL_INTERVALS[interval_index as usize], HARD_INTERVAL),
-                    INITIAL_INTERVALS[1])
+        // Scores of 'again' should always reset the interval to default.
+        if score == Difficulty::Again {
+            INITIAL_INTERVALS[0]
+        }
+        // Scores of 'hard' should stop the interval from growing, but shouldn't ever be any less
+        // than a score of 'again' would result in.
+        else if score == Difficulty::Hard {
+            self.interval.max(self.next_interval(Difficulty::Again))
+        }
+        // Scores of 'good' should have the normal growth.
+        else if score == Difficulty::Good {
+            if is_learning {
+                INITIAL_INTERVALS[self.learning_stage as usize]
             }
             else {
-                Duration::max(
-                    Self::mul_duration(interval, HARD_INTERVAL),
-                    INITIAL_INTERVALS[1])
-            },
-            Difficulty::Good => {
-                let good_duration = Duration::max(
-                    Self::mul_duration(interval, self.ease),
-                    INITIAL_INTERVALS[1]);
-
-                if in_learning {
-                    let interval_index = i64::clamp(review_count, 0, INITIAL_INTERVALS.len() as i64 - 1);
-                    Duration::max(INITIAL_INTERVALS[interval_index as usize], good_duration)
-                }
-                else {
-                    // If it's out of learning, the next interval shouldn't be less than the last
-                    // learning interval.
-                    Duration::max(good_duration, *INITIAL_INTERVALS.last().unwrap())
-                }
-            },
-            Difficulty::Easy => {
-                let easy_duration = Self::mul_duration(interval, self.ease * EASY_BONUS);
-
-                // If we're in learning and it's easy, we can just skip the card past learning by
-                // putting it tommorow.
-                Duration::max(Duration::days(1), easy_duration)
-            },
+                Self::mul_duration(self.interval, self.ease)
+                    .max(*INITIAL_INTERVALS.last().unwrap())
+                    .max(self.next_interval(Difficulty::Hard))
+            }
+        }
+        // Scores of 'easy' should apply the easy growth bonus applied, and cards that are in
+        // learning should immediately leave learning.
+        else if score == Difficulty::Easy {
+            Self::mul_duration(self.interval, self.ease * EASY_BONUS)
+                .max(*INITIAL_INTERVALS.last().unwrap())
+                .max(self.next_interval(Difficulty::Good))
+        }
+        else {
+            panic!("Missing difficulty")
         }
     }
 
     // TODO: a bit unnecessarily complicated and messy now I've tweaked it to work better. We
     // should just track if the card is mature or not, and update it as necessary.
     pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) {
-        let new_interval = self.next_interval(score);
+        // Update interval and due time.
+        self.interval = self.next_interval(score);
+        self.due = time_now + self.interval;
 
-        // https://faqs.ankiweb.net/what-spaced-repetition-algorithm.html
-        // For learning/relearning the algorithm is a bit different. We track if a card is
-        // currently in the learning stage by its review count, if there's a corresponding entry in
-        // INITIAL_INTERVALS that's one of the initial learning stages, once it passes out of there
-        // it graduates to no longer being a new card.
-        if self.card_in_learning() {
-            // For cards in learning/relearning:
-            // * Again moves the card back to the first stage of the new card intervals
-            // * Hard repeats the current step
-            // * Good moves the card to the next step, if the card was on the final step, it is
-            //   converted into a review card
-            // * Easy immediately converts the card into a review card
-            // There are no ease adjustments for new cards.
-            self.review_count = match score {
-                Difficulty::Again => 0,
-                Difficulty::Hard => self.review_count + 1,
-                Difficulty::Good => self.review_count + 1,
-                Difficulty::Easy => self.review_count + 1,
-            };
-
-            let new_due = time_now + new_interval;
-
-            self.interval = new_interval;
-            self.due = new_due.fixed_offset();
+        // Update learning stage, it should increase by one each time it's reviewed until it's no
+        // longer in learning. Difficulty::Again should send any card back to learning stage 0, but
+        // Difficulty::Easy should remove any card from learning.
+        if score == Difficulty::Again {
+            self.learning_stage = 0;
         }
-        else {
-            // For cards that have graduated learning:
-            // * Again puts the card back into learning mode, and decreases the ease by 20%
-            // * Hard multiplies the current interval by the hard interval (1.2 by default) and
-            //   decreases the ease by 15%
-            // * Good multiplies the current interval by the ease
-            // * Easy multiplies the current interval by the ease times the easy bonus (1.3 by
-            //   default) and increases the ease by 15%
-            let (new_ease, new_review_count) = match score {
-                Difficulty::Again => {
-                    (self.ease - 0.2, 0)
-                },
-                Difficulty::Hard => {
-                    (self.ease - 0.15, self.review_count + 1)
-                },
-                Difficulty::Good => {
-                    (self.ease, self.review_count + 1)
-                },
-                Difficulty::Easy => {
-                    (self.ease + 0.15, self.review_count + 1)
-                },
-            };
-
-            let new_due = time_now + new_interval;
-
-            self.interval = new_interval;
-            self.due = new_due.fixed_offset();
-            self.ease = f64::max(MINIMUM_EASE, new_ease);
-            self.review_count = new_review_count;
+        else if self.card_in_learning() {
+            if score == Difficulty::Easy {
+                self.learning_stage = INITIAL_INTERVALS.len() as i64;
+            }
+            else {
+                self.learning_stage += 1;
+            }
         }
+
+        // Update ease according to difficulty.
+        self.ease = f64::max(MINIMUM_EASE, match score {
+            Difficulty::Again => self.ease - 0.2,
+            Difficulty::Hard => self.ease - 0.15,
+            Difficulty::Good => self.ease,
+            Difficulty::Easy => self.ease + 0.15,
+        });
+
+        // Update review count.
+        self.review_count += 1;
     }
 
     /// Multiply a duration by a float.

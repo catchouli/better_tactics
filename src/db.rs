@@ -70,7 +70,6 @@ impl PuzzleDatabase {
                 interval INTEGER NOT NULL,
                 review_count INTEGER NOT NULL,
                 ease FLOAT NOT NULL,
-                learning INTEGER NOT NULL,
                 learning_stage INTEGER NOT NULL
             );
             CREATE TABLE IF NOT EXISTS users (
@@ -293,8 +292,7 @@ impl PuzzleDatabase {
                     interval,
                     review_count: row.read("review_count"),
                     ease: row.read("ease"),
-                    learning: false,
-                    learning_stage: 0,
+                    learning_stage: row.read("learning_stage"),
                 };
 
                 // Construct puzzle.
@@ -314,7 +312,7 @@ impl PuzzleDatabase {
     /// Get a single card by ID.
     pub fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
         const QUERY: &'static str = "
-            SELECT due, interval, review_count, ease
+            SELECT due, interval, review_count, ease, learning_stage
             FROM cards
             WHERE puzzle_id = ?
         ";
@@ -324,6 +322,7 @@ impl PuzzleDatabase {
             .prepare(QUERY)?
             .into_iter()
             .bind((1, puzzle_id))?
+            .next()
             .map(|result| {
                 let row = result?;
 
@@ -336,20 +335,17 @@ impl PuzzleDatabase {
                     interval,
                     review_count: row.read("review_count"),
                     ease: row.read("ease"),
-                    learning: false,
-                    learning_stage: 0,
+                    learning_stage: row.read("learning_stage"),
                 })
             })
-            .next()
             .transpose()
     }
 
     /// Update (or create) a card by ID.
     pub fn update_or_create_card(&mut self, card: &Card) -> DbResult<()> {
         const QUERY: &'static str="
-            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease,
-                learning, learning_stage)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease, learning_stage)
+            VALUES (?, ?, ?, ?, ?, ?)
         ";
 
         log::info!("Updating card for puzzle {}: {card:?}", card.id);
@@ -365,8 +361,7 @@ impl PuzzleDatabase {
             .bind((3, interval))?
             .bind((4, card.review_count as i64))?
             .bind((5, card.ease as f64))?
-            .bind((6, if card.learning { 1 } else { 0 }))?
-            .bind((7, card.learning_stage))?
+            .bind((6, card.learning_stage))?
             .next()
             .transpose()
             // Discard the value from the Result (which is empty anyway) and return the result.
