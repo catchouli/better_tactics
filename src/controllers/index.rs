@@ -26,10 +26,10 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // TODO: the warp reject returns 404 by default, we need to handle all the errors more
     // appropriately or it's going to get confusing when they happen.
     let user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
-        .map_err(|e| InternalError::new(e.to_string()))?
+        .map_err(InternalError::from)?
         .unwrap();
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|e| InternalError::new(e.to_string()))?;
+        .map_err(InternalError::from)?;
 
     // Format 'next review due' time as a human readable time.
     let now = Local::now().fixed_offset();

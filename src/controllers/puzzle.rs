@@ -6,10 +6,13 @@ use tokio::sync::Mutex;
 use serde::Deserialize;
 use warp::reply::Reply;
 
-use crate::route::{InvalidParameter, InternalError};
+use crate::route::{InternalError, InvalidParameter};
 use crate::util;
 use crate::db::{Puzzle, PuzzleDatabase, Stats};
 use crate::srs::{Difficulty, Card};
+
+/// The rating variation for puzzles, in percent.
+const PUZZLE_RATING_VARIATION: f64 = 1.05;
 
 /// The puzzle mode.
 #[derive(Debug, PartialEq, Eq)]
@@ -66,15 +69,15 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
 
     // Get the user's stats.
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|e| InternalError::new(e.to_string()))?;
+        .map_err(InternalError::from)?;
 
     // Get the puzzle.
     let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
-        .map_err(|e| InternalError::new(e.to_string()))?;
+        .map_err(InternalError::from)?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
-        .map_err(|e| InternalError::new(e.to_string()))?
+        .map_err(InternalError::from)?
         .unwrap_or(Card::new(&puzzle_id));
 
     Ok(PuzzleTemplate {
@@ -93,25 +96,29 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
 
+    // Get the user.
+    let user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
+        .map_err(InternalError::from)?
+        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
+
     // Get the user's stats.
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|e| InternalError::new(e.to_string()))?;
+        .map_err(InternalError::from)?;
 
-    // Get the min and max ratings for puzzles.
-    // TODO: base this on the user's rating.
-    let min_rating = crate::MIN_RATING;
-    let max_rating = crate::MAX_RATING;
+    // The min and max rating for puzzles, based on the user's rating, plus or minus a few percent,
+    // according to PUZZLE_RATING_VARIATION.
+    let min_rating = (user.rating as f64 / PUZZLE_RATING_VARIATION) as i64;
+    let max_rating = (user.rating as f64 * PUZZLE_RATING_VARIATION) as i64;
 
     // Get a random puzzle.
-    // TODO: unsafe unwrap.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
         .map(|vec| vec.into_iter().nth(0))
-        .map_err(|e| InternalError::new(e.to_string()))?
-        .unwrap();
+        .map_err(InternalError::from)?
+        .ok_or_else(|| InternalError::new(format!("Got no puzzles when requesting a random one")))?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
-        .map_err(|e| InternalError::new(e.to_string()))?
+        .map_err(InternalError::from)?
         .unwrap_or(Card::new(&puzzle.puzzle_id));
 
     Ok(PuzzleTemplate {
@@ -132,11 +139,11 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Get the user's stats.
     let stats = puzzle_db.get_local_user_stats()
-        .map_err(|e| InternalError::new(e.to_string()))?;
+        .map_err(InternalError::from)?;
 
     // Get the user's next due review.
     let next_review = puzzle_db.get_next_review_due()
-        .map_err(|e| InternalError::new(e.to_string()))?;
+        .map_err(InternalError::from)?;
 
     if let Some((card, puzzle)) = next_review {
         Ok(PuzzleTemplate {
@@ -158,37 +165,36 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
 {
     let mut puzzle_db = puzzle_db.lock().await;
 
-    // TODO: unsafe panic
     let difficulty = match request.difficulty {
-        0 => Difficulty::Again,
-        1 => Difficulty::Hard,
-        2 => Difficulty::Good,
-        3 => Difficulty::Easy,
-        _ => panic!("Invalid difficulty {}", request.difficulty)
-    };
+        0 => Ok(Difficulty::Again),
+        1 => Ok(Difficulty::Hard),
+        2 => Ok(Difficulty::Good),
+        3 => Ok(Difficulty::Easy),
+        _ => Err(InvalidParameter::new("difficulty"))
+    }?;
 
     // Update the card.
     if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()) {
+        // If there's no existing card for the puzzle, create a new one.
         let mut card = card.unwrap_or(Card::new(&request.id));
 
+        // Apply the review to the card.
         card.review(Utc::now().fixed_offset(), difficulty);
 
+        // Update (or create) the card in the database.
         puzzle_db.update_or_create_card(&card)
-            .map_err(|e| {
-                InternalError::new(format!("{}", e.to_string()))
-            })?;
+            .map_err(InternalError::from)?;
     }
 
     // Increase the user's rating by 1 every time they complete a review.
-    // TODO: very temporary, we need to figure out a better scheme for increasing the user's
-    // rating.
+    // TODO: very temporary, we need to figure out a better scheme for increasing the user's rating.
     let mut user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
-        .map_err(|_| InternalError::new(format!("3")))?
-        .unwrap();
+        .map_err(InternalError::from)?
+        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     user.rating += 1;
     puzzle_db.update_user(&user)
-        .map_err(|_| InternalError::new(format!("4")))?;
+        .map_err(InternalError::from)?;
 
     Ok(warp::reply())
 }

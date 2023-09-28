@@ -84,8 +84,6 @@ impl PuzzleDatabase {
             CREATE INDEX IF NOT EXISTS puzzle_id ON puzzles(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_rating ON puzzles(rating);
         ";
-        // TODO: the errors when we run into sql errors are kind of rubbish and don't tell you
-        // what/where went wrong.
         conn.execute(QUERY)?;
         Ok(conn)
     }
@@ -220,7 +218,6 @@ impl PuzzleDatabase {
                     row.read("rating")
                 ))
             })
-            // TODO: proper error types
             .ok_or(format!("No such puzzle {puzzle_id}"))?;
 
             Ok(result?)
@@ -274,7 +271,7 @@ impl PuzzleDatabase {
         ";
 
         // Get the due cutoff time tommorow morning, so we can get all reviews due today.
-        let due_time = Card::due_time().to_rfc3339();
+        let due_time = Card::due_time()?.to_rfc3339();
 
         self.conn
             .prepare(QUERY)?
@@ -400,8 +397,7 @@ impl PuzzleDatabase {
                     row.read::<i64, _>("review_count"),
                 )) as DbResult<(i64, i64)>
             })
-            .unwrap_or(Ok((0, 0)))
-            .unwrap_or((0, 0));
+            .unwrap_or(Ok((0, 0)))?;
 
         // Get the number of reviews due.
         const QUERY_2: &'static str = "
@@ -410,7 +406,7 @@ impl PuzzleDatabase {
             WHERE date(due) < date(?)
         ";
 
-        let due_time = Card::due_time().to_rfc3339();
+        let due_time = Card::due_time()?.to_rfc3339();
         let reviews_due = self.conn
             .prepare(QUERY_2)?
             .into_iter()
@@ -420,8 +416,7 @@ impl PuzzleDatabase {
                 let row = result?;
                 Ok(row.read("reviews_due")) as DbResult<i64>
             })
-            .unwrap_or(Ok(0))
-            .unwrap_or(0);
+            .unwrap_or(Ok(0))?;
 
         // Get next review due time.
         const QUERY_3: &'static str = "
@@ -437,11 +432,10 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
-                let due = DateTime::parse_from_rfc3339(row.read("due")).unwrap();
+                let due = DateTime::parse_from_rfc3339(row.read("due"))?;
                 Ok(due) as DbResult<DateTime<FixedOffset>>
             })
-            .unwrap_or(Ok(Local::now().fixed_offset()))
-            .unwrap_or(Local::now().fixed_offset());
+            .unwrap_or(Ok(Local::now().fixed_offset()))?;
 
         Ok(Stats {
             card_count,
@@ -491,7 +485,6 @@ impl PuzzleDatabase {
 
         let rating_provisional = if user.rating_provisional { 1 } else { 0 };
 
-        // TODO: make sure the error gets reported properly if e.g. the user doesn't exist.
         self.conn.prepare(QUERY)?
             .into_iter()
             .bind((1, user.rating))?

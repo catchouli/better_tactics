@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::sync::Arc;
+use std::error::Error;
 
 use tokio::sync::Mutex;
 use warp::reject::{self, Rejection};
@@ -37,6 +38,12 @@ impl InternalError {
         Self {
             description,
         }
+    }
+}
+
+impl From<Box<dyn Error>> for InternalError {
+    fn from(value: Box<dyn Error>) -> Self {
+        Self::new(value.to_string())
     }
 }
 

@@ -66,16 +66,15 @@ impl Card {
     /// Generate the next 'due time', i.e. if a card is due before this time it is essentially due
     /// today. For now we just use tommorow (local time) at 4am as the end of the day, and all cards
     /// before that are due today, like in anki.
-    pub fn due_time() -> DateTime<FixedOffset> {
-        // TODO: unsafe unwrap and quite ugly
-        (Local::now() + Duration::seconds(60 * 60 * 24))
+    pub fn due_time() -> SrsResult<DateTime<FixedOffset>> {
+        Ok((Local::now() + Duration::seconds(60 * 60 * 24))
             .date_naive()
             .and_hms_opt(4, 0, 0)
             .unwrap()
             .and_local_timezone(Local)
             .latest()
-            .unwrap()
-            .fixed_offset()
+            .ok_or_else(|| format!(""))?
+            .fixed_offset())
     }
 
     /// Check whether the card is in 'learning' state.
@@ -223,7 +222,8 @@ impl Card {
 
     /// Get whether the card is due.
     pub fn is_due(&self) -> bool {
-        (self.due - Self::due_time()).num_seconds() <= 0
+        let due_time = Self::due_time().unwrap();
+        (self.due - due_time).num_seconds() <= 0
     }
 
     /// Get a human readable time until due.
