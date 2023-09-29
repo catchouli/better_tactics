@@ -129,8 +129,17 @@ export class Puzzle {
         // Call on move callback now that we've validated it.
         this._on_move();
 
-        // Check if it was the right or wrong move.
-        if (this._remaining_moves[0] == move) {
+        // Check if it was the right or wrong move. A special case we need to consider is that for
+        // checkmate-in-ones there might be multiple legal moves. This is the only special case
+        // listed at https://database.lichess.org/#puzzles (all other moves are "only moves").
+        // I originally ignored this until I found the example puzzle ULF41, in which the final
+        // move is listed as Qe1# instead of the (imo) more natural Qf1#, although they are both
+        // legal moves *and* checkmate.
+        if (this._game.isCheckmate()) {
+            this._remaining_moves.length = 0;
+            this._on_success();
+        }
+        else if (this._remaining_moves[0] == move) {
             this._remaining_moves.shift();
 
             // If there are no moves left, the puzzle is complete.
