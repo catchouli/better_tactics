@@ -44,8 +44,6 @@ impl Rating {
             }
         }).collect();
 
-        log::info!("Old rating: {rating}, old deviation: {deviation}");
-
         // Compute the quantity v, the estimated variance of the player's rating based only on game
         // outcomes.
         let variance = 1.0 / results.iter().map(|result| {
