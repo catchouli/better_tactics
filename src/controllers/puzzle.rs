@@ -68,7 +68,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user's stats.
-    let stats = puzzle_db.get_local_user_stats()
+    let stats = puzzle_db.get_user_stats(PuzzleDatabase::local_user_id())
         .map_err(InternalError::from)?;
 
     // Get the puzzle.
@@ -97,12 +97,13 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user.
-    let user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
+    let user_id = PuzzleDatabase::local_user_id();
+    let user = puzzle_db.get_user_by_id(user_id)
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
-    let stats = puzzle_db.get_local_user_stats()
+    let stats = puzzle_db.get_user_stats(user_id)
         .map_err(InternalError::from)?;
 
     // The min and max rating for puzzles, based on the user's rating, plus or minus a few percent,
@@ -138,7 +139,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user's stats.
-    let stats = puzzle_db.get_local_user_stats()
+    let stats = puzzle_db.get_user_stats(PuzzleDatabase::local_user_id())
         .map_err(InternalError::from)?;
 
     // Get the user's next due review.

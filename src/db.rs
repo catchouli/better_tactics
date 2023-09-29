@@ -369,9 +369,14 @@ impl PuzzleDatabase {
     }
 
     /// Get the stats for the local user.
-    /// TODO: we should probably include this in the user record, and have a function for just
-    /// updating it before we need a new reading.
-    pub fn get_local_user_stats(&self) -> DbResult<Stats> {
+    pub fn get_user_stats(&self, user_id: &str) -> DbResult<Stats> {
+        // For now we only support a local user, so check that it's the local user's stats that are
+        // being requested. In the future, we might also want to store the user's stats in the
+        // users table and just update them as needed, to avoid having to look them up every time.
+        if user_id != Self::local_user_id() {
+            Err(format!("get_user_stats called for non-local user {user_id}"))?
+        }
+
         // Get card and review count.
         const QUERY: &'static str = "
             SELECT
