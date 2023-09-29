@@ -1,14 +1,15 @@
 use std::fmt::Display;
 use std::sync::Arc;
 use askama::Template;
-use chrono::Utc;
+use chrono::{Utc, Local, Duration};
 use tokio::sync::Mutex;
 use serde::Deserialize;
 use warp::reply::Reply;
 
+use crate::rating::GameResult;
 use crate::route::{InternalError, InvalidParameter};
 use crate::util;
-use crate::db::{Puzzle, PuzzleDatabase, Stats};
+use crate::db::{Puzzle, PuzzleDatabase, Stats, Review};
 use crate::srs::{Difficulty, Card};
 
 /// The rating variation for puzzles, in percent.
@@ -58,7 +59,7 @@ pub struct ReviewsDone;
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReviewRequest {
     pub id: String,
-    pub difficulty: i32,
+    pub difficulty: i64,
 }
 
 pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: String)
@@ -108,8 +109,8 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // The min and max rating for puzzles, based on the user's rating, plus or minus a few percent,
     // according to PUZZLE_RATING_VARIATION.
-    let min_rating = (user.rating as f64 / PUZZLE_RATING_VARIATION) as i64;
-    let max_rating = (user.rating as f64 * PUZZLE_RATING_VARIATION) as i64;
+    let min_rating = (user.rating.rating as f64 / PUZZLE_RATING_VARIATION) as i64;
+    let max_rating = (user.rating.rating as f64 * PUZZLE_RATING_VARIATION) as i64;
 
     // Get a random puzzle.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
@@ -164,38 +165,73 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: ReviewRequest)
     -> Result<impl warp::Reply, warp::Rejection>
 {
+    let user_id = PuzzleDatabase::local_user_id();
     let mut puzzle_db = puzzle_db.lock().await;
 
-    let difficulty = match request.difficulty {
-        0 => Ok(Difficulty::Again),
-        1 => Ok(Difficulty::Hard),
-        2 => Ok(Difficulty::Good),
-        3 => Ok(Difficulty::Easy),
-        _ => Err(InvalidParameter::new("difficulty"))
-    }?;
+    let difficulty = Difficulty::from_i64(request.difficulty)
+        .map_err(|_| InvalidParameter::new("difficulty"))?;
 
     // Update the card.
     if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()) {
         // If there's no existing card for the puzzle, create a new one.
         let mut card = card.unwrap_or(Card::new(&request.id));
 
+        let mut user = puzzle_db.get_user_by_id(user_id)
+            .map_err(InternalError::from)?
+            .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
+
+        let puzzle = puzzle_db.get_puzzle_by_id(&card.id)
+            .map_err(|_| InvalidParameter::new(&request.id))?;
+
         // Apply the review to the card.
+        let old_interval = card.interval;
         card.review(Utc::now().fixed_offset(), difficulty);
+
+        // Create a review record in the database.
+        puzzle_db.add_review_for_user(Review {
+            user_id: user_id.to_string(),
+            puzzle_id: card.id.to_string(),
+            difficulty,
+            date: Local::now().fixed_offset(),
+        }).map_err(InternalError::from)?;
 
         // Update (or create) the card in the database.
         puzzle_db.update_or_create_card(&card)
             .map_err(InternalError::from)?;
+
+        // If the card left learning, (e.g. its interval went past 1 day for the first time),
+        // update the user's rating. Note that we don't currently enforce the 'first time' part,
+        // but it might be worth only awarding rating when the user solves a puzzle for the first
+        // time. We'd have to store that though (or figure it out from the information we already
+        // store).
+        let one_day = Duration::days(1);
+        //if difficulty == Difficulty::Again || (old_interval < one_day && card.interval > one_day) {
+            log::info!("First time pass, updating user's rating");
+
+            let old_rating = user.rating.rating;
+
+            user.rating.update(vec![GameResult {
+                rating: puzzle.rating,
+                deviation: 1,
+                score: match difficulty {
+                    Difficulty::Again => 0.0,
+                    Difficulty::Hard => 0.5,
+                    Difficulty::Good => 1.0,
+                    Difficulty::Easy => 1.0,
+                }
+            }]);
+
+            log::info!("Updating user's rating from {} to {}", old_rating, user.rating.rating);
+
+            puzzle_db.update_user(&user)
+                .map_err(InternalError::from)?;
+        //}
     }
 
-    // Increase the user's rating by 1 every time they complete a review.
-    // TODO: very temporary, we need to figure out a better scheme for increasing the user's rating.
-    let mut user = puzzle_db.get_user_by_id(PuzzleDatabase::local_user_id())
-        .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
-    user.rating += 1;
-    puzzle_db.update_user(&user)
-        .map_err(InternalError::from)?;
+    //user.rating.rating += 1;
+
+    // Update the user's rating based on a single 'game' against the puzzle.
 
     Ok(warp::reply())
 }

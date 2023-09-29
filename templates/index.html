@@ -7,7 +7,7 @@
         <tbody>
             <tr>
                 <th scope="row">User rating</th>
-                <td>{{ user.rating }}{% if user.rating_provisional %}?{% endif %}</td>
+                <td>{{ user.rating.rating }} (+-{{ user.rating.deviation }})</td>
             </tr>
             <tr>
                 <th scope="row">Unique puzzles done</th>

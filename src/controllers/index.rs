@@ -5,7 +5,9 @@ use chrono::Local;
 use tokio::sync::Mutex;
 
 use crate::db::{PuzzleDatabase, Stats, User};
+use crate::rating::GameResult;
 use crate::route::InternalError;
+use crate::srs::Difficulty;
 
 /// The template for displaying the index page.
 #[derive(Template)]
@@ -32,6 +34,28 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // Format 'next review due' time as a human readable time.
     let time_until_next_review = stats.next_review_due - Local::now().fixed_offset();
     let next_review_due_human = crate::util::review_duration_to_human(&time_until_next_review);
+
+    // Calculate new user rating (temp).
+    //let reviews = puzzle_db.last_n_reviews_for_user(user_id, 10)
+    //    .map_err(InternalError::from)?;
+
+    //for (review, rating) in &reviews {
+    //    log::info!("Review (rating {rating}): {review:?}");
+    //}
+
+    //let game_results = reviews.into_iter().map(|(review, rating)| {
+    //    GameResult {
+    //        rating,
+    //        deviation: 0,
+    //        score: match review.difficulty {
+    //            Difficulty::Again => 0.0,
+    //            Difficulty::Hard => 0.5,
+    //            Difficulty::Good => 1.0,
+    //            Difficulty::Easy => 1.0,
+    //        }
+    //    }
+    //}).collect();
+    //user.rating.update(game_results);
 
     Ok(IndexTemplate {
         user,

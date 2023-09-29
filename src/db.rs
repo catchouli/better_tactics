@@ -6,7 +6,8 @@ use owlchess::board::Board;
 use owlchess::moves::Style;
 use owlchess::chain::{MoveChain, NumberPolicy, GameStatusPolicy};
 
-use crate::srs::Card;
+use crate::rating::Rating;
+use crate::srs::{Card, Difficulty};
 
 // TODO: this whole file (and project) could do with unit tests once the proof of concept is working :)
 
@@ -40,8 +41,16 @@ pub struct Stats {
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: String,
-    pub rating: i64,
-    pub rating_provisional: bool,
+    pub rating: Rating,
+}
+
+/// A review record from the db.
+#[derive(Debug, Clone)]
+pub struct Review {
+    pub user_id: String,
+    pub puzzle_id: String,
+    pub difficulty: Difficulty,
+    pub date: DateTime<FixedOffset>,
 }
 
 impl PuzzleDatabase {
@@ -72,13 +81,22 @@ impl PuzzleDatabase {
                 ease FLOAT NOT NULL,
                 learning_stage INTEGER NOT NULL
             );
-            CREATE TABLE IF NOT EXISTS users (
+            DROP TABLE IF EXISTS users;
+            CREATE TABLE IF NOT EXISTS users_v2 (
                 id TEXT PRIMARY KEY,
                 rating INTEGER NOT NULL,
-                rating_provisional INTEGER NOT NULL
+                rating_deviation INTEGER NOT NULL,
+                rating_volatility FLOAT NOT NULL
             );
-            INSERT OR IGNORE INTO users (id, rating, rating_provisional) VALUES ('local', 1000, 1);
-            CREATE INDEX IF NOT EXISTS user_id ON users(id);
+            CREATE TABLE IF NOT EXISTS reviews (
+                user_id TEXT NOT NULL,
+                puzzle_id TEXT NOT NULL,
+                difficulty INTEGER NOT NULL,
+                date TEXT NOT NULL
+            );
+            INSERT OR IGNORE INTO users_v2 (id, rating, rating_deviation, rating_volatility)
+                VALUES ('local', 1000, 500, 0.06);
+            CREATE INDEX IF NOT EXISTS user_id ON users_v2(id);
             CREATE INDEX IF NOT EXISTS card_id ON cards(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_id ON puzzles(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_rating ON puzzles(rating);
@@ -160,7 +178,8 @@ impl PuzzleDatabase {
     /// Add a single puzzle to the database.
     pub fn add_puzzle(&mut self, puzzle: &Puzzle) -> DbResult<()> {
         const QUERY: &'static str = "
-            INSERT INTO puzzles (puzzle_id, fen, moves, rating) VALUES (?, ?, ?, ?)
+            INSERT INTO puzzles (puzzle_id, fen, moves, rating)
+            VALUES (?, ?, ?, ?)
         ";
 
         self.conn
@@ -454,8 +473,8 @@ impl PuzzleDatabase {
     /// Get the user record with the given ID.
     pub fn get_user_by_id(&self, user_id: &str) -> DbResult<Option<User>> {
         const QUERY: &'static str = "
-            SELECT rating, rating_provisional
-            FROM users
+            SELECT rating, rating_deviation, rating_volatility
+            FROM users_v2
             WHERE id = ?
         ";
 
@@ -465,10 +484,16 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
+
+                let rating = Rating {
+                    rating: row.read("rating"),
+                    deviation: row.read::<i64, _>("rating_deviation"),
+                    volatility: row.read::<f64, _>("rating_volatility"),
+                };
+
                 Ok(User {
                     id: user_id.to_string(),
-                    rating: row.read("rating"),
-                    rating_provisional: row.read::<i64, _>("rating_provisional") != 0,
+                    rating,
                 })
             })
             .transpose()
@@ -477,22 +502,79 @@ impl PuzzleDatabase {
     /// Update the user record with the given ID.
     pub fn update_user(&mut self, user: &User) -> DbResult<()> {
         const QUERY: &'static str = "
-            UPDATE users
+            UPDATE users_v2
             SET rating = ?,
-                rating_provisional = ?
+                rating_deviation = ?
             WHERE id = ?
         ";
 
-        let rating_provisional = if user.rating_provisional { 1 } else { 0 };
+        self.conn.prepare(QUERY)?
+            .into_iter()
+            .bind((1, user.rating.rating))?
+            .bind((2, user.rating.deviation))?
+            .bind((3, user.id.as_str()))?
+            .next()
+            .transpose()?;
+
+        Ok(())
+    }
+
+    /// Add a review record for a user.
+    pub fn add_review_for_user(&mut self, review: Review) -> DbResult<()>
+    {
+        const QUERY: &'static str = "
+            INSERT INTO reviews (user_id, puzzle_id, difficulty, date)
+            VALUES (?, ?, ?, ?)
+        ";
 
         self.conn.prepare(QUERY)?
             .into_iter()
-            .bind((1, user.rating))?
-            .bind((2, rating_provisional))?
-            .bind((3, user.id.as_str()))?
-            .next();
+            .bind((1, review.user_id.as_str()))?
+            .bind((2, review.puzzle_id.as_str()))?
+            .bind((3, review.difficulty.to_i64()))?
+            .bind((4, review.date.to_rfc3339().as_str()))?
+            .next()
+            .transpose()?;
 
         Ok(())
+    }
+
+    /// Get up to the last n reviews for a user, and the rating for each one.
+    pub fn last_n_reviews_for_user(&self, user_id: &str, max_reviews: i64)
+        -> DbResult<Vec<(Review, i64)>>
+    {
+        const QUERY: &'static str = "
+            SELECT reviews.puzzle_id, difficulty, date, rating
+            FROM reviews
+            INNER JOIN puzzles ON reviews.puzzle_id = puzzles.puzzle_id
+            WHERE reviews.user_id = ?
+            ORDER BY date DESC
+            LIMIT ?
+        ";
+
+        self.conn.prepare(QUERY)?
+            .into_iter()
+            .bind((1, user_id))?
+            .bind((2, max_reviews))?
+            .map(|result| {
+                let row = result?;
+
+                let puzzle_id = row.read::<&str, _>("puzzle_id");
+                let difficulty = Difficulty::from_i64(row.read("difficulty"))?;
+                let date = DateTime::parse_from_rfc3339(row.read("date"))?;
+
+                let review = Review {
+                    user_id: user_id.to_string(),
+                    puzzle_id: puzzle_id.to_string(),
+                    difficulty,
+                    date,
+                };
+
+                let rating = row.read("rating");
+
+                Ok((review, rating))
+            })
+            .collect()
     }
 }
 

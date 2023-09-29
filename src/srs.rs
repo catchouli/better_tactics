@@ -31,6 +31,27 @@ pub enum Difficulty {
     Easy = 3
 }
 
+impl Difficulty {
+    pub fn to_i64(&self) -> i64 {
+        match self {
+            Self::Again => 0,
+            Self::Hard => 1,
+            Self::Good => 2,
+            Self::Easy => 3
+        }
+    }
+
+    pub fn from_i64(value: i64) -> SrsResult<Self> {
+        Ok(match value {
+            0 => Self::Again,
+            1 => Self::Hard,
+            2 => Self::Good,
+            3 => Self::Easy,
+            _ => Err("")?
+        })
+    }
+}
+
 // A single spaced repetition "card" (e.g. a puzzle).
 // TODO: if this is ever going to be a hosted web app we need to make sure time zones are handled
 // correctly. (They should be, all times are in ISO form with the timezone, but we need to check.)

@@ -4,6 +4,7 @@ pub mod route;
 pub mod controllers;
 pub mod util;
 pub mod srs;
+pub mod rating;
 
 use std::env;
 use std::error::Error;
