@@ -48,7 +48,8 @@
                 Lichess puzzle
                 <a href="/tactics/single/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a>
             </p>
-            <p>Rating: {{ puzzle.rating }}</p>
+            <p>Puzzle rating: {{ puzzle.rating }}</p>
+            <p>User rating: {{ user.rating.rating }}</p>
             <a id="analysis-link" target="_blank">Analyse</a>
         </div>
 

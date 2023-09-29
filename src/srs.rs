@@ -93,7 +93,7 @@ impl Card {
     }
 
     /// Check whether the card is in 'learning' state.
-    fn card_in_learning(&self) -> bool {
+    pub fn in_learning(&self) -> bool {
         self.learning_stage < INITIAL_INTERVALS.len() as i64 &&
         self.interval <= INITIAL_INTERVALS[self.learning_stage as usize]
     }
@@ -101,7 +101,7 @@ impl Card {
     /// Get the next interval after a review with score `score`.
     pub fn next_interval(&self, score: Difficulty) -> Duration {
         // If the card is still in learning, use the initial learning stages.
-        let is_learning = self.card_in_learning();
+        let is_learning = self.in_learning();
 
         // Scores of 'again' should always reset the interval to default.
         if score == Difficulty::Again {
@@ -148,7 +148,7 @@ impl Card {
         if score == Difficulty::Again {
             self.learning_stage = 0;
         }
-        else if self.card_in_learning() {
+        else if self.in_learning() {
             if score == Difficulty::Easy {
                 self.learning_stage = INITIAL_INTERVALS.len() as i64;
             }
