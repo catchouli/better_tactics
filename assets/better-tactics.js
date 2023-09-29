@@ -63,6 +63,10 @@ export class Puzzle {
         return this.color_to_move() == this._computer_color;
     }
 
+    fen() {
+        return this._game.fen();
+    }
+
     _make_next_move() {
         if (this._game.turn() != this._computer_color) {
             console.warn("_make_next_move(): called when it's the player's turn");

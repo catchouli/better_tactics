@@ -196,11 +196,6 @@
     $('button#good > .sub-text').text(good_time);
     $('button#easy > .sub-text').text(easy_time);
 
-    // Set the analyze link to point to lichess's analysis board.
-    let fen_url_safe = fen.replace(' ', '_');
-    let analysis_link = `https://lichess.org/analysis/standard/${fen_url_safe}`;
-    $('#analysis-link').attr('href', analysis_link);
-
     // Hide move indicators.
     function hide_move_indicators() {
         $('.move-indicator').css('display', 'none');
@@ -250,6 +245,15 @@
     }
 
     function on_move(side_moved, move) {
+        if (!$('#analysis-link').attr('href')) {
+            // Set the analyze link to point to lichess's analysis board. Make sure to use the puzzle's fen
+            // after it's applied the computer's move, since right now there's no way to specify a fen +
+            // move for the lichess analysis board via a url.
+            let fen_url_safe = document.puzzle.fen().replace(' ', '_');
+            let analysis_link = `https://lichess.org/analysis/standard/${fen_url_safe}`;
+            $('#analysis-link').attr('href', analysis_link);
+        }
+
         update_side_to_move();
     }
 
