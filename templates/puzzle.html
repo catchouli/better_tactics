@@ -152,7 +152,7 @@
 
             <!-- Shown when the user completes the puzzle after making a mistake -->
             <div class="bt-subpanel" id="puzzle-failure">
-                <p>Puzzle complete</p>
+                <p>Puzzle complete (with mistakes)</p>
 
                 <div class="columns button-container">
                     <div class="column">
@@ -162,6 +162,8 @@
                         </button>
                     </div>
                 </div>
+
+                <a href="#" id="override-link">Submit positive answer anyway</a> (for example, because of a mouse slip)
             </div>
 
             <!-- Shown when the user completes the puzzle first try -->
@@ -373,6 +375,12 @@
             console.error("Failed to submit review");
             $('button.review-button').prop('disabled', false);
         });
+    });
+
+    // Bind the override link for puzzle failure to show the other review buttons.
+    $('#puzzle-failure #override-link').click(function () {
+        $('#puzzle-success').css('display', 'initial');
+        $('#puzzle-failure').css('display', 'none');
     });
 
     // Show the initial subpanel.

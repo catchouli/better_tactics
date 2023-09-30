@@ -211,7 +211,6 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
             .map_err(|_| InvalidParameter::new(&request.id))?;
 
         // Apply the review to the card.
-        let card_was_in_learning = card.in_learning();
         card.review(Utc::now().fixed_offset(), difficulty);
 
         // Create a review record in the database.
@@ -226,22 +225,22 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
         puzzle_db.update_or_create_card(&card)
             .map_err(InternalError::from)?;
 
-        // If the difficulty was Good, (the neutral level for a card pass, basically), we don't
-        // update the rating unless the card left learning. That way, every single review of that
-        // cacrd in the future isn't going to cause great reating inflation. If the card was Again
-        // (failed), Hard (user passed it but had trouble), or Easy (below the user's current
-        // level), we update the rating too because it should let the rating system more accurately
-        // zone in on the user's rating and certainty.
-        if difficulty != Difficulty::Good || card_was_in_learning != card.in_learning() {
-            let old_rating = user.rating.rating;
+        // Update the user's rating every time a puzzle is solved, old puzzles don't give much
+        // rating anymore once your rating deviation is low enough.
+        let old_rating = user.rating;
 
-            user.rating.update(vec![GameResult {
-                rating: puzzle.rating,
-                deviation: PUZZLE_RATING_DEVIATION,
-                score: difficulty.score(),
-            }]);
+        user.rating.update(vec![GameResult {
+            rating: puzzle.rating,
+            deviation: PUZZLE_RATING_DEVIATION,
+            score: difficulty.score(),
+        }]);
 
-            log::info!("Updating user's rating from {} to {}", old_rating, user.rating.rating);
+        // The downside is that sometimes 'Good' ratings for low rated puzzles actually lower the
+        // user's rating, due to the way we fudge the score for them. (They're scored somewhere
+        // between 'Easy', which is a win at 1.0, and 'Hard', which is a draw at 0.0). As a bit of
+        // an arbitrary fix, we just prevent 'Good' ratings from lowering the user's rating.
+        if difficulty != Difficulty::Good || user.rating.rating > old_rating.rating {
+            log::info!("Updating user's rating from {} to {}", old_rating.rating, user.rating.rating);
 
             puzzle_db.update_user(&user)
                 .map_err(InternalError::from)?;
