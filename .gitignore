@@ -1,2 +1,2 @@
 /target
-puzzles.sqlite
+*.sqlite
