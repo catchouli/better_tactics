@@ -125,10 +125,9 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .map_err(InternalError::from)?;
 
     // The min and max rating for puzzles, deviating from the user's rating by up to
-    // PUZZLE_RATING_VARIATION, but never more than the user's rating, so we don't unnecessarily
-    // contribute to rating inflation.
+    // PUZZLE_RATING_VARIATION.
     let min_rating = (user.rating.rating as f64 / PUZZLE_RATING_VARIATION) as i64;
-    let max_rating = user.rating.rating;
+    let max_rating = (user.rating.rating as f64 * PUZZLE_RATING_VARIATION) as i64;
 
     // Get a random puzzle.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
