@@ -1,11 +1,9 @@
-use std::convert::Infallible;
 use std::sync::Arc;
 use std::error::Error;
 
 use tokio::sync::Mutex;
-use warp::reject::{self, Rejection};
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
-use static_dir::static_dir;
+use warp::reject::{self, Rejection};
 
 use crate::controllers::index;
 use crate::controllers::puzzle::{self, ReviewRequest};
@@ -51,10 +49,12 @@ impl reject::Reject for InternalError {}
 
 /// Our routes.
 pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
-    -> impl Filter::<Extract: Reply, Error = Infallible> + Clone + Send + Sync + 'static
+    -> impl Filter::<Extract: Reply> + Clone + Send + Sync + 'static
 {
-    warp::path("assets").and(static_dir!("assets"))
+    // Serve the static assets.
+    warp::path("assets").and(assets_filter())
 
+        // GET / - the index page.
         .or(warp::path::end()
             .and_then({
                 // A bit ugly and there's probably a better way to do this than cloning it twice...
@@ -62,6 +62,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move || index::index_page(puzzle_db.clone())
             }))
 
+        // GET /tactics/random - shows a new, random tactics puzzle.
         .or(warp::path!("tactics" / "random")
             .and(warp::path::end())
             .and(warp::get())
@@ -70,6 +71,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move || puzzle::random_puzzle(puzzle_db.clone())
             }))
 
+        // GET /tactics/single/{id} - displays a tactics puzzle by id.
         .or(warp::path!("tactics" / "single" / String)
             .and(warp::path::end())
             .and(warp::get())
@@ -78,6 +80,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move |id| puzzle::specific_puzzle(puzzle_db.clone(), id)
             }))
 
+        // GET /tactics - displays the user's next review.
         .or(warp::path!("tactics")
             .and(warp::path::end())
             .and(warp::get())
@@ -86,6 +89,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move || puzzle::next_review(puzzle_db.clone())
             }))
 
+        // POST /review - for submitting a review.
         .or(warp::path!("review")
             .and(warp::path::end())
             .and(warp::post())
@@ -113,6 +117,23 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
             }))
 
         .recover(handle_rejection)
+}
+
+/// Our assets filter. In debug, we just want to serve the directory directly, but in release we
+/// actually want to build the assets into the exe so it can be distributed.
+/// Using the cfg(debug_assertions) seems weird for this, but apparently it is the right way to go:
+/// https://stackoverflow.com/questions/39204908/how-to-check-release-debug-builds-using-cfg-in-rust
+#[cfg(debug_assertions)]
+fn assets_filter() -> impl Filter<Extract = (warp::fs::File,), Error = Rejection> + Clone {
+    warp::fs::dir("./assets")
+}
+
+/// The assets filter for release mode, which uses the static_dir crate to embed the assets in our
+/// build.
+#[cfg(not(debug_assertions))]
+fn assets_filter() -> impl Filter<Extract = (warp::reply::Response,), Error = Rejection> + Clone {
+    use static_dir::static_dir;
+    static_dir!("assets")
 }
 
 async fn set_rating(puzzle_db: Arc<Mutex<PuzzleDatabase>>, new_rating: i64)

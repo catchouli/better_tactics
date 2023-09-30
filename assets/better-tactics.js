@@ -3,10 +3,12 @@ console.log("Better tactics");
 import { Chess } from './deps/chess.js';
 import { Chessground } from './deps/chessground.min.js';
 
-const COMPUTER_MOVE_DELAY = 200;
+const COMPUTER_MOVE_DELAY = 250;
 
 export class Puzzle {
-    constructor(container, puzzle_id, fen, moves, rating, on_success, on_move, right_move, wrong_move) {
+    constructor(container, puzzle_id, fen, moves, rating, on_success, on_move, right_move, wrong_move,
+        on_promote)
+    {
         this._puzzle_id = puzzle_id;
         this._fen = fen;
         this._moves = moves.split(" ");
@@ -16,8 +18,11 @@ export class Puzzle {
         this._on_move = on_move;
         this._right_move = right_move;
         this._wrong_move = wrong_move;
+        this._on_promote = on_promote;
 
         this._premove = null;
+        this._awaiting_promotion = false;
+        this._awaiting_promotion_move = null;
 
         this._game = new Chess(fen);
         this._board = Chessground(container);
@@ -68,8 +73,59 @@ export class Puzzle {
         return this.color_to_move() == this._computer_color;
     }
 
+    player_color() {
+        return this._player_color;
+    }
+
     fen() {
         return this._game.fen();
+    }
+
+    awaiting_promotion() {
+        return this._awaiting_promotion;
+    }
+
+    promote(piece) {
+        if (!this.awaiting_promotion()) {
+            console.error('promote() called but puzzle is not awaiting a promotion selection');
+        }
+
+        if (piece != 'q' && piece != 'r' && piece != 'n' && piece != 'b') {
+            console.error(`Invalid promotion piece: ${piece}`);
+            return;
+        }
+
+        // Apply promotion move.
+        let orig = this._awaiting_promotion_move[0];
+        let dest = this._awaiting_promotion_move[1];
+        console.log(`Applying promotion move ${orig}${dest}${piece}`);
+        this._move(orig, dest, {}, piece);
+
+        this._awaiting_promotion = false;
+        this._awaiting_promotion_move = null;
+    }
+
+    cancel_promotion() {
+        if (!this._awaiting_promotion) {
+            console.error('cancel_promotion() called but puzzle is not awaiting a promotion selection');
+        }
+
+        // Reset board back to before the player made a move. The move hasn't been applied to the
+        // game yet so that doesn't need updating.
+        this._board.set({
+            fen: this._last_fen,
+            lastMove: this._last_move,
+            turnColor: this._player_color == 'w' ? 'white' : 'black'
+        });
+
+        this._awaiting_promotion = false;
+        this._awaiting_promotion_move = null;
+    }
+
+    _await_promotion(orig, dest) {
+        this._awaiting_promotion = true;
+        this._awaiting_promotion_move = [orig, dest];
+        this._on_promote();
     }
 
     _make_next_move() {
@@ -79,24 +135,25 @@ export class Puzzle {
         }
 
         // Get the next computer move.
-        console.log("Making next move");
         let next_move = this._remaining_moves.shift();
         if (next_move) {
+            console.log(`Making next computer move ${next_move}`);
             // Get the source and destination of the move.
             let source = next_move.slice(0, 2);
             let dest = next_move.slice(2);
-
-            // Store the last move for highlighting purposes.
-            this._last_move = [source, dest];
 
             // Update the game and board.
             this._game.move(next_move);
             this._board.set({
                 fen: this._game.fen(),
-                lastMove: this._last_move,
+                lastMove: [source, dest],
                 turnColor: this._player_color == 'w' ? 'white' : 'black'
             });
             this._board.move(next_move);
+
+            // Store the last move for highlighting purposes.
+            this._last_fen = this._game.fen();
+            this._last_move = [source, dest];
 
             // Call the on_move callback.
             this._on_move();
@@ -106,8 +163,14 @@ export class Puzzle {
         }
     }
 
-    _move(orig, dest) {
+    _move(orig, dest, _, promotion) {
         let move = orig + dest;
+        let move_is_promotion = this._move_is_promotion(orig, dest);
+
+        // If a promotion has been specified (e.g. by calling this.promote()), add it to the move text.
+        if (promotion) {
+            move += promotion;
+        }
 
         // If the puzzle is over, reject any moves.
         if (this._remaining_moves.length == 0) {
@@ -116,18 +179,22 @@ export class Puzzle {
                 lastMove: this._last_move,
                 turnColor: this._player_color == 'w' ? 'white' : 'black'
             });
+            return;
         }
 
         // Make the move in chess.js, and if it was an illegal move, reject it.
         try {
-            let move_result = this._game.move(move);
+            this._game.move(move);
 
-            // Since chessground doesn't support promotion by default, just assume auto-queen and add "q"
-            // onto the end of the move so it matches the puzzle.
-            // TODO: hopefully support promotion properly in the UI before coming across cases that need it.
-            if (move_result.promotion) {
-                move = move + "q";
-                console.warn(`Encountered promotion, assuming auto-queen (${move})`);
+            // Update the board in case if there's a promotion specified, as we need to change the
+            // pawn to a piece. The first time, before we've prompted the user for a promotion, we
+            // can just leave it as a pawn or it's a bit jarring.
+            if (promotion) {
+                this._board.set({
+                    fen: this._game.fen(),
+                    lastMove: [orig, dest],
+                    turnColor: this._computer_color == 'w' ? 'white' : 'black'
+                });
             }
         }
         catch (_) {
@@ -136,6 +203,17 @@ export class Puzzle {
                 lastMove: this._last_move,
                 turnColor: this._player_color == 'w' ? 'white' : 'black'
             });
+            return;
+        }
+
+        // If the move is a promotion, we need to prompt the user to find out what piece they're promoting to.
+        if (move_is_promotion && !promotion) {
+            console.log("Move is promotion, prompting user for promotion piece");
+
+            // Undo the move in chess.js while we wait.
+            this._game.undo();
+
+            this._await_promotion(orig, dest);
             return;
         }
 
@@ -181,5 +259,20 @@ export class Puzzle {
 
     _unset_premove(orig, dest) {
         this._premove = null;
+    }
+
+    _move_is_promotion(orig, dest) {
+        // Get the piece to move to check if it's a pawn.
+        let piece = this._game.get(orig);
+        if (!piece) {
+            console.error(`_move_is_promotion() called but no piece is at origin ${orig}`);
+            return false;
+        }
+
+        // Check if the destination is the backrank for the side moving.
+        let dest_is_backrank = (piece.color == 'w' && dest[1] == '8') ||
+            (piece.color == 'b' && dest[1] == '1');
+
+        return piece.type == 'p' && dest_is_backrank;
     }
 }

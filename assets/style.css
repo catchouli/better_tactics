@@ -109,6 +109,59 @@ cg-board {
 	background-color: #bfcfdd;
 }
 
+#board-container {
+    position: relative;
+}
+
+#promotion-ui {
+    /* Disabled by default until it needs showing */
+    visibility: hidden;
+
+    /* The promotion ui should completely cover the board, but be disabled by default */
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    
+    /* Semi-transparent overlay background that indicates the board is disabled */
+    background: rgba(0.0, 0.0, 0.0, 0.5);
+
+    /* Center the promotion pieces panel horizontally and vertically */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.promotion-pieces {
+    width: 12rem;
+    height: 12rem;
+    gap: 0.5rem;
+
+    /* Disabled by default until it needs showing (because there's one for white and one for black). */
+    display: none;
+
+    /* This smaller box containing only the promotion pieces is also a flex box so the pieces can be
+     * shown in rows */
+    flex-wrap: wrap;
+}
+
+.promotion-piece {
+    padding: 0;
+
+    /* Take up 50% of the width of the box so we get two rows, but leave a little space for the gap
+     * between items */
+    flex: 45%;
+
+    /* Make sure the buttons still always remain square */
+    aspect-ratio: 1;
+}
+
+.promotion-piece img {
+    width: 100%;
+}
+
 /* The sidebar panels that show up on success failure etc. They should all be hidden until needed. */
 .move-indicator, #puzzle-controls .bt-subpanel
 {

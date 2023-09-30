@@ -1,0 +1,1 @@
+The pieces from chessground, I just saved them out so we could reference them from the page.

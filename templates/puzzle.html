@@ -37,7 +37,40 @@
 <div class="columns">
     <!-- The board column on the left -->
     <div class="column is-two-thirds bt-panel" id="board-container">
+        <!-- The chessground board -->
         <div class="chessground" id="board"></div>
+
+        <!-- The promotion ui, which covers the board -->
+        <div id="promotion-ui" oncontextmenu="return false;">
+            <div class="promotion-pieces" id="white">
+                <button class="promotion-piece" data-piece="q">
+                    <img src="/assets/images/pieces/white-queen.svg">
+                </button>
+                <button class="promotion-piece" data-piece="r">
+                    <img src="/assets/images/pieces/white-rook.svg">
+                </button>
+                <button class="promotion-piece" data-piece="n">
+                    <img src="/assets/images/pieces/white-knight.svg">
+                </button>
+                <button class="promotion-piece" data-piece="b">
+                    <img src="/assets/images/pieces/white-bishop.svg">
+                </button>
+            </div>
+            <div class="promotion-pieces" id="black">
+                <button class="promotion-piece" data-piece="q">
+                    <img src="/assets/images/pieces/black-queen.svg">
+                </button>
+                <button class="promotion-piece" data-piece="r">
+                    <img src="/assets/images/pieces/black-rook.svg">
+                </button>
+                <button class="promotion-piece" data-piece="n">
+                    <img src="/assets/images/pieces/black-knight.svg">
+                </button>
+                <button class="promotion-piece" data-piece="b">
+                    <img src="/assets/images/pieces/black-bishop.svg">
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- The sidebar -->
@@ -78,19 +111,19 @@
 
         <!-- The move indicators, visible when waiting for a move to be played -->
         <div id="white-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/white-queen.svg"><br>
+            <img class="to-move-piece" src="/assets/images/pieces/white-queen.svg"><br>
             White to move
         </div>
         <div id="black-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/black-queen.svg"><br>
+            <img class="to-move-piece" src="/assets/images/pieces/black-queen.svg"><br>
             Black to move
         </div>
         <div id="white-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/white-queen.svg"><br>
+            <img class="to-move-piece" src="/assets/images/pieces/white-queen.svg"><br>
             Computer to move
         </div>
         <div id="black-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/black-queen.svg"><br>
+            <img class="to-move-piece" src="/assets/images/pieces/black-queen.svg"><br>
             Computer to move
         </div>
 
@@ -224,6 +257,24 @@
         }
     }
 
+    // Show the promotion ui for the given side.
+    function show_promotion_ui(color) {
+        $('#promotion-ui').css('visibility', 'inherit');
+
+        if (document.puzzle.player_color() == 'w') {
+            $('.promotion-pieces#white').css('display', 'inherit');
+        }
+        else {
+            $('.promotion-pieces#black').css('display', 'inherit');
+        }
+    }
+
+    // Hide the promotion ui.
+    function hide_promotion_ui() {
+        $('#promotion-ui').css('visibility', 'hidden');
+        $('.promotion-pieces').css('display', 'none');
+    }
+
     // Callbacks for puzzle module.
     function on_success() {
         hide_puzzle_control_subpanels();
@@ -264,7 +315,32 @@
         $('#wrong-move').css('display', 'initial');
     }
 
-    // Bind buttons.
+    function await_promotion() {
+        console.log("Promotion requested, showing promotion ui");
+        show_promotion_ui(document.puzzle.player_color());
+    }
+
+    // Bind promotion buttons.
+    $('button.promotion-piece').click(function() {
+        if (document.puzzle.awaiting_promotion()) {
+            let piece = $(this).data('piece');
+            console.info(`Promoting to piece ${piece}`);
+
+            document.puzzle.promote(piece);
+        }
+        hide_promotion_ui();
+    });
+
+    $('#promotion-ui').click(function() {
+        // If the user clicks the background, cancel promotion.
+        if (document.puzzle.awaiting_promotion()) {
+            console.info("Cancelling promotion");
+            document.puzzle.cancel_promotion();
+        }
+        hide_promotion_ui();
+    });
+
+    // Bind 'try again' button.
     $('button#try-again').click(function() {
         hide_puzzle_control_subpanels();
         hide_move_indicators();
@@ -272,6 +348,7 @@
         document.puzzle.reset();
     });
 
+    // Bind review buttons.
     $('button.review-button').click(function() {
         let puzzle_id = "{{ puzzle.puzzle_id }}";
         let difficulty = $(this).data('difficulty');
@@ -306,6 +383,6 @@
 
     // Create puzzle.
     document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating, on_success, on_move,
-        right_move, wrong_move);
+        right_move, wrong_move, await_promotion);
 </script>
 {% endblock %}
