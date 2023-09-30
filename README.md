@@ -1,4 +1,15 @@
 # better-tactics
+<!-- Screenshot gallery -->
+<a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1.png">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1.png" width="32%">
+</a>
+<a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2.png">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2.png" width="32%">
+</a>
+<a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3.png">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3.png" width="32%">
+</a>
+
 A chess tactics trainer that with spaced repetition. New puzzles will be shown to you from the lichess puzzle db, according to your calculated rating level, and then puzzles that need reviewing wil be shown to you daily.
 
 To run it:
@@ -8,5 +19,3 @@ To run it:
 * Click the 'New Puzzle' button to see some new puzzles, which will then be added to your review queue, or the 'Review' app to do your daily reviews!
 
 Note: For a standalone/portable build use the release build, as it compiles the static assets in, but the debug build references them from the ./assets directory.
-
-![preview](https://raw.githubusercontent.com/catchouli/better_tactics/main/preview.png)
