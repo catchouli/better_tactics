@@ -1,4 +1,4 @@
-[1.2] - yyyy-mm-dd
+[1.2] - 2023-09-30
 Added:
 * Support promotion in the UI properly instead of assuming auto-queen.
 
