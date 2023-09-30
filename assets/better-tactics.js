@@ -17,6 +17,8 @@ export class Puzzle {
         this._right_move = right_move;
         this._wrong_move = wrong_move;
 
+        this._premove = null;
+
         this._game = new Chess(fen);
         this._board = Chessground(container);
 
@@ -42,7 +44,10 @@ export class Puzzle {
                 color: this._player_color == 'w' ? 'white' : 'black',
             },
             premovable: {
-                enabled: false,
+                events: {
+                    set: this._set_premove.bind(this),
+                    unset: this._unset_premove.bind(this)
+                }
             },
             events: {
                 move: this._move.bind(this)
@@ -73,15 +78,18 @@ export class Puzzle {
             return;
         }
 
+        // Get the next computer move.
         console.log("Making next move");
-
         let next_move = this._remaining_moves.shift();
         if (next_move) {
+            // Get the source and destination of the move.
             let source = next_move.slice(0, 2);
             let dest = next_move.slice(2);
 
+            // Store the last move for highlighting purposes.
             this._last_move = [source, dest];
 
+            // Update the game and board.
             this._game.move(next_move);
             this._board.set({
                 fen: this._game.fen(),
@@ -89,11 +97,16 @@ export class Puzzle {
                 turnColor: this._player_color == 'w' ? 'white' : 'black'
             });
             this._board.move(next_move);
+
+            // Call the on_move callback.
             this._on_move();
+
+            // Add a timer to apply the next premove, if there is one.
+            setTimeout(() => this._board.playPremove(), COMPUTER_MOVE_DELAY);
         }
     }
 
-    _move(orig, dest, p) {
+    _move(orig, dest) {
         let move = orig + dest;
 
         // If the puzzle is over, reject any moves.
@@ -160,5 +173,13 @@ export class Puzzle {
             });
             this._wrong_move();
         }
+    }
+
+    _set_premove(orig, dest) {
+        this._premove = [orig, dest];
+    }
+
+    _unset_premove(orig, dest) {
+        this._premove = null;
     }
 }
