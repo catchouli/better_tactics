@@ -15,6 +15,13 @@ use crate::srs::{Difficulty, Card};
 /// The rating variation for puzzles, in percent.
 const PUZZLE_RATING_VARIATION: f64 = 1.05;
 
+/// The rating deviation for puzzles. This represents the certainty of the 'rating' for each puzzle
+/// in our database, and a higher number should cause the rating algorithm to make less drastic
+/// changes each time a puzzle is solved. In theory we could get this from the lichess puzzle db,
+/// but I didn't import it to begin with, and doing it now would break any existing databases since
+/// we don't have a way to migrate them.
+const PUZZLE_RATING_DEVIATION: i64 = 50;
+
 /// The puzzle mode.
 #[derive(Debug, PartialEq, Eq)]
 pub enum PuzzleMode {
@@ -117,10 +124,11 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let stats = puzzle_db.get_user_stats(user_id)
         .map_err(InternalError::from)?;
 
-    // The min and max rating for puzzles, based on the user's rating, plus or minus a few percent,
-    // according to PUZZLE_RATING_VARIATION.
+    // The min and max rating for puzzles, deviating from the user's rating by up to
+    // PUZZLE_RATING_VARIATION, but never more than the user's rating, so we don't unnecessarily
+    // contribute to rating inflation.
     let min_rating = (user.rating.rating as f64 / PUZZLE_RATING_VARIATION) as i64;
-    let max_rating = (user.rating.rating as f64 * PUZZLE_RATING_VARIATION) as i64;
+    let max_rating = user.rating.rating;
 
     // Get a random puzzle.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
@@ -218,25 +226,19 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
         puzzle_db.update_or_create_card(&card)
             .map_err(InternalError::from)?;
 
-        // If the card left or re-entered learning, update the user's rating. We don't want to
-        // award rating every time the user completes the puzzle or it causes unnecessary rating
-        // changes over time, but when it enters or leaves the learning state is fine. That way, if
-        // you fail a puzzle, you lose a bit of rating, but when you solve it successfully again,
-        // you gain some rating back.
-        if card_was_in_learning != card.in_learning() {
-            log::info!("First time pass, updating user's rating");
-
+        // If the difficulty was Good, (the neutral level for a card pass, basically), we don't
+        // update the rating unless the card left learning. That way, every single review of that
+        // cacrd in the future isn't going to cause great reating inflation. If the card was Again
+        // (failed), Hard (user passed it but had trouble), or Easy (below the user's current
+        // level), we update the rating too because it should let the rating system more accurately
+        // zone in on the user's rating and certainty.
+        if difficulty != Difficulty::Good || card_was_in_learning != card.in_learning() {
             let old_rating = user.rating.rating;
 
             user.rating.update(vec![GameResult {
                 rating: puzzle.rating,
-                deviation: 1,
-                score: match difficulty {
-                    Difficulty::Again => 0.0,
-                    Difficulty::Hard => 0.5,
-                    Difficulty::Good => 1.0,
-                    Difficulty::Easy => 1.0,
-                }
+                deviation: PUZZLE_RATING_DEVIATION,
+                score: difficulty.score(),
             }]);
 
             log::info!("Updating user's rating from {} to {}", old_rating, user.rating.rating);

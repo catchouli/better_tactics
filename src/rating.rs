@@ -6,7 +6,7 @@ use std::f64::consts::PI;
 
 /// The constant tau constrains the volatility over time. Smaller values of tau prevent dramatic
 /// rating changes after upset results.
-const TAU: f64 = 0.05;
+const TAU: f64 = 0.2;
 
 /// A struct representing a player's Glicko2 rating and rating deviation.
 #[derive(Debug, Copy, Clone)]

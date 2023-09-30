@@ -95,7 +95,7 @@ impl PuzzleDatabase {
                 date TEXT NOT NULL
             );
             INSERT OR IGNORE INTO users_v2 (id, rating, rating_deviation, rating_volatility)
-                VALUES ('local', 1000, 500, 0.06);
+                VALUES ('local', 500, 250, 0.06);
             CREATE INDEX IF NOT EXISTS user_id ON users_v2(id);
             CREATE INDEX IF NOT EXISTS card_id ON cards(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_id ON puzzles(puzzle_id);

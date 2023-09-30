@@ -50,6 +50,21 @@ impl Difficulty {
             _ => Err("")?
         })
     }
+
+    /// The score for a review, for the rating system. A score of 0.0 represents a loss, 0.5
+    /// represents a draw, and 1.0 represents a win.
+    pub fn score(&self) -> f64 {
+        match self {
+            Self::Again => 0.0,
+            Self::Hard => 0.5,
+            // Experimentally determined to lead to good rating growth if a puzzle is around the
+            // user's level. 'Easy' reviews are determined to be a win, and 'Hard' reviews a draw,
+            // but 'Good' reviews are somewhere in between. This score typically gives around ~5-6
+            // points for completing a puzzle at your level.
+            Self::Good => 0.66,
+            Self::Easy => 1.0
+        }
+    }
 }
 
 // A single spaced repetition "card" (e.g. a puzzle).

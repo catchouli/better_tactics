@@ -86,25 +86,57 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move || puzzle::next_review(puzzle_db.clone())
             }))
 
-        // TODO: figure out how to get post variables, and either redirect the user back to the
-        // appropriate page, or use ajax.
         .or(warp::path!("review")
             .and(warp::path::end())
             .and(warp::post())
             .and(warp::body::content_length_limit(1024 * 16))
             .and(warp::body::json())
             .and_then({
+                let puzzle_db = puzzle_db.clone();
                 move |request: ReviewRequest| {
                     log::info!("Got review request: {request:?}");
                     puzzle::review_puzzle(puzzle_db.clone(), request)
                 }
             }))
 
+        // A temporary route that allows the user to set their rating without opening the sqlite
+        // database externally. So if the new rating system causes ratings to go awry it's easy to
+        // fix.
+        .or(warp::path!("set_rating" / i64)
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let puzzle_db = puzzle_db.clone();
+                move |new_rating: i64| {
+                    set_rating(puzzle_db.clone(), new_rating)
+                }
+            }))
+
         .recover(handle_rejection)
 }
 
+async fn set_rating(puzzle_db: Arc<Mutex<PuzzleDatabase>>, new_rating: i64)
+    -> Result<impl warp::Reply, warp::Rejection>
+{
+    log::info!("Manually resetting user's rating to {new_rating}");
+
+    let mut puzzle_db = puzzle_db.lock().await;
+    let user_id = PuzzleDatabase::local_user_id();
+
+    let mut user = puzzle_db.get_user_by_id(user_id)
+        .map_err(InternalError::from)?
+        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
+
+    user.rating.rating = new_rating;
+    user.rating.deviation = 250;
+
+    puzzle_db.update_user(&user)
+        .map(|_| Ok(warp::reply::html(format!("Reset user rating to {new_rating}"))))
+        .map_err(InternalError::from)?
+}
+
 /// Custom rejection handler that maps rejections into responses.
-pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
+async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
     log::info!("Error handler");
     if err.is_not_found() {
         log::info!("Not found");
