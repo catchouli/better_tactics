@@ -7,7 +7,7 @@ use serde::Deserialize;
 use warp::reply::Reply;
 
 use crate::rating::GameResult;
-use crate::route::{InternalError, InvalidParameter};
+use crate::route::{InternalError, InvalidParameter, NotFound};
 use crate::util;
 use crate::db::{Puzzle, PuzzleDatabase, Stats, Review, User};
 use crate::srs::{Difficulty, Card};
@@ -90,7 +90,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     // Get the puzzle.
     let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
         .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("No such puzzle {}", puzzle_id)))?;
+        .ok_or_else(|| NotFound::new(&format!("Puzzle {puzzle_id}")))?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
