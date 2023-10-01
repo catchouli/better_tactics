@@ -1,7 +1,8 @@
 use std::error::Error;
+use std::fmt::Display;
 use std::fs::File;
 use chrono::{DateTime, FixedOffset, Local, Duration};
-use sqlite::Connection;
+use sqlite::{Connection, Row, Value};
 use owlchess::board::Board;
 use owlchess::moves::Style;
 use owlchess::chain::{MoveChain, NumberPolicy, GameStatusPolicy};
@@ -10,8 +11,35 @@ use crate::rating::Rating;
 use crate::srs::{Card, Difficulty};
 
 // TODO: this whole file (and project) could do with unit tests once the proof of concept is working :)
+const BACKEND_NAME: &'static str = "Sqlite";
+
+/// An error type indicating a database error.
+#[derive(Debug)]
+pub enum DatabaseError {
+    QueryError{backend: String, description: String, source: Option<Box<dyn Error>>},
+}
+
+impl Display for DatabaseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DatabaseError::QueryError{backend, description, source: _}
+                => write!(f, "{backend} query execution error: {description}"),
+        }
+    }
+}
+
+impl Error for DatabaseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            DatabaseError::QueryError{backend: _, description: _, source}
+                => source.as_ref().map(|e| e.as_ref()),
+        }
+    }
+}
 
 /// A result type that boxes errors to a Box<dyn Error>.
+/// TODO: Change DbResult to Result<T, DatabaseError>. First we need to change all the functions
+/// that return different types of errors to wrap them.
 pub type DbResult<T> = Result<T, Box<dyn Error>>;
 
 /// The puzzle database interface type.
@@ -103,6 +131,26 @@ impl PuzzleDatabase {
         ";
         conn.execute(QUERY)?;
         Ok(conn)
+    }
+
+    /// A wrapper for sqlite's Row::try_read() that converts errors to our DatabaseError type and
+    /// allows us to handle and report them easily.
+    fn try_read<'l, T>(row: &'l Row, column: &str) -> DbResult<T>
+    where
+        T: TryFrom<&'l Value, Error = sqlite::Error>,
+    { 
+        row.try_read::<T, _>(column)
+            .map_err(|e: sqlite::Error| {
+                let message = e.message.as_ref()
+                        .map(|s| s.as_str())
+                        .unwrap_or("(no description)");
+
+                DatabaseError::QueryError {
+                    backend: BACKEND_NAME.to_string(),
+                    description: format!("When reading row {:?}: {}", column, message),
+                    source: Some(e.into()),
+                }.into()
+            })
     }
 
     /// Import lichess database from file.
@@ -231,9 +279,9 @@ impl PuzzleDatabase {
                 let row = result?;
                 Ok(Puzzle::new(
                     puzzle_id.as_str(), 
-                    row.read("fen"),
-                    row.read("moves"),
-                    row.read("rating")
+                    Self::try_read(&row, "fen")?,
+                    Self::try_read(&row, "moves")?,
+                    Self::try_read(&row, "rating")?,
                 ))
             })
             .ok_or(format!("No such puzzle {puzzle_id}"))?;
@@ -255,7 +303,7 @@ impl PuzzleDatabase {
         ";
 
         log::info!("Getting puzzles..");
-        let puzzles: Result<Vec<Puzzle>, sqlite::Error> = self.conn
+        let puzzles: Result<Vec<Puzzle>, Box<dyn Error>> = self.conn
             .prepare(QUERY)?
             .into_iter()
             .bind((1, min_rating as i64))?
@@ -264,10 +312,10 @@ impl PuzzleDatabase {
             .map(|result| {
                 let row = result?;
                 Ok(Puzzle::new(
-                    row.read("puzzle_id"), 
-                    row.read("fen"),
-                    row.read("moves"),
-                    row.read("rating")
+                    Self::try_read(&row, "puzzle_id")?, 
+                    Self::try_read(&row, "fen")?,
+                    Self::try_read(&row, "moves")?,
+                    Self::try_read(&row, "rating")?,
                 ))
             })
             .into_iter()
@@ -279,12 +327,13 @@ impl PuzzleDatabase {
 
     /// Get the next due review.
     pub fn get_next_review_due(&self) -> DbResult<Option<(Card, Puzzle)>> {
+        // TODO: the left join means that if the corresponding puzzle gets deleted, 
         const QUERY: &'static str = "
             SELECT * FROM cards
-            CROSS JOIN puzzles
+            LEFT JOIN puzzles
                 ON cards.puzzle_id = puzzles.puzzle_id
-            WHERE due < ?
-            ORDER BY due ASC
+            WHERE datetime(due) < datetime(?)
+            ORDER BY datetime(due) ASC
             LIMIT 1
         ";
 
@@ -299,27 +348,27 @@ impl PuzzleDatabase {
                 let row = result?;
 
                 // Get puzzle id.
-                let puzzle_id = row.read::<&str, _>("puzzle_id");
+                let puzzle_id = Self::try_read::<&str>(&row, "puzzle_id")?;
 
                 // Construct card.
-                let due = DateTime::parse_from_rfc3339(row.read("due"))?;
-                let interval = Duration::seconds(row.read("interval"));
+                let due = DateTime::parse_from_rfc3339(Self::try_read(&row, "due")?)?;
+                let interval = Duration::seconds(Self::try_read(&row, "interval")?);
 
                 let card = Card {
                     id: puzzle_id.to_string(),
                     due,
                     interval,
-                    review_count: row.read("review_count"),
-                    ease: row.read("ease"),
-                    learning_stage: row.read("learning_stage"),
+                    review_count: Self::try_read(&row, "review_count")?,
+                    ease: Self::try_read(&row, "ease")?,
+                    learning_stage: Self::try_read(&row, "learning_stage")?,
                 };
 
                 // Construct puzzle.
                 let puzzle = Puzzle {
                     puzzle_id: puzzle_id.to_string(),
-                    fen: row.read::<&str, _>("fen").to_string(),
-                    moves: row.read::<&str, _>("moves").to_string(),
-                    rating: row.read("rating"),
+                    fen: Self::try_read::<&str>(&row, "fen")?.to_string(),
+                    moves: Self::try_read::<&str>(&row, "moves")?.to_string(),
+                    rating: Self::try_read(&row, "rating")?,
                 };
 
                 Ok((card, puzzle)) as DbResult<(Card, Puzzle)>
@@ -345,16 +394,16 @@ impl PuzzleDatabase {
             .map(|result| {
                 let row = result?;
 
-                let due = DateTime::parse_from_rfc3339(row.read("due"))?;
-                let interval = Duration::seconds(row.read("interval"));
+                let due = DateTime::parse_from_rfc3339(Self::try_read(&row, "due")?)?;
+                let interval = Duration::seconds(Self::try_read(&row, "interval")?);
 
                 Ok(Card {
                     id: puzzle_id.to_string(),
                     due,
                     interval,
-                    review_count: row.read("review_count"),
-                    ease: row.read("ease"),
-                    learning_stage: row.read("learning_stage"),
+                    review_count: Self::try_read(&row, "review_count")?,
+                    ease: Self::try_read(&row, "ease")?,
+                    learning_stage: Self::try_read(&row, "learning_stage")?,
                 })
             })
             .transpose()
@@ -412,8 +461,8 @@ impl PuzzleDatabase {
                 let row = result?;
 
                 Ok((
-                    row.read::<i64, _>("card_count"),
-                    row.read::<i64, _>("review_count"),
+                    Self::try_read::<i64>(&row, "card_count")?,
+                    Self::try_read::<i64>(&row, "review_count")?,
                 )) as DbResult<(i64, i64)>
             })
             .unwrap_or(Ok((0, 0)))?;
@@ -422,7 +471,7 @@ impl PuzzleDatabase {
         const QUERY_2: &'static str = "
             SELECT COUNT(*) as reviews_due
             FROM cards
-            WHERE date(due) < date(?)
+            WHERE datetime(due) < datetime(?)
         ";
 
         let due_time = Card::due_time()?.to_rfc3339();
@@ -433,7 +482,7 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
-                Ok(row.read("reviews_due")) as DbResult<i64>
+                Ok(Self::try_read::<i64>(&row, "reviews_due")?) as DbResult<i64>
             })
             .unwrap_or(Ok(0))?;
 
@@ -441,7 +490,7 @@ impl PuzzleDatabase {
         const QUERY_3: &'static str = "
             SELECT due
             FROM cards
-            ORDER BY due ASC
+            ORDER BY datetime(due) ASC
             LIMIT 1
         ";
 
@@ -451,7 +500,7 @@ impl PuzzleDatabase {
             .next()
             .map(|result| {
                 let row = result?;
-                let due = DateTime::parse_from_rfc3339(row.read("due"))?;
+                let due = DateTime::parse_from_rfc3339(Self::try_read(&row, "due")?)?;
                 Ok(due) as DbResult<DateTime<FixedOffset>>
             })
             .unwrap_or(Ok(Local::now().fixed_offset()))?;
@@ -486,9 +535,9 @@ impl PuzzleDatabase {
                 let row = result?;
 
                 let rating = Rating {
-                    rating: row.read("rating"),
-                    deviation: row.read::<i64, _>("rating_deviation"),
-                    volatility: row.read::<f64, _>("rating_volatility"),
+                    rating: Self::try_read(&row, "rating")?,
+                    deviation: Self::try_read::<i64>(&row, "rating_deviation")?,
+                    volatility: Self::try_read::<f64>(&row, "rating_volatility")?,
                 };
 
                 Ok(User {
@@ -559,9 +608,9 @@ impl PuzzleDatabase {
             .map(|result| {
                 let row = result?;
 
-                let puzzle_id = row.read::<&str, _>("puzzle_id");
-                let difficulty = Difficulty::from_i64(row.read("difficulty"))?;
-                let date = DateTime::parse_from_rfc3339(row.read("date"))?;
+                let puzzle_id = Self::try_read::<&str>(&row, "puzzle_id")?;
+                let difficulty = Difficulty::from_i64(Self::try_read(&row, "difficulty")?)?;
+                let date = DateTime::parse_from_rfc3339(Self::try_read(&row, "date")?)?;
 
                 let review = Review {
                     user_id: user_id.to_string(),
@@ -570,7 +619,7 @@ impl PuzzleDatabase {
                     date,
                 };
 
-                let rating = row.read("rating");
+                let rating = Self::try_read(&row, "rating")?;
 
                 Ok((review, rating))
             })

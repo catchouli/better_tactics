@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::Arc;
 use std::error::Error;
 
@@ -23,6 +24,12 @@ impl InvalidParameter {
     }
 }
 
+impl Display for InvalidParameter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Invalid parameter {}", self.param)
+    }
+}
+
 impl reject::Reject for InvalidParameter {}
 
 /// Our error type for internal errors.
@@ -36,6 +43,21 @@ impl InternalError {
         Self {
             description,
         }
+    }
+
+    /// Get the appropriate message to return to the user for an internal error. When debug assertions
+    /// are enabled, we return the original message.
+    #[cfg(debug_assertions)]
+    fn user_message(&self) -> String {
+        format!("Internal error: {}", self.description)
+    }
+
+    /// Get the appropriate message to return to the user for an internal error. When debug assertions
+    /// are not enabled, we simply return that there was an internal server error, to avoid leaking
+    /// any internals.
+    #[cfg(not(debug_assertions))]
+    fn user_message(&self) -> String {
+        format!("Internal server error")
     }
 }
 
@@ -157,22 +179,27 @@ async fn set_rating(puzzle_db: Arc<Mutex<PuzzleDatabase>>, new_rating: i64)
 }
 
 /// Custom rejection handler that maps rejections into responses.
+/// TODO: return error page instead of message only.
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
-    log::info!("Error handler");
-    if err.is_not_found() {
-        log::info!("Not found");
-        Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
+    let (reply, status) = if err.is_not_found() {
+        let reply = warp::reply::html(format!("Page not found"));
+        (reply, StatusCode::NOT_FOUND)
     }
     else if let Some(err) = err.find::<InvalidParameter>() {
-        log::warn!("Invalid parameter: {}", err.param);
-        Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
+        let reply = warp::reply::html(format!("Bad request: {}", err));
+        (reply, StatusCode::NOT_FOUND)
     }
     else if let Some(err) = err.find::<InternalError>() {
         log::error!("Internal error: {}", err.description);
-        Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
+        let reply = warp::reply::html(format!("{}", err.user_message()));
+        (reply, StatusCode::INTERNAL_SERVER_ERROR)
     }
     else {
-        log::error!("Unspecified internal error!");
-        Ok(reply::with_status("INTERNAL_SERVER_ERROR", StatusCode::INTERNAL_SERVER_ERROR))
-    }
+        log::error!("Internal error of unknown type! {err:?}");
+        let reply = warp::reply::html(format!("Internal error"));
+        (reply, StatusCode::INTERNAL_SERVER_ERROR)
+    };
+
+    Ok(reply::with_status(reply, status))
 }
+
