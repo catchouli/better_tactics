@@ -1,3 +1,5 @@
+[1.4] - ????-??-??
+
 [1.3] - 2023-10-01
 Changed:
 * Tweaked the rating sytstem once more. Once it gets a good idea of your actual rating, and your
