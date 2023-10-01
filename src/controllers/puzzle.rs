@@ -89,7 +89,8 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
 
     // Get the puzzle.
     let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
-        .map_err(InternalError::from)?;
+        .map_err(InternalError::from)?
+        .ok_or_else(|| InternalError::new(format!("No such puzzle {}", puzzle_id)))?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
@@ -207,7 +208,8 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
             .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
         let puzzle = puzzle_db.get_puzzle_by_id(&card.id)
-            .map_err(|_| InvalidParameter::new(&request.id))?;
+            .map_err(|_| InvalidParameter::new(&request.id))?
+            .ok_or_else(|| InternalError::new(format!("No such puzzle {}", card.id)))?;
 
         // Apply the review to the card.
         card.review(Utc::now().fixed_offset(), difficulty);
