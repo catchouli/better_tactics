@@ -79,6 +79,26 @@ impl PuzzleDatabase {
         Ok(())
     }
 
+    /// Get the rating of the highest rated puzzle in the database.
+    pub fn get_max_puzzle_rating(&self) -> DbResult<i64> {
+        const QUERY: &'static str = "
+            SELECT rating
+            FROM puzzles
+            ORDER BY rating DESC
+            LIMIT 1
+        ";
+
+        self.conn
+            .prepare(QUERY).map_err(Self::convert_error)?
+            .into_iter()
+            .map(|result| {
+                let row = result.map_err(Self::convert_error)?;
+                Self::try_read(&row, "rating")
+            })
+            .next()
+            .unwrap_or(Ok(0))
+    }
+
     /// Get the number of puzzles in the database.
     pub fn get_puzzle_count(&self) -> DbResult<usize> {
         const QUERY: &'static str = "
