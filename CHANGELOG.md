@@ -1,4 +1,19 @@
-[1.3] - ????-??-??
+[1.3] - 2023-10-01
+Changed:
+* Tweaked the rating sytstem once more. Once it gets a good idea of your actual rating, and your
+  rating deviation goes low enough, it's actually producing extremely good results now, and doesn't
+  award too much rating for repeated attempts of puzzles around your level. As a result, I've
+  reenabled the ability for every review to update your rating level. I've found that after a while
+  your rating stabilizes at an appropriate level and then gradually grows over time which is
+  perfect, and that 'Easy' and 'Again' reviews are great at hinting to the system to reevaluate
+  your current rating level, because it is too low or too high accordingly.
+* 'Reviewing ahead' of the day's reviews (so you can do all of your reviews at one time instead of
+  waiting for them to trickle in throughout the day) has been tweaked so that it only applies to
+  cards that are out of learning, otherwise they tend to show up again immediately before any cards
+  due later the same day. Now, cards in learning don't show up until they're actually due (usually
+  at most about 10 minutes after you've last seen them, giving you chance to do some other reviews
+  before they come up again.)
+* Fixes various bugs with data access and error reporting.
 
 [1.2] - 2023-09-30
 Added:
