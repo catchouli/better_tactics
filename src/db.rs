@@ -242,15 +242,6 @@ impl PuzzleDatabase {
         })
     }
 
-    /// Get the card 'due time' cutoff, e.g. 4am the next morning, to match all cards due today.
-    fn card_due_time() -> DbResult<DateTime<FixedOffset>> {
-        Card::due_time().map_err(|e| DatabaseError::ParsingError(ErrorDetails {
-            backend: "Srs".to_string(),
-            source: e.into(),
-            description: format!("Failed to get due time for cards"),
-        }))
-    }
-
     /// Import lichess database from file.
     pub fn import_lichess_database(&mut self, lichess_db_raw: File) -> DbResult<()> {
         const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
@@ -427,8 +418,12 @@ impl PuzzleDatabase {
             .collect::<DbResult<Vec<Puzzle>>>()
     }
 
-    /// Get the next due review.
-    pub fn get_next_review_due(&self) -> DbResult<Option<(Card, Puzzle)>> {
+    /// Get the next due review. min_interval allows us to filter out cards with short intervals
+    /// (e.g. because they're still in learning), because otherwise they'll show up, possibly
+    /// repeatedly if learning or relearning, before other cards that are due later today.
+    pub fn get_next_review_due(&self, time: DateTime<FixedOffset>, min_interval: Option<Duration>)
+        -> DbResult<Option<(Card, Puzzle)>>
+    {
         // TODO: the left join means that if the corresponding puzzle gets deleted, the query will
         // return NULL for those fields, and the try_reads below will fail. For now, I'm not really
         // expecting the puzzle database itself to change after it's initially imported, but we
@@ -439,17 +434,18 @@ impl PuzzleDatabase {
             LEFT JOIN puzzles
                 ON cards.puzzle_id = puzzles.puzzle_id
             WHERE datetime(due) < datetime(?)
+            AND interval >= ?
             ORDER BY datetime(due) ASC
             LIMIT 1
         ";
 
-        // Get the due cutoff time tommorow morning, so we can get all reviews due today.
-        let due_time = Self::card_due_time()?.to_rfc3339();
+        let min_interval_seconds = min_interval.map(|i| i.num_seconds()).unwrap_or(0);
 
         self.conn
             .prepare(QUERY).map_err(Self::convert_error)?
             .into_iter()
-            .bind((1, due_time.as_str())).map_err(Self::convert_error)?
+            .bind((1, time.to_rfc3339().as_str())).map_err(Self::convert_error)?
+            .bind((2, min_interval_seconds)).map_err(Self::convert_error)?
             .map(|result| {
                 let row = result.map_err(Self::convert_error)?;
 
@@ -543,7 +539,7 @@ impl PuzzleDatabase {
     }
 
     /// Get the stats for the local user.
-    pub fn get_user_stats(&self, user_id: &str) -> DbResult<Stats> {
+    pub fn get_user_stats(&self, user_id: &str, card_due_time: DateTime<FixedOffset>) -> DbResult<Stats> {
         // For now we only support a local user, so check that it's the local user's stats that are
         // being requested. In the future, we might also want to store the user's stats in the
         // users table and just update them as needed, to avoid having to look them up every time.
@@ -584,11 +580,10 @@ impl PuzzleDatabase {
             WHERE datetime(due) < datetime(?)
         ";
 
-        let due_time = Self::card_due_time()?.to_rfc3339();
         let reviews_due = self.conn
             .prepare(QUERY_2).map_err(Self::convert_error)?
             .into_iter()
-            .bind((1, due_time.as_str())).map_err(Self::convert_error)?
+            .bind((1, card_due_time.to_rfc3339().as_str())).map_err(Self::convert_error)?
             .next()
             .map(|result| {
                 let row = result.map_err(Self::convert_error)?;

@@ -79,8 +79,8 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user's stats.
-    let stats = puzzle_db.get_user_stats(user_id)
-        .map_err(InternalError::from)?;
+    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
 
     // Get the user.
     let user = puzzle_db.get_user_by_id(user_id)
@@ -122,8 +122,8 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
-    let stats = puzzle_db.get_user_stats(user_id)
-        .map_err(InternalError::from)?;
+    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
 
     // The min and max rating for puzzles, deviating from the user's rating by up to
     // PUZZLE_RATING_VARIATION.
@@ -161,17 +161,31 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user's stats.
-    let stats = puzzle_db.get_user_stats(user_id)
-        .map_err(InternalError::from)?;
+    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
 
     // Get the user.
     let user = puzzle_db.get_user_by_id(user_id)
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
-    // Get the user's next due review.
-    let next_review = puzzle_db.get_next_review_due()
+    // Get the user's next due review. The logic for this is a little complicated as we want to
+    // show cards that are due any time today (before the review cutoff) so the user can do their
+    // reviews all at once rather than them trickling in throughout the day. On the other hand, we
+    // don't want cards that are still in learning, with potentially low intervals, to show up
+    // before they're due unless there's absolutely no other cards left, because otherwise they'll
+    // show up repeatedly in front of other cards that are due later today.
+    let time_now = Local::now().fixed_offset();
+    let new_review_due_now = puzzle_db.get_next_review_due(time_now, None)
         .map_err(InternalError::from)?;
+
+    let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d);
+    let review_cutoff_today = Card::due_time().map_err(InternalError::from)?;
+    let next_non_learning_review_due_today =
+        puzzle_db.get_next_review_due(review_cutoff_today, max_learning_interval)
+            .map_err(InternalError::from)?;
+
+    let next_review = new_review_due_now.or(next_non_learning_review_due_today);
 
     if let Some((card, puzzle)) = next_review {
         Ok(PuzzleTemplate {

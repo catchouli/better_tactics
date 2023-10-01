@@ -4,7 +4,7 @@ use chrono::{DateTime, FixedOffset, Local, Duration};
 
 lazy_static! {
     /// The initial intervals for new cards
-    static ref INITIAL_INTERVALS: [Duration; 2] = [
+    pub static ref INITIAL_INTERVALS: [Duration; 2] = [
         Duration::seconds(10 * 60),
         Duration::seconds(24 * 60 * 60),
     ];
