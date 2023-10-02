@@ -15,6 +15,7 @@ a {
     text-decoration: underline;
 }
 
+/* Header */
 .header {
     margin-top: 1rem;
 }
@@ -23,21 +24,19 @@ a {
     text-decoration: none;
 }
 
+/* Footer */
 .footer {
     background: #352F44;
+}
 
-    img#ferris {
-        width: 100px;
-    }
+#ferris-container {
+    width: 100px;
+    display: inline-block;
+    margin: 0 auto;
+}
 
-    #ferris-container {
-        display: inline-block;
-        margin: 0 auto;
-    }
-
-    #ferris-container:hover {
-        transform: rotate(5deg);
-    }
+.footer #ferris-container:hover {
+    transform: rotate(5deg);
 }
 
 #main-container {

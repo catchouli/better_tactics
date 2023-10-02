@@ -22,4 +22,5 @@ static_dir = "0.2.0"
 tempfile = "3.8.0"
 tokio = { version = "1.32.0", features = ["rt-multi-thread", "macros"] }
 warp = "0.3.5"
+wry = "0.33.0"
 zstd = "0.12.4"

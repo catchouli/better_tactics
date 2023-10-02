@@ -13,6 +13,7 @@ use std::io::{Write, SeekFrom, Seek};
 use std::sync::Arc;
 use futures::StreamExt;
 use tokio::sync::Mutex;
+use wry::application::dpi::LogicalSize;
 
 use crate::db::PuzzleDatabase;
 
@@ -71,20 +72,50 @@ async fn init_db() -> Result<PuzzleDatabase, Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+      use wry::{
+        application::{
+          event::{Event, StartCause, WindowEvent},
+          event_loop::{ControlFlow, EventLoop},
+          window::WindowBuilder,
+        },
+        webview::WebViewBuilder,
+      };
+
     // Set RUST_LOG to info by default for other peoples' convenience.
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
     }
 
-    env_logger::builder().init();
+    env_logger::init();
     log::info!("Better tactics starting!");
+
 
     // Initialise puzzle database.
     let puzzle_db = Arc::new(Mutex::new(init_db().await?));
 
     // Create routes and serve service
     let routes = route::routes(puzzle_db);
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    tokio::spawn(warp::serve(routes).run(([127, 0, 0, 1], 3030)));
 
-    Ok(())
+    // Start the event loop for the ui in the main thread.
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_title("Better tactics")
+        .with_inner_size(LogicalSize::new(850, 780))
+        .build(&event_loop).unwrap();
+    let _webview = WebViewBuilder::new(window).unwrap()
+        .with_url("http://localhost:3030").unwrap()
+        .build().unwrap();
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::NewEvents(StartCause::Init) => log::info!("Web view started"),
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested, ..
+            } => *control_flow = ControlFlow::Exit,
+            _ => (),
+        }
+    });
 }

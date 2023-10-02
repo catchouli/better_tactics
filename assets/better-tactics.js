@@ -55,14 +55,14 @@ export class Puzzle {
                 }
             },
             events: {
-                move: this._move.bind(this)
+                move: this._make_player_move.bind(this)
             },
             orientation: this._player_color == 'w' ? 'white' : 'black',
             turnColor: this._computer_color == 'w' ? 'white' : 'black',
             fen: this._fen
         });
 
-        setTimeout(this._make_next_move.bind(this), COMPUTER_MOVE_DELAY);
+        setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
     }
 
     color_to_move() {
@@ -99,7 +99,7 @@ export class Puzzle {
         let orig = this._awaiting_promotion_move[0];
         let dest = this._awaiting_promotion_move[1];
         console.log(`Applying promotion move ${orig}${dest}${piece}`);
-        this._move(orig, dest, {}, piece);
+        this._make_player_move(orig, dest, {}, piece);
 
         this._awaiting_promotion = false;
         this._awaiting_promotion_move = null;
@@ -128,9 +128,9 @@ export class Puzzle {
         this._on_promote();
     }
 
-    _make_next_move() {
+    _make_computer_move() {
         if (this._game.turn() != this._computer_color) {
-            console.warn("_make_next_move(): called when it's the player's turn");
+            console.warn("_make_computer_move(): called when it's the player's turn");
             return;
         }
 
@@ -147,7 +147,8 @@ export class Puzzle {
             this._board.set({
                 fen: this._game.fen(),
                 lastMove: [source, dest],
-                turnColor: this._player_color == 'w' ? 'white' : 'black'
+                turnColor: this._player_color == 'w' ? 'white' : 'black',
+                check: this._game.isCheck()
             });
             this._board.move(next_move);
 
@@ -163,7 +164,7 @@ export class Puzzle {
         }
     }
 
-    _move(orig, dest, _, promotion) {
+    _make_player_move(orig, dest, _, promotion) {
         let move = orig + dest;
         let move_is_promotion = this._move_is_promotion(orig, dest);
 
@@ -186,27 +187,19 @@ export class Puzzle {
         try {
             this._game.move(move);
 
-            // Update the board in case if there's a promotion specified, as we need to change the
-            // pawn to a piece. The first time, before we've prompted the user for a promotion, we
-            // can just leave it as a pawn or it's a bit jarring.
-            if (promotion) {
-                this._board.set({
-                    fen: this._game.fen(),
-                    lastMove: [orig, dest],
-                    turnColor: this._computer_color == 'w' ? 'white' : 'black'
-                });
-            }
         }
         catch (_) {
             this._board.set({
                 fen: this._game.fen(),
                 lastMove: this._last_move,
-                turnColor: this._player_color == 'w' ? 'white' : 'black'
+                turnColor: this._player_color == 'w' ? 'white' : 'black',
+                check: this._game.isCheck()
             });
             return;
         }
 
-        // If the move is a promotion, we need to prompt the user to find out what piece they're promoting to.
+        // If the move is a promotion, we need to prompt the user to find out what piece they're
+        // promoting to.
         if (move_is_promotion && !promotion) {
             console.log("Move is promotion, prompting user for promotion piece");
 
@@ -216,6 +209,15 @@ export class Puzzle {
             this._await_promotion(orig, dest);
             return;
         }
+
+        // Update the board state to match the chess.js state. (e.g. change promoted pawns to
+        // pieces, and set whether the player to move is in check.
+        this._board.set({
+            fen: this._game.fen(),
+            lastMove: [orig, dest],
+            turnColor: this._computer_color == 'w' ? 'white' : 'black',
+            check: this._game.isCheck()
+        });
 
         // Call on move callback now that we've validated it.
         this._on_move();
@@ -239,7 +241,7 @@ export class Puzzle {
             }
             else {
                 this._right_move();
-                setTimeout(this._make_next_move.bind(this), COMPUTER_MOVE_DELAY);
+                setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
             }
         }
         else {
