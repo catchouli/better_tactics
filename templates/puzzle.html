@@ -137,19 +137,19 @@
         </div>
 
         <!-- The puzzle controls panel, always visible but with various switchable sub-panels -->
-        <div id="puzzle-controls" class="bt-panel sidebar-fill">
+        <!--<div id="puzzle-controls" class="bt-panel sidebar-fill">-->
             <!-- The initial panel shown -->
-            <div class="bt-subpanel" id="find-the-line">
+            <div class="bt-panel controls-subpanel" id="find-the-line">
                 <p>Find the line!</p>
             </div>
 
             <!-- Shown when the user makes the right move -->
-            <div class="bt-subpanel" id="right-move">
+            <div class="bt-panel controls-subpanel" id="right-move">
                 <p>Right move!</p>
             </div>
 
             <!-- Shown when the user makes the wrong move -->
-            <div class="bt-subpanel" id="wrong-move">
+            <div class="bt-panel controls-subpanel" id="wrong-move">
                 <p>Wrong move :(</p>
                 <!-- A button that lets them retry the puzzle -->
                 <div class="columns button-container">
@@ -160,7 +160,7 @@
             </div>
 
             <!-- Shown when the user completes the puzzle after making a mistake -->
-            <div class="bt-subpanel" id="puzzle-failure">
+            <div class="bt-panel controls-subpanel" id="puzzle-failure">
                 <p>Puzzle complete (with mistakes)</p>
 
                 <div class="columns button-container">
@@ -176,7 +176,7 @@
             </div>
 
             <!-- Shown when the user completes the puzzle first try -->
-            <div class="bt-subpanel" id="puzzle-success">
+            <div class="bt-panel controls-subpanel" id="puzzle-success">
                 <p>Puzzle complete</p>
 
                 <div class="columns button-container">
@@ -199,7 +199,6 @@
                         </button>
                     </div>
                 </div>
-            </div>
 
             {% if !card.is_due() %}
                 <br>
@@ -208,7 +207,7 @@
                     into the future each time you complete it.
                 </div>
             {% endif %}
-        </div>
+        <!--</div>-->
     </div>
 </div>
 
@@ -240,7 +239,7 @@
 
     // Hide all puzzle control subpanels.
     function hide_puzzle_control_subpanels() {
-        $('#puzzle-controls .bt-subpanel').css('display', 'none');
+        $('.controls-subpanel').css('display', 'none');
     }
 
     // Update the side to move interface.

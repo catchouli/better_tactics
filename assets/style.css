@@ -22,23 +22,23 @@ a {
 
 
 /* Button colors */
-#puzzle-controls button#try-again {
+.controls-subpanel button#try-again {
     background: #624344;
 }
 
-#puzzle-controls button#again {
+.controls-subpanel button#again {
     background: #434b62;
 }
 
-#puzzle-controls button#hard {
+.controls-subpanel button#hard {
     background: #b7881a;
 }
 
-#puzzle-controls button#good {
+.controls-subpanel button#good {
     background: #2e680d;
 }
 
-#puzzle-controls button#easy {
+.controls-subpanel button#easy {
     background: #269326;
 }
 
@@ -197,30 +197,27 @@ cg-board {
     flex-wrap: wrap;
 }
 
-#puzzle-info {
+/* These should take up 50% of the width in the collapsed mobile view,
+ * for the case where they're both visible they should push the move indicator
+ * to the next row. */
+#puzzle-info, #card-details {
     flex-basis: 50%;
-}
-
-#card-details {
-    flex-basis: 50%;
-}
-
-.move-indicator {
     flex-grow: 1;
 }
 
-#puzzle-controls, #wrong-move, #puzzle-failure, #puzzle-success {
-    /* Shows on its own row on mobile */
+.move-indicator, .controls-subpanel, #wrong-move, #puzzle-failure, #puzzle-success {
     flex-grow: 1;
-    margin-top: 1rem;
 }
 
 /* The sidebar panels that show up on success failure etc. They should all be hidden until needed. */
-#puzzle-controls {
+.controls-subpanel {
     text-align: center;
+    margin-top: 1rem;
+    /* If these are ever visible on mobile they should take up 100% of the width */
+    flex-basis: 100%;
 }
 
-.move-indicator, #puzzle-controls .bt-subpanel
+.move-indicator, .controls-subpanel
 {
     display: none;
 }
@@ -229,31 +226,31 @@ cg-board {
     text-align: center;
 }
 
-#puzzle-controls .button-container {
+.controls-subpanel .button-container {
     display: flex;
 }
 
-#puzzle-controls .button-container > div {
+.controls-subpanel .button-container > div {
     display: flex;
     justify-content: space-around;
 }
 
-#puzzle-controls button  {
+.controls-subpanel button  {
     display: block;
     min-height: 4rem;
 }
 
-#puzzle-controls button > .main-text {
+.controls-subpanel button > .main-text {
     font-weight: bold;
 }
 
-#puzzle-controls button > .sub-text {
+.controls-subpanel button > .sub-text {
     font-size: 0.8em;
 }
 
 /* Never show these on mobile, it's a bit of a waste of space */
 @media only screen and (max-width: 768px) {
-    .bt-subpanel#find-the-line, .bt-subpanel#right-move {
+    .controls-subpanel#find-the-line, .controls-subpanel#right-move {
         display: none !important;
     }
 }
@@ -331,37 +328,34 @@ cg-board {
         width: 100px;
     }
 
-    #puzzle-info {
-        flex-basis: 0;
-        flex-grow: 0;
-    }
-
-    #card-details {
+    #puzzle-info, #card-details {
         flex-basis: 0;
         flex-grow: 0;
     }
 
     .move-indicator {
+        /* On desktop this one shouldn't grow at all */
         flex: initial;
         flex-grow: 0;
     }
 
-    #puzzle-controls {
+    .controls-subpanel {
+        /* The visible controls panel should take up the rest of the space instead */
         flex: initial;
         flex-grow: 1;
     }
 
-    #puzzle-controls .button-container {
+    .controls-subpanel .button-container {
         margin-top: 1rem;
         margin-left: 0.25rem;
         margin-right: 0.25rem;
     }
 
-    #puzzle-controls .button-container:last-of-type {
+    .controls-subpanel .button-container:last-of-type {
         margin-bottom: 1rem;
     }
 
-    #puzzle-controls .button-container > div > button {
+    .controls-subpanel .button-container > div > button {
         display: initial;
         height: initial;
         flex-grow: 0;
