@@ -3,7 +3,7 @@
 {% block content %}
 
 <!-- The bars at the top -->
-<div class="columns">
+<div class="columns" id="top-bar">
     {% if mode == PuzzleMode::Random %}
         <div class="column bt-panel">
             Reviewing random puzzle in rating range {{ min_rating }}-{{ max_rating }}
@@ -33,8 +33,8 @@
     {% endif %}
 </div>
 
-<!-- The main container, with the puzzle and other panels in it -->
-<div class="columns">
+<!-- The main puzzle interface, with the puzzle and other panels in it -->
+<div class="columns" id="puzzle-interface">
     <!-- The board column on the left -->
     <div class="column is-two-thirds bt-panel" id="board-container">
         <!-- The chessground board -->
@@ -77,12 +77,22 @@
     <div class="column sidebar">
         <!-- The puzzle info - always visible -->
         <div id="puzzle-info" class="bt-panel">
-            <p>
-                Lichess puzzle
-                <a href="/tactics/single/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a>
-            </p>
-            <p>Puzzle rating: {{ puzzle.rating }}</p>
-            <p>User rating: {{ user.rating.rating }}</p>
+            <table class="stats">
+                <tbody>
+                    <tr>
+                        <th scope="row">Lichess puzzle</th>
+                        <td><a href="/tactics/single/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Puzzle rating</th>
+                        <td>{{ puzzle.rating }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">User rating</th>
+                        <td>{{ user.rating.rating }}</td>
+                    </tr>
+                </tbody>
+            </table>
             <a id="analysis-link" target="_blank">Analyse</a>
         </div>
 
@@ -90,10 +100,9 @@
         {% if card.review_count != 0 %}
             <div id="card-details" class="bt-panel">
                 <table class="stats">
-                    <caption>Puzzle stats</caption>
                     <tbody>
                         <tr>
-                            <th scope="row">Review count</th>
+                            <th scope="row">Reviews</th>
                             <td>{{ card.review_count }}</td>
                         </tr>
                         <tr>
