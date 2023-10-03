@@ -1,4 +1,8 @@
 [1.4] - ????-??-??
+Changed:
+* Made the UI a bit more clean and sleek and also make it mobile friendly.
+* Highlight when the king is in check.
+* Allow player to keep playing out the game after the puzzle is complete.
 
 [1.3] - 2023-10-01
 Changed:

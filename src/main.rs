@@ -84,7 +84,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create routes and serve service
     let routes = route::routes(puzzle_db);
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    // TODO: add config file for binding
+    warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
 
     Ok(())
 }
