@@ -7,8 +7,7 @@ use serde::Deserialize;
 use warp::reply::Reply;
 
 use crate::rating::GameResult;
-use crate::route::{InternalError, InvalidParameter, NotFound};
-use crate::util;
+use crate::route::{InternalError, InvalidParameter};
 use crate::db::{Puzzle, PuzzleDatabase, Stats, Review, User};
 use crate::srs::{Difficulty, Card};
 
@@ -49,19 +48,15 @@ impl Display for PuzzleMode {
 #[derive(Template)]
 #[template(path = "puzzle.html")]
 pub struct PuzzleTemplate {
-    mode: PuzzleMode,
-    puzzle: Puzzle,
-    card: Card,
-    stats: Stats,
     user: User,
+    stats: Stats,
+    mode: PuzzleMode,
+    puzzle_id: Option<String>,
+    puzzle: Option<Puzzle>,
+    card: Option<Card>,
     min_rating: i64,
     max_rating: i64,
 }
-
-/// The tempalte for when there are no remaining reviews.
-#[derive(Template)]
-#[template(path = "reviews-done.html")]
-pub struct ReviewsDone;
 
 /// The POST request for reviewing a card.
 #[derive(Debug, Clone, Deserialize)]
@@ -78,31 +73,32 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
 
-    // Get the user's stats.
-    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
-
     // Get the user.
     let user = puzzle_db.get_user_by_id(user_id)
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
+    // Get the user's stats.
+    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
+
     // Get the puzzle.
     let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
-        .map_err(InternalError::from)?
-        .ok_or_else(|| NotFound::new(&format!("Puzzle {puzzle_id}")))?;
+        .map_err(InternalError::from)?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
-    let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
+    let card = puzzle.as_ref().map(|puzzle| puzzle_db.get_card_by_id(&puzzle.puzzle_id))
+        .transpose()
         .map_err(InternalError::from)?
-        .unwrap_or(Card::new(&puzzle_id));
+        .flatten();
 
     Ok(PuzzleTemplate {
-        mode: PuzzleMode::Specific,
-        puzzle,
-        stats,
-        card,
         user,
+        stats,
+        mode: PuzzleMode::Specific,
+        puzzle_id: Some(puzzle_id),
+        puzzle,
+        card,
         min_rating: 0,
         max_rating: 0,
     })
@@ -135,20 +131,23 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // Get a random puzzle.
     let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
         .map(|vec| vec.into_iter().nth(0))
-        .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("Got no puzzles when requesting a random one")))?;
+        .map_err(InternalError::from)?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
-    let card = puzzle_db.get_card_by_id(&puzzle.puzzle_id)
+    let card = puzzle.as_ref().map(|puzzle| puzzle_db.get_card_by_id(&puzzle.puzzle_id))
+        .transpose()
         .map_err(InternalError::from)?
-        .unwrap_or(Card::new(&puzzle.puzzle_id));
+        .flatten();
+
+    log::info!("{puzzle:?}");
 
     Ok(PuzzleTemplate {
-        mode: PuzzleMode::Random,
-        puzzle,
-        stats,
-        card,
         user,
+        stats,
+        mode: PuzzleMode::Random,
+        puzzle_id: puzzle.as_ref().map(|p| p.puzzle_id.clone()),
+        puzzle,
+        card,
         min_rating,
         max_rating,
     })
@@ -162,14 +161,14 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
 
-    // Get the user's stats.
-    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
-
     // Get the user.
     let user = puzzle_db.get_user_by_id(user_id)
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
+
+    // Get the user's stats.
+    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
 
     // Get the user's next due review. The logic for this is a little complicated as we want to
     // show cards that are due any time today (before the review cutoff) so the user can do their
@@ -187,22 +186,21 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         puzzle_db.get_next_review_due(review_cutoff_today, max_learning_interval)
             .map_err(InternalError::from)?;
 
-    let next_review = new_review_due_now.or(next_non_learning_review_due_today);
+    let (card, puzzle) = match new_review_due_now.or(next_non_learning_review_due_today) {
+        Some((card, puzzle)) => (Some(card), Some(puzzle)),
+        _ => (None, None)
+    };
 
-    if let Some((card, puzzle)) = next_review {
-        Ok(PuzzleTemplate {
-            mode: PuzzleMode::Review,
-            puzzle,
-            stats,
-            card,
-            user,
-            min_rating: 0,
-            max_rating: 0,
-        }.into_response())
-    }
-    else {
-        Ok(ReviewsDone {}.into_response())
-    }
+    Ok(PuzzleTemplate {
+        user,
+        stats,
+        mode: PuzzleMode::Review,
+        puzzle_id: puzzle.as_ref().map(|p| p.puzzle_id.clone()),
+        puzzle,
+        card,
+        min_rating: 0,
+        max_rating: 0,
+    }.into_response())
 }
 
 pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: ReviewRequest)

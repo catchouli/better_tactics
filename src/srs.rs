@@ -150,6 +150,11 @@ impl Card {
         }
     }
 
+    /// Get the next interval after a review with score `score` in human readable form.
+    pub fn next_interval_human(&self, score: Difficulty) -> String {
+        crate::util::review_duration_to_human(self.next_interval(score))
+    }
+
     /// Review a card and update the interval, ease and due date.
     pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) {
         // Update interval and due time.
