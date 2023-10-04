@@ -57,6 +57,7 @@ pub struct PuzzleTemplate {
     card: Option<Card>,
     min_rating: i64,
     max_rating: i64,
+    puzzle_count: usize,
 }
 
 /// The POST request for reviewing a card.
@@ -102,6 +103,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
         card,
         min_rating: 0,
         max_rating: 0,
+        puzzle_count: 0,
     })
 }
 
@@ -112,6 +114,8 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
+    let puzzle_count = puzzle_db.get_puzzle_count()
+        .map_err(InternalError::from)?;
 
     // Get the user.
     let user = puzzle_db.get_user_by_id(user_id)
@@ -151,6 +155,7 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         card,
         min_rating,
         max_rating,
+        puzzle_count,
     })
 }
 
@@ -201,6 +206,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         card,
         min_rating: 0,
         max_rating: 0,
+        puzzle_count: 0,
     }.into_response())
 }
 

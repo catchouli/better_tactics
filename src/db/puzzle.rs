@@ -1,6 +1,4 @@
-use std::fs::File;
-
-use crate::db::{DatabaseError, ErrorDetails, PuzzleDatabase, DbResult};
+use crate::db::{PuzzleDatabase, DbResult};
 
 /// A puzzle record from the db.
 #[derive(Debug, Clone)]
@@ -13,67 +11,6 @@ pub struct Puzzle {
 
 /// Puzzle related database implementations.
 impl PuzzleDatabase {
-    /// Import lichess database from file.
-    pub fn import_lichess_database(&mut self, lichess_db_raw: File) -> DbResult<()> {
-        const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
-        const PUZZLES_PER_PROGRESS_UPDATE: usize = 10000;
-
-        log::info!("Importing lichess puzzle database");
-
-        if let Ok(decoder) = zstd::stream::Decoder::new(lichess_db_raw) {
-            let mut csv_reader = csv::Reader::from_reader(decoder);
-            let mut puzzles_imported = 0;
-
-            let mut puzzles = Vec::new();
-
-            for result in csv_reader.records().take(MAX_PUZZLES_TO_IMPORT) {
-                const EXPECTED_ROWS: usize = 10;
-
-                // Unwrap record.
-                let record = result.map_err(|e| DatabaseError::DataImportError(ErrorDetails {
-                    backend: "csv".to_string(),
-                    description: format!("CSV parse error when importing lichess puzzles database: {e}"),
-                    source: Some(e.into()),
-                }))?;
-
-                if record.len() != EXPECTED_ROWS {
-                    log::warn!("Skipping record with {} entries, expected at least {}", record.len(), EXPECTED_ROWS);
-                    continue;
-                }
-
-                // Import puzzle.
-                let puzzle_id = record[0].to_string();
-                let fen = record[1].to_string();
-                let moves = record[2].to_string();
-                let rating = Self::try_parse(&record[3])?;
-
-                puzzles.push(Puzzle { puzzle_id, fen, moves, rating });
-
-                // Bulk insert if we have enough.
-                if puzzles.len() >= PUZZLES_PER_PROGRESS_UPDATE {
-                    self.add_puzzles(&puzzles)?;
-                    puzzles.clear();
-                }
-
-                // Update counter and report progress.
-                puzzles_imported += 1;
-                if puzzles_imported % PUZZLES_PER_PROGRESS_UPDATE == 0 {
-                    log::info!("Progress: {puzzles_imported} puzzles imported...");
-                }
-            }
-
-            // Add last batch (should be less than the batch size or it'll be empty).
-            if !puzzles.is_empty() {
-                self.add_puzzles(&puzzles)?;
-                puzzles.clear();
-            }
-
-            log::info!("Finished importing {puzzles_imported} puzzles");
-        }
-
-        Ok(())
-    }
-
     /// Get the rating of the highest rated puzzle in the database.
     pub fn get_max_puzzle_rating(&self) -> DbResult<i64> {
         const QUERY: &'static str = "
@@ -122,7 +59,9 @@ impl PuzzleDatabase {
            format!("(\"{}\", \"{}\", \"{}\", {})", puzzle.puzzle_id, puzzle.fen, puzzle.moves, puzzle.rating)
         ).collect::<Vec<_>>().join(",");
 
-        let finished_query = format!("INSERT INTO puzzles (puzzle_id, fen, moves, rating) VALUES {}", rows);
+        let finished_query = format!(
+            "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating) VALUES {}",
+            rows);
 
         self.conn.execute(finished_query)
             .map_err(Self::convert_error)

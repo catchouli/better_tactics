@@ -3,9 +3,6 @@ mod puzzle;
 mod user;
 mod card;
 
-use std::error::Error;
-use std::fmt::Display;
-use std::str::FromStr;
 use chrono::{DateTime, FixedOffset};
 use sqlite::{Connection, Row, Value};
 
@@ -19,10 +16,17 @@ pub use card::*;
 // problems of data migration and the general ad-hoc-ness of it all.
 
 const DB_BACKEND: &'static str = "Sqlite";
+const DB_VERSION: i64 = 1;
 
 /// The puzzle database interface type.
 pub struct PuzzleDatabase {
     conn: Connection,
+}
+
+pub struct AppData {
+    pub environment: String,
+    pub db_version: i64,
+    pub lichess_db_imported: bool,
 }
 
 impl PuzzleDatabase {
@@ -47,7 +51,7 @@ impl PuzzleDatabase {
     /// Initialise the database schema if it isn't already.
     fn init_schema(conn: &mut Connection) -> DbResult<()> {
         log::info!("Initialising db schema");
-        const QUERY: &'static str = "
+        let query = format!("
             CREATE TABLE IF NOT EXISTS puzzles (
                 puzzle_id TEXT PRIMARY KEY,
                 fen TEXT NOT NULL,
@@ -75,20 +79,74 @@ impl PuzzleDatabase {
                 difficulty INTEGER NOT NULL,
                 date TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS app_data (
+                environment TEXT PRIMARY KEY,
+                db_version INTEGER NOT NULL,
+                lichess_db_imported BOOLEAN NOT NULL
+            );
             INSERT OR IGNORE INTO users_v2 (id, rating, rating_deviation, rating_volatility)
                 VALUES ('local', 500, 250, 0.06);
+            INSERT OR IGNORE INTO app_data (environment, db_version, lichess_db_imported)
+                VALUES ('', {DB_VERSION}, 0);
             CREATE INDEX IF NOT EXISTS user_id ON users_v2(id);
             CREATE INDEX IF NOT EXISTS card_id ON cards(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_id ON puzzles(puzzle_id);
             CREATE INDEX IF NOT EXISTS puzzle_rating ON puzzles(rating);
-        ";
+        ");
 
-        conn.execute(QUERY)
+        conn.execute(query)
             .map_err(|e| DatabaseError::QueryError(ErrorDetails {
                 backend: DB_BACKEND.to_string(),
                 description: format!("Failed to initialise database schema: {e}"),
                 source: Some(e.into()),
             }))
+    }
+
+    pub fn get_app_data(&self, env: &str) -> DbResult<AppData> {
+        const QUERY: &'static str = "
+            SELECT db_version, lichess_db_imported
+            FROM app_data
+            WHERE environment = ?
+        ";
+
+        self.conn.prepare(QUERY).map_err(Self::convert_error)?
+            .into_iter()
+            .bind((1, env)).map_err(Self::convert_error)?
+            .map(|result| {
+                let row = result.map_err(Self::convert_error)?;
+                let lichess_db_imported = Self::try_read::<i64>(&row, "lichess_db_imported")? != 0;
+                let db_version = Self::try_read::<i64>(&row, "db_version")?;
+                Ok(AppData {
+                    environment: env.to_string(),
+                    db_version,
+                    lichess_db_imported,
+                })
+            })
+            .next()
+            .transpose()?
+            // Shouldn't really happen since it gets initialised on startup if it doesn't exist.
+            .ok_or_else(|| DatabaseError::InternalError(ErrorDetails {
+                backend: DB_BACKEND.to_string(),
+                description: format!("Database has no app_data record, which should be impossible"),
+                source: None,
+            }))
+    }
+
+    pub fn update_app_data(&self, env: &str, app_data: &AppData) -> DbResult<()> {
+        const QUERY: &'static str = "
+            INSERT OR REPLACE INTO app_data (environment, db_version, lichess_db_imported)
+            VALUES (?, ?, ?)
+        ";
+
+        self.conn.prepare(QUERY).map_err(Self::convert_error)?
+            .into_iter()
+            .bind((1, env)).map_err(Self::convert_error)?
+            .bind((2, app_data.db_version)).map_err(Self::convert_error)?
+            .bind((3, if app_data.lichess_db_imported { 1 } else { 0 })).map_err(Self::convert_error)?
+            .next()
+            .transpose()
+            .map(|_| ())
+            .map_err(Self::convert_error)
     }
 
     /// A wrapper for sqlite's Row::try_read() that converts errors to our DatabaseError type and
@@ -109,21 +167,6 @@ impl PuzzleDatabase {
                     source: Some(e.into()),
                 }).into()
             })
-    }
-
-    /// A wrapper for String::parse that converts errors to our DatabaseError type and allows us to
-    /// handle and report them easily.
-    fn try_parse<T>(value: &str) -> DbResult<T>
-    where
-        T: FromStr,
-        T::Err: Into<Box<dyn Error>> + Display,
-    {
-        value.parse::<T>()
-            .map_err(|e| DatabaseError::ParsingError(ErrorDetails {
-                backend: "String".to_string(),
-                description: format!("Failed to parse value: {e}"),
-                source: Some(e.into()),
-            }))
     }
 
     /// Parse a datetime from a rfc3339 format string and return a ParsingError if it failed.

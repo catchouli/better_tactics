@@ -21,8 +21,10 @@ pub enum DatabaseError {
     ConnectionError(ErrorDetails),
     QueryError(ErrorDetails),
     ParsingError(ErrorDetails),
-    DataImportError(ErrorDetails),
+    InternalError(ErrorDetails),
 }
+
+unsafe impl Send for DatabaseError {}
 
 impl DatabaseError {
     fn details(&self) -> &ErrorDetails {
@@ -31,7 +33,7 @@ impl DatabaseError {
             DatabaseError::ConnectionError(details) => details,
             DatabaseError::QueryError(details) => details,
             DatabaseError::ParsingError(details) => details,
-            DatabaseError::DataImportError(details) => details,
+            DatabaseError::InternalError(details) => details,
         }
     }
 }
@@ -47,8 +49,8 @@ impl Display for DatabaseError {
                 => write!(f, "{} query execution error: {}", details.backend, details.description),
             DatabaseError::ParsingError(details)
                 => write!(f, "{} parsing error: {}", details.backend, details.description),
-            DatabaseError::DataImportError(details)
-                => write!(f, "{} data import error: {}", details.backend, details.description),
+            DatabaseError::InternalError(details)
+                => write!(f, "{} internal error: {}", details.backend, details.description),
         }
     }
 }

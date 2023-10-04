@@ -15,55 +15,8 @@ use std::sync::Arc;
 use futures::StreamExt;
 use tokio::sync::Mutex;
 
-use crate::db::PuzzleDatabase;
+use crate::db::{PuzzleDatabase, Puzzle};
 use crate::config::AppConfig;
-
-/// Download the lichess puzzles db as a temporary file.
-async fn download_puzzle_db() -> Result<File, Box<dyn Error>> {
-    const LICHESS_DB_URL: &'static str = "https://database.lichess.org/lichess_db_puzzle.csv.zst";
-
-    let mut file = tempfile::tempfile()?;
-
-    log::info!("Downloading {LICHESS_DB_URL}");
-    let response = reqwest::get(LICHESS_DB_URL).await?;
-    let mut response_stream = response.bytes_stream();
-
-    let mut counter = 0;
-    while let Some(v) = response_stream.next().await {
-        let bytes = v?;
-        counter += bytes.len();
-        file.write_all(&bytes)?;
-    }
-
-    log::info!("Downloaded {counter} bytes");
-
-    Ok(file)
-}
-
-/// Open the puzzle database and initialize it if needed.
-async fn init_db(config: &AppConfig) -> Result<PuzzleDatabase, Box<dyn Error>> {
-    // Open puzzle database.
-    let mut puzzle_db = PuzzleDatabase::open(&config.db_name)?;
-
-    // If no puzzles are loaded into the db yet, initialise it from a copy of the lichess database.
-    let puzzle_count = puzzle_db.get_puzzle_count()?;
-    if puzzle_count == 0 {
-        log::info!("Puzzle database empty, initialising from lichess puzzles database");
-
-        // Download the lichess database.
-        let mut lichess_db = download_puzzle_db().await?;
-        lichess_db.seek(SeekFrom::Start(0))?;
-
-        // Initialise our database with it.
-        puzzle_db.import_lichess_database(lichess_db)?;
-        log::info!("Done initialising puzzle database");
-    }
-    else {
-        log::info!("Loaded puzzle database with {puzzle_count} puzzles");
-    }
-
-    Ok(puzzle_db)
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -79,12 +32,171 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app_config = AppConfig::from_env()?;
     log::info!("{app_config:?}");
 
-    // Initialise puzzle database.
-    let puzzle_db = Arc::new(Mutex::new(init_db(&app_config).await?));
+    // Open puzzle database.
+    let puzzle_db = Arc::new(Mutex::new(PuzzleDatabase::open(&app_config.db_name)?));
 
-    // Create routes and serve service
+    // Initialise puzzle database.
+    tokio::spawn({
+        let puzzle_db = puzzle_db.clone();
+        async move {
+            if let Err(e) = init_db(puzzle_db.clone()).await {
+                log::error!("{e}");
+            }
+        }
+    });
+
+    // Create routes and serve service.
     let routes = route::routes(puzzle_db);
-    warp::serve(routes).run((app_config.bind_interface, app_config.bind_port)).await;
+    let server_task = warp::serve(routes).run((app_config.bind_interface, app_config.bind_port));
+
+    tokio::join!(server_task);
 
     Ok(())
 }
+
+/// Open the puzzle database and initialize it if needed.
+async fn init_db(db: Arc<Mutex<PuzzleDatabase>>) -> Result<(), String> {
+    let app_data = db.lock().await.get_app_data("")
+        .map_err(|e| format!("Failed to get app data: {e}"))?;
+
+    // If the puzzle db hasn't been fully initialised yet, download it.
+    if !app_data.lichess_db_imported {
+        log::info!(
+            "Puzzle database not fully initialised, initialising from lichess puzzles database in background");
+
+        // Download the lichess database.
+        let mut lichess_db = download_puzzle_db().await
+            .map_err(|e| format!("Failed to download lichess puzzle database: {e}"))?;
+        lichess_db.seek(SeekFrom::Start(0))
+            .map_err(|e| format!("Failed to seek lichess db file: {e}"))?;
+
+        // Initialise our database with it.
+        import_lichess_database(db, lichess_db).await
+            .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
+    }
+    else {
+        let puzzle_count = db.lock().await.get_puzzle_count()
+            .map_err(|e| format!("Failed to get puzzle count: {e}"))?;
+        log::info!("Loaded puzzle database with {puzzle_count} puzzles");
+    }
+
+    Ok(())
+}
+
+/// Download the lichess puzzles db as a temporary file.
+async fn download_puzzle_db() -> Result<File, String> {
+    const LICHESS_DB_NAME: &'static str = "lichess_db_puzzle.csv.zst";
+    const LICHESS_DB_URL: &'static str = "https://database.lichess.org/lichess_db_puzzle.csv.zst";
+
+    const BYTES_PER_MEGABYTE: usize = 1024 * 1024;
+    const BYTES_PER_PROGRESS_REPORT: usize = 10 * BYTES_PER_MEGABYTE;
+
+    // If the puzzle db is just already in the current working directory, just use that.
+    if let Ok(file) = File::open(LICHESS_DB_NAME) {
+        return Ok(file);
+    }
+
+    // Otherwise, create a temporary file and download it.
+    let mut file = tempfile::tempfile()
+        .map_err(|e| format!("Failed to create temp file: {e}"))?;
+
+    log::info!("Downloading {LICHESS_DB_URL}");
+    let response = reqwest::get(LICHESS_DB_URL).await
+        .map_err(|e| format!("Failed to request lichess puzzle db: {e}"))?;
+
+    let total_length_mb = response.content_length()
+        .map(|bytes| (bytes as usize / BYTES_PER_MEGABYTE).to_string())
+        .unwrap_or("?".to_string());
+
+    let mut response_stream = response.bytes_stream();
+
+    let mut counter = 0;
+    let mut bytes_since_reported = 0;
+    while let Some(v) = response_stream.next().await {
+        let bytes = v
+            .map_err(|e| format!("Failed to read byte stream: {e}"))?;
+        counter += bytes.len();
+        bytes_since_reported += bytes.len();
+
+        file.write_all(&bytes)
+            .map_err(|e| format!("Failed to write bytes to temp file: {e}"))?;
+
+        while bytes_since_reported > BYTES_PER_PROGRESS_REPORT {
+            log::info!("Lichess puzzle database: {}/{}MB downloaded",
+                       counter / BYTES_PER_MEGABYTE,
+                       total_length_mb);
+            bytes_since_reported -= BYTES_PER_PROGRESS_REPORT;
+        }
+    }
+
+    log::info!("Downloaded {counter} bytes");
+
+    Ok(file)
+}
+
+/// Import lichess database from file.
+async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw: File)
+    -> Result<(), String>
+{
+    const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
+    const PUZZLES_PER_PROGRESS_UPDATE: usize = 10000;
+
+    log::info!("Importing lichess puzzle database");
+
+    if let Ok(decoder) = zstd::stream::Decoder::new(lichess_db_raw) {
+        let mut csv_reader = csv::Reader::from_reader(decoder);
+        let mut puzzles_imported = 0;
+
+        let mut puzzles = Vec::new();
+
+        for result in csv_reader.records().take(MAX_PUZZLES_TO_IMPORT) {
+            const EXPECTED_ROWS: usize = 10;
+
+            // Unwrap record.
+            let record = result.map_err(|e|
+                format!("CSV parse error when importing lichess puzzles database: {e}")
+            )?;
+
+            if record.len() != EXPECTED_ROWS {
+                log::warn!("Skipping record with {} entries, expected at least {}", record.len(), EXPECTED_ROWS);
+                continue;
+            }
+
+            // Import puzzle.
+            let puzzle_id = record[0].to_string();
+            let fen = record[1].to_string();
+            let moves = record[2].to_string();
+            let rating = record[3].parse().map_err(|e| format!("Failed to parse rating field {e}"))?;
+
+            puzzles.push(Puzzle { puzzle_id, fen, moves, rating });
+            puzzles_imported += 1;
+
+            // Bulk insert if we have enough.
+            if puzzles.len() >= PUZZLES_PER_PROGRESS_UPDATE {
+                db.lock().await.add_puzzles(&puzzles)
+                    .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
+                puzzles.clear();
+                log::info!("Progress: {puzzles_imported} puzzles imported...");
+            }
+        }
+
+        // Add last batch (should be less than the batch size or it'll be empty).
+        if !puzzles.is_empty() {
+            db.lock().await.add_puzzles(&puzzles)
+                .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
+            puzzles.clear();
+        }
+
+        // Update flag in db to say the puzzles table is initialised.
+        let mut app_data = db.lock().await.get_app_data("")
+            .map_err(|e| format!("Failed to get app data: {e}"))?;
+        app_data.lichess_db_imported = true;
+        db.lock().await.update_app_data("", &app_data)
+            .map_err(|e| format!("Failed to update app data: {e}"))?;
+
+        log::info!("Finished importing {puzzles_imported} puzzles");
+    }
+
+    Ok(())
+}
+

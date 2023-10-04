@@ -10,28 +10,6 @@ use crate::controllers::index;
 use crate::controllers::puzzle::{self, ReviewRequest};
 use crate::db::PuzzleDatabase;
 
-/// Our error type for requests when a specified resource was not found.
-#[derive(Debug)]
-pub struct NotFound {
-    pub resource: String,
-}
-
-impl NotFound {
-    pub fn new(resource: &str) -> Self {
-        Self {
-            resource: resource.to_string()
-        }
-    }
-}
-
-impl Display for NotFound {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "The requested resource was not found: {}", self.resource)
-    }
-}
-
-impl reject::Reject for NotFound {}
-
 /// Our error type for bad requests.
 #[derive(Debug)]
 pub struct InvalidParameter {
@@ -207,13 +185,9 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
         let reply = warp::reply::html(format!("Page not found"));
         (reply, StatusCode::NOT_FOUND)
     }
-    else if let Some(err) = err.find::<NotFound>() {
-        let reply = warp::reply::html(format!("{}", err));
-        (reply, StatusCode::NOT_FOUND)
-    }
     else if let Some(err) = err.find::<InvalidParameter>() {
         let reply = warp::reply::html(format!("Bad request: {}", err));
-        (reply, StatusCode::NOT_FOUND)
+        (reply, StatusCode::BAD_REQUEST)
     }
     else if let Some(err) = err.find::<InternalError>() {
         log::error!("Internal error: {}", err.description);
