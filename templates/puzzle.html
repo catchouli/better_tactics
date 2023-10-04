@@ -221,10 +221,10 @@
     const moves = "{{ puzzle.moves }}";
     const rating = {{ puzzle.rating }};
 
-    const again_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Again)) }}";
-    const hard_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Hard)) }}";
-    const good_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Good)) }}";
-    const easy_time = "{{ util::review_duration_to_human_owned(card.next_interval(Difficulty::Easy)) }}";
+    const again_time = "{{ util::review_duration_to_human(card.next_interval(Difficulty::Again)) }}";
+    const hard_time = "{{ util::review_duration_to_human(card.next_interval(Difficulty::Hard)) }}";
+    const good_time = "{{ util::review_duration_to_human(card.next_interval(Difficulty::Good)) }}";
+    const easy_time = "{{ util::review_duration_to_human(card.next_interval(Difficulty::Easy)) }}";
 
     // Add review time to buttons.
     $('button#again > .sub-text').text(again_time);

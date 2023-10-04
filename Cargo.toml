@@ -10,11 +10,11 @@ askama = "0.12.0"
 askama_warp = "0.13.0"
 chrono = "0.4.31"
 csv = "1.2.2"
+dotenvy = "0.15.7"
 env_logger = "0.10.0"
 futures = "0.3.28"
 lazy_static = "1.4.0"
 log = "0.4.20"
-owlchess = "0.4.0"
 reqwest = { version = "0.11.20", features = ["stream"] }
 serde = { version = "1.0.188", features = ["derive"] }
 sqlite = "0.31.1"

@@ -33,7 +33,7 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Format 'next review due' time as a human readable time.
     let time_until_next_review = stats.next_review_due - Local::now().fixed_offset();
-    let next_review_due_human = crate::util::review_duration_to_human(&time_until_next_review);
+    let next_review_due_human = crate::util::review_duration_to_human(time_until_next_review);
 
     Ok(IndexTemplate {
         user,

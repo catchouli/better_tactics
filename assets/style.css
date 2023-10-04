@@ -114,10 +114,6 @@ cg-board {
     aspect-ratio: 1;
 }
 
-#top-bar {
-    white-space: nowrap;
-}
-
 #board-container {
     position: relative;
     padding: 0;
@@ -277,6 +273,7 @@ cg-board {
     .footer {
         display: inherit;
         padding: 0;
+        overflow: hidden;
     }
 
     #ferris-container {

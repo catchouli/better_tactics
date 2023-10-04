@@ -150,8 +150,7 @@ impl Card {
         }
     }
 
-    // TODO: a bit unnecessarily complicated and messy now I've tweaked it to work better. We
-    // should just track if the card is mature or not, and update it as necessary.
+    /// Review a card and update the interval, ease and due date.
     pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) {
         // Update interval and due time.
         self.interval = self.next_interval(score);
@@ -199,6 +198,6 @@ impl Card {
     /// Get a human readable time until due.
     pub fn human_readable_due(&self) -> String {
         let time_until_due = self.due - Local::now().fixed_offset();
-        crate::util::review_duration_to_human(&time_until_due)
+        crate::util::review_duration_to_human(time_until_due)
     }
 }

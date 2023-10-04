@@ -1,10 +1,5 @@
 use std::fs::File;
 
-use std::error::Error;
-use owlchess::board::Board;
-use owlchess::moves::Style;
-use owlchess::chain::{MoveChain, NumberPolicy, GameStatusPolicy};
-
 use crate::db::{DatabaseError, ErrorDetails, PuzzleDatabase, DbResult};
 
 /// A puzzle record from the db.
@@ -47,12 +42,12 @@ impl PuzzleDatabase {
                 }
 
                 // Import puzzle.
-                let puzzle_id = &record[0];
-                let fen = &record[1];
-                let moves = &record[2];
+                let puzzle_id = record[0].to_string();
+                let fen = record[1].to_string();
+                let moves = record[2].to_string();
                 let rating = Self::try_parse(&record[3])?;
 
-                puzzles.push(Puzzle::new(puzzle_id, fen, moves, rating));
+                puzzles.push(Puzzle { puzzle_id, fen, moves, rating });
 
                 // Bulk insert if we have enough.
                 if puzzles.len() >= PUZZLES_PER_PROGRESS_UPDATE {
@@ -115,25 +110,6 @@ impl PuzzleDatabase {
             })
             .next()
             .unwrap_or(Ok(0))
-    }
-
-    /// Add a single puzzle to the database.
-    pub fn add_puzzle(&mut self, puzzle: &Puzzle) -> DbResult<()> {
-        const QUERY: &'static str = "
-            INSERT INTO puzzles (puzzle_id, fen, moves, rating)
-            VALUES (?, ?, ?, ?)
-        ";
-
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, puzzle.puzzle_id.as_str())).map_err(Self::convert_error)?
-            .bind((2, puzzle.fen.as_str())).map_err(Self::convert_error)?
-            .bind((3, puzzle.moves.as_str())).map_err(Self::convert_error)?
-            .bind((4, puzzle.rating as i64)).map_err(Self::convert_error)?
-            .next();
-
-        Ok(())
     }
 
     /// Add a batch of puzzles to the database.
@@ -225,26 +201,5 @@ impl Puzzle {
             moves: moves.to_string(),
             rating,
         }
-    }
-
-    /// Convert the embedded fen and moves from UCI format to a PGN.
-    pub fn to_pgn(&self) -> Result<String, Box<dyn Error>> {
-        let board = Board::from_fen(&self.fen)?;
-        let movechain = MoveChain::from_uci_list(board, &self.moves)?;
-        let pgn = movechain.styled(NumberPolicy::FromBoard, Style::San, GameStatusPolicy::Show).to_string();
-
-        // Weird indentation thing so the resulting PGN doesn't have a bunch of random indentation
-        // in it.
-        Ok(format!("[Event \"Lichess puzzle {} (rating {})\"]
-[Site \"?\"]
-[Date \"????.??.??\"]
-[Round \"?\"]
-[White \"?\"]
-[Black \"?\"]
-[Result \"1-0\"]
-[SetUp \"1\"]
-[FEN \"{}\"]
-
-{}", self.puzzle_id, self.rating, self.fen, pgn))
     }
 }

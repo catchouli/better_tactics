@@ -47,7 +47,6 @@ impl PuzzleDatabase {
     /// Initialise the database schema if it isn't already.
     fn init_schema(conn: &mut Connection) -> DbResult<()> {
         log::info!("Initialising db schema");
-        // TODO: make this fail on purpose and check the error is reported correctly.
         const QUERY: &'static str = "
             CREATE TABLE IF NOT EXISTS puzzles (
                 puzzle_id TEXT PRIMARY KEY,

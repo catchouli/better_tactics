@@ -1,10 +1,11 @@
 #![feature(associated_type_bounds)]
-pub mod db;
-pub mod route;
-pub mod controllers;
-pub mod util;
-pub mod srs;
-pub mod rating;
+mod db;
+mod route;
+mod controllers;
+mod util;
+mod srs;
+mod rating;
+mod config;
 
 use std::env;
 use std::error::Error;
@@ -15,12 +16,7 @@ use futures::StreamExt;
 use tokio::sync::Mutex;
 
 use crate::db::PuzzleDatabase;
-
-const MIN_RATING: i64 = 1000;
-const MAX_RATING: i64 = MIN_RATING + 100;
-const MAX_PUZZLES: i64 = 50;
-
-const SQLITE_DB_NAME: &'static str = "puzzles.sqlite";
+use crate::config::AppConfig;
 
 /// Download the lichess puzzles db as a temporary file.
 async fn download_puzzle_db() -> Result<File, Box<dyn Error>> {
@@ -45,9 +41,9 @@ async fn download_puzzle_db() -> Result<File, Box<dyn Error>> {
 }
 
 /// Open the puzzle database and initialize it if needed.
-async fn init_db() -> Result<PuzzleDatabase, Box<dyn Error>> {
+async fn init_db(config: &AppConfig) -> Result<PuzzleDatabase, Box<dyn Error>> {
     // Open puzzle database.
-    let mut puzzle_db = PuzzleDatabase::open(SQLITE_DB_NAME)?;
+    let mut puzzle_db = PuzzleDatabase::open(&config.db_name)?;
 
     // If no puzzles are loaded into the db yet, initialise it from a copy of the lichess database.
     let puzzle_count = puzzle_db.get_puzzle_count()?;
@@ -79,13 +75,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::builder().init();
     log::info!("Better tactics starting!");
 
+    // Load app config.
+    let app_config = AppConfig::from_env()?;
+    log::info!("{app_config:?}");
+
     // Initialise puzzle database.
-    let puzzle_db = Arc::new(Mutex::new(init_db().await?));
+    let puzzle_db = Arc::new(Mutex::new(init_db(&app_config).await?));
 
     // Create routes and serve service
     let routes = route::routes(puzzle_db);
-    // TODO: add config file for binding
-    warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
+    warp::serve(routes).run((app_config.bind_interface, app_config.bind_port)).await;
 
     Ok(())
 }
