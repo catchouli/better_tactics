@@ -196,4 +196,65 @@ impl PuzzleDatabase {
             })
             .collect()
     }
+
+    /// Get the number of cards in the database.
+    pub fn get_card_count(&self) -> DbResult<i64> {
+        // Get card and review count.
+        const QUERY: &'static str = "
+            SELECT
+                COUNT(*) AS card_count
+            FROM cards
+        ";
+
+        self.conn
+            .prepare(QUERY).map_err(Self::convert_error)?
+            .into_iter()
+            .next()
+            .map(|result| {
+                let row = result.map_err(Self::convert_error)?;
+                Self::try_read::<i64>(&row, "card_count")
+            })
+            .unwrap_or(Ok(0))
+    }
+
+    /// Get the number of reviews in the database.
+    pub fn get_review_count(&self) -> DbResult<i64> {
+        // Get card and review count.
+        const QUERY: &'static str = "
+            SELECT
+                COALESCE(SUM(review_count), 0) AS review_count
+            FROM cards
+        ";
+
+        self.conn
+            .prepare(QUERY).map_err(Self::convert_error)?
+            .into_iter()
+            .next()
+            .map(|result| {
+                let row = result.map_err(Self::convert_error)?;
+                Self::try_read::<i64>(&row, "review_count")
+            })
+            .unwrap_or(Ok(0))
+    }
+
+    /// Get the number of reviews due before a certain time.
+    pub fn reviews_due_by(&self, date: DateTime<FixedOffset>) -> DbResult<i64> {
+        const QUERY: &'static str = "
+            SELECT count(*) as card_count
+            FROM cards
+            WHERE datetime(due) < datetime(?)
+            ORDER BY datetime(due) ASC
+        ";
+
+        self.conn
+            .prepare(QUERY).map_err(Self::convert_error)?
+            .into_iter()
+            .bind((1, date.to_rfc3339().as_str())).map_err(Self::convert_error)?
+            .map(|result| {
+                let row = result.map_err(Self::convert_error)?;
+                Self::try_read(&row, "card_count")
+            })
+            .next()
+            .unwrap_or(Ok(0))
+    }
 }

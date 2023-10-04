@@ -106,8 +106,8 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move || index::index_page(puzzle_db.clone())
             }))
 
-        // GET /tactics/random - shows a new, random tactics puzzle.
-        .or(warp::path!("tactics" / "random")
+        // GET /tactics/new - shows a new, new tactics puzzle.
+        .or(warp::path!("tactics" / "new")
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
@@ -116,7 +116,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
             }))
 
         // GET /tactics/single/{id} - displays a tactics puzzle by id.
-        .or(warp::path!("tactics" / "single" / String)
+        .or(warp::path!("tactics" / String)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({

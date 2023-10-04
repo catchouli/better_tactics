@@ -8,8 +8,9 @@ use crate::db::{PuzzleDatabase, DbResult, DatabaseError, ErrorDetails};
 pub struct Stats {
     pub card_count: i64,
     pub review_count: i64,
-    pub reviews_due: i64,
-    pub next_review_due: DateTime<FixedOffset>,
+    pub reviews_due_now: i64,
+    pub reviews_due_today: i64,
+    pub next_review_due: Option<DateTime<FixedOffset>>,
 }
 
 /// A user record from the db.
@@ -21,7 +22,7 @@ pub struct User {
 
 impl PuzzleDatabase {
     /// Get the stats for the local user.
-    pub fn get_user_stats(&self, user_id: &str, card_due_time: DateTime<FixedOffset>) -> DbResult<Stats> {
+    pub fn get_user_stats(&self, user_id: &str, day_end: DateTime<FixedOffset>) -> DbResult<Stats> {
         // For now we only support a local user, so check that it's the local user's stats that are
         // being requested. In the future, we might also want to store the user's stats in the
         // users table and just update them as needed, to avoid having to look them up every time.
@@ -33,70 +34,12 @@ impl PuzzleDatabase {
             }));
         }
 
-        // Get card and review count.
-        const QUERY: &'static str = "
-            SELECT
-                COUNT(*) AS card_count,
-                COALESCE(SUM(review_count), 0) AS review_count
-            FROM cards
-        ";
-
-        let (card_count, review_count) = self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .next()
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-
-                Ok((
-                    Self::try_read::<i64>(&row, "card_count")?,
-                    Self::try_read::<i64>(&row, "review_count")?,
-                )) as DbResult<(i64, i64)>
-            })
-            .unwrap_or(Ok((0, 0)))?;
-
-        // Get the number of reviews due.
-        const QUERY_2: &'static str = "
-            SELECT COUNT(*) as reviews_due
-            FROM cards
-            WHERE datetime(due) < datetime(?)
-        ";
-
-        let reviews_due = self.conn
-            .prepare(QUERY_2).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, card_due_time.to_rfc3339().as_str())).map_err(Self::convert_error)?
-            .next()
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-                Ok(Self::try_read::<i64>(&row, "reviews_due")?) as DbResult<i64>
-            })
-            .unwrap_or(Ok(0))?;
-
-        // Get next review due time.
-        const QUERY_3: &'static str = "
-            SELECT due
-            FROM cards
-            ORDER BY datetime(due) ASC
-            LIMIT 1
-        ";
-
-        let next_review_due = self.conn
-            .prepare(QUERY_3).map_err(Self::convert_error)?
-            .into_iter()
-            .next()
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-                let due = Self::try_parse_datetime(Self::try_read(&row, "due")?)?;
-                Ok(due) as DbResult<DateTime<FixedOffset>>
-            })
-            .unwrap_or(Ok(Local::now().fixed_offset()))?;
-
         Ok(Stats {
-            card_count,
-            review_count,
-            reviews_due,
-            next_review_due,
+            card_count: self.get_card_count()?,
+            review_count: self.get_review_count()?,
+            reviews_due_now: self.reviews_due_by(Local::now().fixed_offset())?,
+            reviews_due_today: self.reviews_due_by(day_end)?,
+            next_review_due: self.get_next_review_due(day_end, None)?.map(|(c, _)| c.due),
         })
     }
 

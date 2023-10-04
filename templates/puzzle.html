@@ -35,17 +35,26 @@
             <div class="column bt-panel">
                 Reviewing next puzzle
 
-                {% if stats.reviews_due > 0 %}
-                    ({{ stats.reviews_due }} reviews left today)
+                {% if stats.reviews_due_now > 0 %}
+                    ({{ stats.reviews_due_now }} reviews left)
                 {% else %}
                     (reviewing ahead)
                 {% endif %}
             </div>
         {% else %}
             <div class="column bt-panel">
-                You are done with today's reviews!
-                Perhaps it's time to try some <a href="/tactics/random">new puzzles</a>?
-                Or return to the <a href="/">home page</a>?
+                <p>
+                    {% if stats.reviews_due_today > 0 %}
+                        You are done with reviews for now, the next review is due in
+                        {{ util::maybe_review_timestamp_to_human(stats.next_review_due) }}.
+                    {% else %}
+                        You are done with today's reviews!
+                    {% endif %}
+                </p>
+                <p>
+                    Perhaps it's time to try some <a href="/tactics/new">new puzzles</a>?
+                    Or return to the <a href="/">home page</a>?
+                </p>
             </div>
         {% endif %}
     {% endif %}
@@ -100,7 +109,7 @@
                     <tbody>
                         <tr>
                             <th scope="row">Lichess puzzle</th>
-                            <td><a href="/tactics/single/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a></td>
+                            <td><a href="/tactics/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a></td>
                         </tr>
                         <tr>
                             <th scope="row">Puzzle rating</th>

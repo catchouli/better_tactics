@@ -10,6 +10,7 @@ use crate::rating::GameResult;
 use crate::route::{InternalError, InvalidParameter};
 use crate::db::{Puzzle, PuzzleDatabase, Stats, Review, User};
 use crate::srs::{Difficulty, Card};
+use crate::util;
 
 /// The rating variation for puzzles, in percent.
 const PUZZLE_RATING_VARIATION: f64 = 1.05;

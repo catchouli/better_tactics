@@ -1,33 +1,39 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div id="tactics" class="bt-panel">
-    <table class="stats">
-        <caption>Stats</caption>
-        <tbody>
-            <tr>
-                <th scope="row">User rating</th>
-                <td>{{ user.rating.rating }} (+-{{ user.rating.deviation }})</td>
-            </tr>
-            <tr>
-                <th scope="row">Unique puzzles done</th>
-                <td>{{ stats.card_count }}</td>
-            </tr>
-            <tr>
-                <th scope="row">Puzzle completions</th>
-                <td>{{ stats.review_count }}</td>
-            </tr>
-            <tr>
-                <th scope="row">Reviews left today</th>
-                <td>{{ stats.reviews_due }}</td>
-            </tr>
-            <tr>
-                <th scope="row">Next review due</th>
-                <td>{{ next_review_due_human }}</td>
-            </tr>
-        </tbody>
-    </table>
-    <a href="/tactics" class="button">Review</a>
-    <a href="/tactics/random" class="button">New Puzzle</a>
+<div class="columns">
+    <div id="tactics" class="column bt-panel">
+        <table class="stats">
+            <caption>Stats</caption>
+            <tbody>
+                <tr>
+                    <th scope="row">User rating</th>
+                    <td>{{ user.rating.rating }} (+-{{ user.rating.deviation }})</td>
+                </tr>
+                <tr>
+                    <th scope="row">Unique puzzles done</th>
+                    <td>{{ stats.card_count }}</td>
+                </tr>
+                <tr>
+                    <th scope="row">Puzzle completions</th>
+                    <td>{{ stats.review_count }}</td>
+                </tr>
+                <tr>
+                    <th scope="row">Reviews due</th>
+                    <td>{{ stats.reviews_due_now }}</td>
+                </tr>
+                <tr>
+                    <th scope="row">Reviews left today</th>
+                    <td>{{ stats.reviews_due_today }}</td>
+                </tr>
+                <tr>
+                    <th scope="row">Next review due</th>
+                    <td>{{ util::maybe_review_timestamp_to_human(stats.next_review_due) }}</td>
+                </tr>
+            </tbody>
+        </table>
+        <a href="/tactics" class="button">Review</a>
+        <a href="/tactics/new" class="button">New Puzzle</a>
+    </div>
 </div>
 {% endblock %}
