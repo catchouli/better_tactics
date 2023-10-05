@@ -70,7 +70,7 @@ impl PuzzleDatabase {
             SELECT * FROM cards
             LEFT JOIN puzzles
                 ON cards.puzzle_id = puzzles.puzzle_id
-            WHERE datetime(due) < datetime(?)
+            WHERE datetime(due) <= datetime(?)
             AND interval >= ?
             AND puzzles.puzzle_id NOT NULL
             ORDER BY datetime(due) ASC
@@ -206,36 +206,17 @@ impl PuzzleDatabase {
             .unwrap_or(Ok(0))?)
     }
 
-    /// Get the number of reviews due before a certain time.
-    pub async fn reviews_due_by(&self, time: DateTime<FixedOffset>)
-        -> DbResult<i64>
-    {
-        let query = sqlx::query("
-            SELECT count(*) as card_count
-            FROM cards
-            WHERE datetime(due) < datetime(?)
-            ORDER BY datetime(due) ASC
-        ");
-
-        Ok(query
-            .bind(time.to_rfc3339())
-            .fetch_optional(&self.pool)
-            .await?
-            .map(|row| row.try_get("card_count"))
-            .unwrap_or(Ok(0))?)
-    }
-
     /// Get the number of reviews due by `time`, including reviewing ahead until `day_end`, but
     /// only if the card is out of learning.
-    pub async fn reviews_due_now(&self, time: DateTime<FixedOffset>, day_end: DateTime<FixedOffset>)
+    pub async fn reviews_due_by(&self, time: DateTime<FixedOffset>, day_end: DateTime<FixedOffset>)
         -> DbResult<i64>
     {
         let query = sqlx::query("
             SELECT count(*) as card_count
             FROM cards
-            WHERE (datetime(due) < datetime(?)
+            WHERE (datetime(due) <= datetime(?)
                     AND cards.interval >= ?)
-            OR datetime(due) < datetime(?)
+            OR datetime(due) <= datetime(?)
         ");
 
         let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d)

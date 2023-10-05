@@ -50,12 +50,20 @@ impl PuzzleDatabase {
             }));
         }
 
+        let now = Local::now().fixed_offset();
+        let reviews_due_now = self.reviews_due_by(now.clone(), day_end.clone()).await?;
+        let next_review_due = if reviews_due_now > 0 {
+            Some(now)
+        } else {
+            self.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due)
+        };
+
         Ok(Stats {
             card_count: self.get_card_count().await?,
             review_count: self.get_review_count().await?,
-            reviews_due_now: self.reviews_due_now(Local::now().fixed_offset(), day_end.clone()).await?,
-            reviews_due_today: self.reviews_due_now(day_end.clone(), day_end.clone()).await?,
-            next_review_due: self.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due),
+            reviews_due_now,
+            reviews_due_today: self.reviews_due_by(day_end.clone(), day_end.clone()).await?,
+            next_review_due,
         })
     }
 
