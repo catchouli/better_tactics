@@ -94,7 +94,7 @@ impl PuzzleDatabase {
     pub async fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
         log::info!("Getting card for puzzle {puzzle_id}");
 
-        let query = sqlx::query_as::<_, Card>("
+        let query = sqlx::query_as("
             SELECT *
             FROM cards
             WHERE puzzle_id = ?

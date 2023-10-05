@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::fmt::Display;
 
+use sqlx::migrate::MigrateError;
+
 use crate::route::InternalError;
 
 /// A result type that boxes errors to a Box<dyn Error>.
@@ -21,6 +23,7 @@ pub enum DatabaseError {
     ConnectionError(ErrorDetails),
     QueryError(ErrorDetails),
     ParsingError(ErrorDetails),
+    MigrationError(ErrorDetails),
 }
 
 unsafe impl Send for DatabaseError {}
@@ -32,6 +35,7 @@ impl DatabaseError {
             DatabaseError::ConnectionError(details) => details,
             DatabaseError::QueryError(details) => details,
             DatabaseError::ParsingError(details) => details,
+            DatabaseError::MigrationError(details) => details,
         }
     }
 }
@@ -47,6 +51,8 @@ impl Display for DatabaseError {
                 => write!(f, "{} query execution error: {}", details.backend, details.description),
             DatabaseError::ParsingError(details)
                 => write!(f, "{} parsing error: {}", details.backend, details.description),
+            DatabaseError::MigrationError(details)
+                => write!(f, "{} migration error: {}", details.backend, details.description),
         }
     }
 }
@@ -73,6 +79,16 @@ impl From<chrono::ParseError> for DatabaseError {
             backend: "chrono".to_string(),
             description: format!("{e}"),
             source: Some(e.into())
+        })
+    }
+}
+
+impl From<MigrateError> for DatabaseError {
+    fn from(e: MigrateError) -> Self {
+        DatabaseError::MigrationError(ErrorDetails {
+            backend: "sqlx".to_string(),
+            description: format!("{e}"),
+            source: Some(e.into()),
         })
     }
 }

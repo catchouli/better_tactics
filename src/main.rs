@@ -57,7 +57,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 /// Open the puzzle database and initialize it if needed.
 async fn init_db(db: Arc<Mutex<PuzzleDatabase>>) -> Result<(), String> {
     let app_data = db.lock().await.get_app_data("").await
-        .map_err(|e| format!("Failed to get app data: {e}"))?;
+        .map_err(|e| format!("Failed to get app data: {e}"))?
+        .ok_or_else(|| format!("Internal error: no app_data row in database"))?;
 
     // If the puzzle db hasn't been fully initialised yet, download it.
     if !app_data.lichess_db_imported {
@@ -139,7 +140,7 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
     -> Result<(), String>
 {
     const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
-    const PUZZLES_PER_PROGRESS_UPDATE: usize = 5000;
+    const PUZZLES_PER_PROGRESS_UPDATE: usize = 2500;
 
     log::info!("Importing lichess puzzle database");
 
@@ -166,9 +167,30 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
             let puzzle_id = record[0].to_string();
             let fen = record[1].to_string();
             let moves = record[2].to_string();
-            let rating = record[3].parse().map_err(|e| format!("Failed to parse rating field {e}"))?;
+            let rating = record[3].parse()
+                .map_err(|e| format!("Failed to parse rating field {e}"))?;
+            let rating_deviation = record[4].parse()
+                .map_err(|e| format!("Failed to parse rating_deviation field {e}"))?;
+            let popularity = record[5].parse()
+                .map_err(|e| format!("Failed to parse popularity field {e}"))?;
+            let number_of_plays = record[6].parse()
+                .map_err(|e| format!("Failed to parse number_of_plays field {e}"))?;
+            let themes = record[7].to_string().split_whitespace().map(ToString::to_string).collect();
+            let game_url = record[8].to_string();
+            let opening_tags = record[9].to_string().split_whitespace().map(ToString::to_string).collect();
 
-            puzzles.push(Puzzle { puzzle_id, fen, moves, rating });
+            puzzles.push(Puzzle {
+                puzzle_id,
+                fen,
+                moves,
+                rating,
+                rating_deviation,
+                popularity,
+                number_of_plays,
+                themes,
+                game_url,
+                opening_tags,
+            });
             puzzles_imported += 1;
 
             // Bulk insert if we have enough.
@@ -189,7 +211,8 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
 
         // Update flag in db to say the puzzles table is initialised.
         let mut app_data = db.lock().await.get_app_data("").await
-            .map_err(|e| format!("Failed to get app data: {e}"))?;
+            .map_err(|e| format!("Failed to get app data: {e}"))?
+            .ok_or_else(|| format!("No app_data row in database"))?;
         app_data.lichess_db_imported = true;
         db.lock().await.set_app_data(&app_data).await
             .map_err(|e| format!("Failed to update app data: {e}"))?;

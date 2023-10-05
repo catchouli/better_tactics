@@ -4,12 +4,38 @@ use sqlx::{Row, Sqlite, QueryBuilder, sqlite::SqliteRow};
 use crate::db::{PuzzleDatabase, DbResult};
 
 /// A puzzle record from the db.
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone)]
 pub struct Puzzle {
     pub puzzle_id: String,
     pub fen: String,
     pub moves: String,
     pub rating: i64,
+    pub rating_deviation: i64,
+    pub popularity: i64,
+    pub number_of_plays: i64,
+    pub themes: Vec<String>,
+    pub game_url: String,
+    pub opening_tags: Vec<String>,
+}
+
+impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
+{
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            puzzle_id: row.try_get("puzzle_id")?,
+            fen: row.try_get("fen")?,
+            moves: row.try_get("moves")?,
+            rating: row.try_get("rating")?,
+            rating_deviation: row.try_get("rating_deviation")?,
+            popularity: row.try_get("popularity")?,
+            number_of_plays: row.try_get("number_of_plays")?,
+            themes: row.try_get::<String, _>("themes")?
+                .split_whitespace().map(ToString::to_string).collect(),
+            game_url: row.try_get("game_url")?,
+            opening_tags: row.try_get::<String, _>("opening_tags")?
+                .split_whitespace().map(ToString::to_string).collect(),
+        })
+    }
 }
 
 /// Puzzle related database implementations.
@@ -54,14 +80,21 @@ impl PuzzleDatabase {
         // the sqlite crate. Reusing the prepared statement was about the same overhead as just
         // creating it every time, but building the query is much faster.
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating) "
+            "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
+                popularity, number_of_plays, themes, game_url, opening_tags) "
         );
 
         query_builder.push_values(puzzles, |mut b, puzzle| {
             b.push_bind(&puzzle.puzzle_id)
                 .push_bind(&puzzle.fen)
                 .push_bind(&puzzle.moves)
-                .push_bind(puzzle.rating);
+                .push_bind(puzzle.rating)
+                .push_bind(puzzle.rating_deviation)
+                .push_bind(puzzle.popularity)
+                .push_bind(puzzle.number_of_plays)
+                .push_bind(puzzle.themes.join(" "))
+                .push_bind(&puzzle.game_url)
+                .push_bind(puzzle.opening_tags.join(" "));
         });
 
         query_builder
@@ -95,7 +128,7 @@ impl PuzzleDatabase {
     {
         log::info!("Getting puzzles..");
 
-        let query = sqlx::query_as::<_, Puzzle>("
+        let query = sqlx::query_as("
             SELECT *
             FROM puzzles
             WHERE rating > ?

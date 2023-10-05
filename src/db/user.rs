@@ -77,7 +77,7 @@ impl PuzzleDatabase {
     pub async fn get_user_by_id(&self, user_id: &str) -> DbResult<Option<User>> {
         sqlx::query_as("
             SELECT *
-            FROM users_v2
+            FROM users
             WHERE id = ?
         ")
         .bind(user_id)
@@ -87,13 +87,17 @@ impl PuzzleDatabase {
 
     /// Update the user record with the given ID.
     pub async fn update_user(&mut self, user: &User) -> DbResult<()> {
-        sqlx::query!("
-            UPDATE users_v2
+        sqlx::query("
+            UPDATE users
             SET rating = ?,
                 rating_deviation = ?,
                 rating_volatility = ?
             WHERE id = ?
-        ", user.rating.rating, user.rating.deviation, user.rating.volatility, user.id)
+        ")
+        .bind(user.rating.rating)
+        .bind(user.rating.deviation)
+        .bind(user.rating.volatility)
+        .bind(&user.id)
         .execute(&self.pool)
         .await.map(|_| ()).map_err(Into::into)
     }
