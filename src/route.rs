@@ -93,8 +93,8 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 move || puzzle::random_puzzle(puzzle_db.clone())
             }))
 
-        // GET /tactics/single/{id} - displays a tactics puzzle by id.
-        .or(warp::path!("tactics" / String)
+        // GET /tactics/by_id/{id} - displays a tactics puzzle by id.
+        .or(warp::path!("tactics" / "by_id" / String)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
@@ -166,14 +166,14 @@ async fn set_rating(puzzle_db: Arc<Mutex<PuzzleDatabase>>, new_rating: i64)
     let mut puzzle_db = puzzle_db.lock().await;
     let user_id = PuzzleDatabase::local_user_id();
 
-    let mut user = puzzle_db.get_user_by_id(user_id)
+    let mut user = puzzle_db.get_user_by_id(user_id).await
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     user.rating.rating = new_rating;
     user.rating.deviation = 250;
 
-    puzzle_db.update_user(&user)
+    puzzle_db.update_user(&user).await
         .map(|_| Ok(warp::reply::html(format!("Reset user rating to {new_rating}"))))
         .map_err(InternalError::from)?
 }

@@ -8,6 +8,7 @@ use std::str::FromStr;
 pub struct AppConfig {
     pub bind_interface: IpAddr,
     pub bind_port: u16,
+    // TODO: change it to use the DATABASE_URL env var.
     pub db_name: String,
     pub srs: SrsConfig,
 }

@@ -3,8 +3,10 @@ mod puzzle;
 mod user;
 mod card;
 
-use chrono::{DateTime, FixedOffset};
-use sqlite::{Connection, Row, Value};
+use std::str::FromStr;
+
+use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
+use sqlx::{SqlitePool, ConnectOptions};
 
 pub use dbresult::*;
 pub use puzzle::*;
@@ -15,14 +17,14 @@ pub use card::*;
 // Also, we should probably just switch to diesel now it's up and running, and it would solve the
 // problems of data migration and the general ad-hoc-ness of it all.
 
-const DB_BACKEND: &'static str = "Sqlite";
 const DB_VERSION: i64 = 1;
 
 /// The puzzle database interface type.
 pub struct PuzzleDatabase {
-    conn: Connection,
+    pool: SqlitePool,
 }
 
+#[derive(sqlx::FromRow)]
 pub struct AppData {
     pub environment: String,
     pub db_version: i64,
@@ -31,25 +33,31 @@ pub struct AppData {
 
 impl PuzzleDatabase {
     /// Open the given sqlite database, initialising it with schema if necessary.
-    pub fn open(path: &str) -> DbResult<Self> {
+    pub async fn open(path: &str) -> DbResult<Self> {
         // Open sqlite database.
-        let mut conn = sqlite::open(path)
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect_with(SqliteConnectOptions::from_str(path)?
+              .disable_statement_logging()
+            )
+            .await
             .map_err(|e| DatabaseError::ConnectionError(ErrorDetails {
-                backend: DB_BACKEND.to_string(),
-                description: format!("Connection error: {e}"),
+                backend: format!("sqlite"),
+                description: format!("Database connection error: {e}"),
                 source: Some(e.into()),
             }))?;
 
         // Initialise schema if it isn't already.
-        Self::init_schema(&mut conn)?;
+        Self::init_schema(&pool).await?;
 
         Ok(Self {
-            conn
+            pool
         })
     }
 
     /// Initialise the database schema if it isn't already.
-    fn init_schema(conn: &mut Connection) -> DbResult<()> {
+    /// TODO: take a generic connection.
+    async fn init_schema(pool: &SqlitePool) -> DbResult<()> {
         log::info!("Initialising db schema");
         let query = format!("
             CREATE TABLE IF NOT EXISTS puzzles (
@@ -94,99 +102,36 @@ impl PuzzleDatabase {
             CREATE INDEX IF NOT EXISTS puzzle_rating ON puzzles(rating);
         ");
 
-        conn.execute(query)
-            .map_err(|e| DatabaseError::QueryError(ErrorDetails {
-                backend: DB_BACKEND.to_string(),
-                description: format!("Failed to initialise database schema: {e}"),
-                source: Some(e.into()),
-            }))
+        sqlx::query(&query)
+            .execute(pool)
+            .await?;
+
+        Ok(())
     }
 
-    pub fn get_app_data(&self, env: &str) -> DbResult<AppData> {
-        const QUERY: &'static str = "
-            SELECT db_version, lichess_db_imported
-            FROM app_data
-            WHERE environment = ?
-        ";
-
-        self.conn.prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, env)).map_err(Self::convert_error)?
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-                let lichess_db_imported = Self::try_read::<i64>(&row, "lichess_db_imported")? != 0;
-                let db_version = Self::try_read::<i64>(&row, "db_version")?;
-                Ok(AppData {
-                    environment: env.to_string(),
-                    db_version,
-                    lichess_db_imported,
-                })
-            })
-            .next()
-            .transpose()?
-            // Shouldn't really happen since it gets initialised on startup if it doesn't exist.
-            .ok_or_else(|| DatabaseError::InternalError(ErrorDetails {
-                backend: DB_BACKEND.to_string(),
-                description: format!("Database has no app_data record, which should be impossible"),
-                source: None,
-            }))
+    pub async fn get_app_data(&self, env: &str) -> DbResult<AppData> {
+        Ok(sqlx::query_as("
+                SELECT *
+                FROM app_data
+                WHERE environment = ?
+            ")
+            .bind(env)
+            .fetch_one(&self.pool)
+            .await?)
     }
 
-    pub fn update_app_data(&self, env: &str, app_data: &AppData) -> DbResult<()> {
-        const QUERY: &'static str = "
+    pub async fn set_app_data(&self, app_data: &AppData) -> DbResult<()> {
+        sqlx::query("
             INSERT OR REPLACE INTO app_data (environment, db_version, lichess_db_imported)
             VALUES (?, ?, ?)
-        ";
+        ")
+        .bind(&app_data.environment)
+        .bind(app_data.db_version)
+        .bind(app_data.lichess_db_imported)
+        .execute(&self.pool)
+        .await?;
 
-        self.conn.prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, env)).map_err(Self::convert_error)?
-            .bind((2, app_data.db_version)).map_err(Self::convert_error)?
-            .bind((3, if app_data.lichess_db_imported { 1 } else { 0 })).map_err(Self::convert_error)?
-            .next()
-            .transpose()
-            .map(|_| ())
-            .map_err(Self::convert_error)
-    }
-
-    /// A wrapper for sqlite's Row::try_read() that converts errors to our DatabaseError type and
-    /// allows us to handle and report them easily.
-    fn try_read<'l, T>(row: &'l Row, column: &str) -> DbResult<T>
-    where
-        T: TryFrom<&'l Value, Error = sqlite::Error>,
-    { 
-        row.try_read::<T, _>(column)
-            .map_err(|e: sqlite::Error| {
-                let message = e.message.as_ref()
-                        .map(|s| s.as_str())
-                        .unwrap_or("(no description)");
-
-                DatabaseError::QueryError(ErrorDetails {
-                    backend: DB_BACKEND.to_string(),
-                    description: format!("When reading row {:?}: {}", column, message),
-                    source: Some(e.into()),
-                }).into()
-            })
-    }
-
-    /// Parse a datetime from a rfc3339 format string and return a ParsingError if it failed.
-    fn try_parse_datetime(value: &str) -> DbResult<DateTime<FixedOffset>> {
-        DateTime::parse_from_rfc3339(value)
-            .map_err(|e| DatabaseError::ParsingError(ErrorDetails {
-                backend: "chrono".to_string(),
-                source: Some(e.into()),
-                description: format!("Failed to parse datetime \"{value}\": {e}"),
-            }))
-    }
-
-    /// A generic way of wrapping sqlite::Error to DatabaseError for when we don't need more direct
-    /// control.
-    fn convert_error(err: sqlite::Error) -> DatabaseError {
-        DatabaseError::ParsingError(ErrorDetails {
-            backend: DB_BACKEND.to_string(),
-            description: err.to_string(),
-            source: Some(err.into()),
-        })
+        Ok(())
     }
 }
 

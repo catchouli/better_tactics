@@ -23,12 +23,12 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_db = puzzle_db.lock().await;
 
     // Get user details and stats.
-    let user = puzzle_db.get_user_by_id(user_id)
+    let user = puzzle_db.get_user_by_id(user_id).await
         .map_err(InternalError::from)?
-        .unwrap();
+        .ok_or(InternalError::new(format!("No local user record in database")))?;
 
     let review_cutoff = Card::due_time().map_err(InternalError::from)?;
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     Ok(IndexTemplate {
         user,

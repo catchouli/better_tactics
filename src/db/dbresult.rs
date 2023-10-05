@@ -21,7 +21,6 @@ pub enum DatabaseError {
     ConnectionError(ErrorDetails),
     QueryError(ErrorDetails),
     ParsingError(ErrorDetails),
-    InternalError(ErrorDetails),
 }
 
 unsafe impl Send for DatabaseError {}
@@ -33,7 +32,6 @@ impl DatabaseError {
             DatabaseError::ConnectionError(details) => details,
             DatabaseError::QueryError(details) => details,
             DatabaseError::ParsingError(details) => details,
-            DatabaseError::InternalError(details) => details,
         }
     }
 }
@@ -49,8 +47,6 @@ impl Display for DatabaseError {
                 => write!(f, "{} query execution error: {}", details.backend, details.description),
             DatabaseError::ParsingError(details)
                 => write!(f, "{} parsing error: {}", details.backend, details.description),
-            DatabaseError::InternalError(details)
-                => write!(f, "{} internal error: {}", details.backend, details.description),
         }
     }
 }
@@ -58,6 +54,26 @@ impl Display for DatabaseError {
 impl Error for DatabaseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.details().source.as_ref().map(AsRef::as_ref)
+    }
+}
+
+impl From<sqlx::Error> for DatabaseError {
+    fn from(e: sqlx::Error) -> Self {
+        DatabaseError::QueryError(ErrorDetails {
+            backend: "sqlite".to_string(),
+            description: format!("Database query error: {e}"),
+            source: Some(e.into())
+        })
+    }
+}
+
+impl From<chrono::ParseError> for DatabaseError {
+    fn from(e: chrono::ParseError) -> Self {
+        DatabaseError::ParsingError(ErrorDetails {
+            backend: "chrono".to_string(),
+            description: format!("{e}"),
+            source: Some(e.into())
+        })
     }
 }
 

@@ -76,23 +76,24 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user.
-    let user = puzzle_db.get_user_by_id(user_id)
+    let user = puzzle_db.get_user_by_id(user_id).await
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
     let review_cutoff = Card::due_time().map_err(InternalError::from)?;
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // Get the puzzle.
-    let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id)
+    let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id).await
         .map_err(InternalError::from)?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
-    let card = puzzle.as_ref().map(|puzzle| puzzle_db.get_card_by_id(&puzzle.puzzle_id))
-        .transpose()
-        .map_err(InternalError::from)?
-        .flatten();
+    let card = if let Some(puzzle) = puzzle.as_ref() {
+        puzzle_db.get_card_by_id(&puzzle.puzzle_id).await.map_err(InternalError::from)?
+    } else {
+        None
+    };
 
     Ok(PuzzleTemplate {
         user,
@@ -114,37 +115,37 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Get connection to puzzle db.
     let puzzle_db = puzzle_db.lock().await;
-    let puzzle_count = puzzle_db.get_puzzle_count()
+    // TODO: the puzzle count should only include puzzles in the current filter parameters.
+    let puzzle_count = puzzle_db.get_puzzle_count().await
         .map_err(InternalError::from)?;
 
     // Get the user.
-    let user = puzzle_db.get_user_by_id(user_id)
+    let user = puzzle_db.get_user_by_id(user_id).await
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
     let review_cutoff = Card::due_time().map_err(InternalError::from)?;
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // The min and max rating for puzzles, deviating from the user's rating by up to
     // PUZZLE_RATING_VARIATION.
-    let max_puzzle_rating = puzzle_db.get_max_puzzle_rating().map_err(InternalError::from)?;
+    let max_puzzle_rating = puzzle_db.get_max_puzzle_rating().await.map_err(InternalError::from)?;
     let base_rating = i64::min(user.rating.rating, max_puzzle_rating);
     let min_rating = (base_rating as f64 / PUZZLE_RATING_VARIATION) as i64;
     let max_rating = (base_rating as f64 * PUZZLE_RATING_VARIATION) as i64;
 
     // Get a random puzzle.
-    let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1)
+    let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1).await
         .map(|vec| vec.into_iter().nth(0))
         .map_err(InternalError::from)?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
-    let card = puzzle.as_ref().map(|puzzle| puzzle_db.get_card_by_id(&puzzle.puzzle_id))
-        .transpose()
-        .map_err(InternalError::from)?
-        .flatten();
-
-    log::info!("{puzzle:?}");
+    let card = if let Some(puzzle) = puzzle.as_ref() {
+        puzzle_db.get_card_by_id(&puzzle.puzzle_id).await.map_err(InternalError::from)?
+    } else {
+        None
+    };
 
     Ok(PuzzleTemplate {
         user,
@@ -168,13 +169,13 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_db = puzzle_db.lock().await;
 
     // Get the user.
-    let user = puzzle_db.get_user_by_id(user_id)
+    let user = puzzle_db.get_user_by_id(user_id).await
         .map_err(InternalError::from)?
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
     let review_cutoff = Card::due_time().map_err(InternalError::from)?;
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).map_err(InternalError::from)?;
+    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // Get the user's next due review. The logic for this is a little complicated as we want to
     // show cards that are due any time today (before the review cutoff) so the user can do their
@@ -183,13 +184,13 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     // before they're due unless there's absolutely no other cards left, because otherwise they'll
     // show up repeatedly in front of other cards that are due later today.
     let time_now = Local::now().fixed_offset();
-    let new_review_due_now = puzzle_db.get_next_review_due(time_now, None)
+    let new_review_due_now = puzzle_db.get_next_review_due(time_now, None).await
         .map_err(InternalError::from)?;
 
     let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d);
     let review_cutoff_today = Card::due_time().map_err(InternalError::from)?;
     let next_non_learning_review_due_today =
-        puzzle_db.get_next_review_due(review_cutoff_today, max_learning_interval)
+        puzzle_db.get_next_review_due(review_cutoff_today, max_learning_interval).await
             .map_err(InternalError::from)?;
 
     let (card, puzzle) = match new_review_due_now.or(next_non_learning_review_due_today) {
@@ -220,15 +221,15 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
         .map_err(|_| InvalidParameter::new("difficulty"))?;
 
     // Update the card.
-    if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()) {
+    if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()).await {
         // If there's no existing card for the puzzle, create a new one.
         let mut card = card.unwrap_or(Card::new(&request.id));
 
-        let mut user = puzzle_db.get_user_by_id(user_id)
+        let mut user = puzzle_db.get_user_by_id(user_id).await
             .map_err(InternalError::from)?
             .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
-        let puzzle = puzzle_db.get_puzzle_by_id(&card.id)
+        let puzzle = puzzle_db.get_puzzle_by_id(&card.id).await
             .map_err(|_| InvalidParameter::new(&request.id))?
             .ok_or_else(|| InternalError::new(format!("No such puzzle {}", card.id)))?;
 
@@ -241,10 +242,10 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
             puzzle_id: card.id.to_string(),
             difficulty,
             date: Local::now().fixed_offset(),
-        }).map_err(InternalError::from)?;
+        }).await.map_err(InternalError::from)?;
 
         // Update (or create) the card in the database.
-        puzzle_db.update_or_create_card(&card)
+        puzzle_db.update_or_create_card(&card).await
             .map_err(InternalError::from)?;
 
         // Update the user's rating every time a puzzle is solved, old puzzles don't give much
@@ -264,7 +265,7 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
         if difficulty != Difficulty::Good || user.rating.rating > old_rating.rating {
             log::info!("Updating user's rating from {} to {}", old_rating.rating, user.rating.rating);
 
-            puzzle_db.update_user(&user)
+            puzzle_db.update_user(&user).await
                 .map_err(InternalError::from)?;
         }
     }

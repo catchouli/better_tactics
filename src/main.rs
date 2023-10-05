@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("{app_config:?}");
 
     // Open puzzle database.
-    let puzzle_db = Arc::new(Mutex::new(PuzzleDatabase::open(&app_config.db_name)?));
+    let puzzle_db = Arc::new(Mutex::new(PuzzleDatabase::open(&app_config.db_name).await?));
 
     // Initialise puzzle database.
     tokio::spawn({
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 /// Open the puzzle database and initialize it if needed.
 async fn init_db(db: Arc<Mutex<PuzzleDatabase>>) -> Result<(), String> {
-    let app_data = db.lock().await.get_app_data("")
+    let app_data = db.lock().await.get_app_data("").await
         .map_err(|e| format!("Failed to get app data: {e}"))?;
 
     // If the puzzle db hasn't been fully initialised yet, download it.
@@ -75,7 +75,7 @@ async fn init_db(db: Arc<Mutex<PuzzleDatabase>>) -> Result<(), String> {
             .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
     }
     else {
-        let puzzle_count = db.lock().await.get_puzzle_count()
+        let puzzle_count = db.lock().await.get_puzzle_count().await
             .map_err(|e| format!("Failed to get puzzle count: {e}"))?;
         log::info!("Loaded puzzle database with {puzzle_count} puzzles");
     }
@@ -139,7 +139,7 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
     -> Result<(), String>
 {
     const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
-    const PUZZLES_PER_PROGRESS_UPDATE: usize = 10000;
+    const PUZZLES_PER_PROGRESS_UPDATE: usize = 5000;
 
     log::info!("Importing lichess puzzle database");
 
@@ -173,7 +173,7 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
 
             // Bulk insert if we have enough.
             if puzzles.len() >= PUZZLES_PER_PROGRESS_UPDATE {
-                db.lock().await.add_puzzles(&puzzles)
+                db.lock().await.add_puzzles(&puzzles).await
                     .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
                 puzzles.clear();
                 log::info!("Progress: {puzzles_imported} puzzles imported...");
@@ -182,16 +182,16 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
 
         // Add last batch (should be less than the batch size or it'll be empty).
         if !puzzles.is_empty() {
-            db.lock().await.add_puzzles(&puzzles)
+            db.lock().await.add_puzzles(&puzzles).await
                 .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
             puzzles.clear();
         }
 
         // Update flag in db to say the puzzles table is initialised.
-        let mut app_data = db.lock().await.get_app_data("")
+        let mut app_data = db.lock().await.get_app_data("").await
             .map_err(|e| format!("Failed to get app data: {e}"))?;
         app_data.lichess_db_imported = true;
-        db.lock().await.update_app_data("", &app_data)
+        db.lock().await.set_app_data(&app_data).await
             .map_err(|e| format!("Failed to update app data: {e}"))?;
 
         log::info!("Finished importing {puzzles_imported} puzzles");

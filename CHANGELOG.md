@@ -5,6 +5,10 @@ Changed:
 * Allow player to keep playing out the game after the puzzle is complete.
 * Added app configuration via environment variables - .env contains all of the available
   configuration variables and can be used to set them.
+* The server now starts immediately, and database initialision is done in the background
+  if needed. We keep track of the lichess puzzle import using a flag in the database, so
+  if you don't let it complete at least once, it will restart every time the application
+  starts until it is completed.
 
 [1.3] - 2023-10-01
 Changed:

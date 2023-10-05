@@ -1,7 +1,10 @@
 use chrono::{DateTime, FixedOffset, Duration};
+use futures::{TryStreamExt, StreamExt};
+use sqlx::Row;
+use sqlx::sqlite::SqliteRow;
 
 use crate::srs::{Card, Difficulty};
-use crate::db::{PuzzleDatabase, DbResult, Puzzle, DatabaseError, ErrorDetails};
+use crate::db::{PuzzleDatabase, DbResult, Puzzle};
 
 /// A review record from the db.
 #[derive(Debug, Clone)]
@@ -12,249 +15,211 @@ pub struct Review {
     pub date: DateTime<FixedOffset>,
 }
 
+impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
+{
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            user_id: row.try_get("user_id")?,
+            puzzle_id: row.try_get("user_id")?,
+            difficulty: Difficulty::from_i64(row.try_get("difficulty")?)
+                .map_err(|e| sqlx::Error::ColumnDecode {
+                    index: "Difficulty".to_string(),
+                    source: e.to_string().into(),
+                })?,
+            date: DateTime::parse_from_rfc3339(row.try_get("date")?)
+                .map_err(|e| sqlx::Error::ColumnDecode {
+                    index: "date".to_string(),
+                    source: e.to_string().into(),
+                })?,
+        })
+    }
+}
+
+impl<'r> sqlx::FromRow<'r, SqliteRow> for Card
+{
+    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            id: row.try_get("puzzle_id")?,
+            interval: Duration::seconds(row.try_get("interval")?),
+            review_count: row.try_get("review_count")?,
+            ease: row.try_get("ease")?,
+            learning_stage: row.try_get("learning_stage")?,
+            due: DateTime::parse_from_rfc3339(row.try_get("due")?)
+                .map_err(|e| sqlx::Error::ColumnDecode {
+                    index: "due".to_string(),
+                    source: e.to_string().into(),
+                })?,
+        })
+    }
+}
+
 impl PuzzleDatabase {
     /// Get the next due review. min_interval allows us to filter out cards with short intervals
     /// (e.g. because they're still in learning), because otherwise they'll show up, possibly
     /// repeatedly if learning or relearning, before other cards that are due later today.
-    pub fn get_next_review_due(&self, time: DateTime<FixedOffset>, min_interval: Option<Duration>)
+    pub async fn get_next_review_due(&self, time: DateTime<FixedOffset>, min_interval: Option<Duration>)
         -> DbResult<Option<(Card, Puzzle)>>
     {
-        // TODO: the left join means that if the corresponding puzzle gets deleted, the query will
-        // return NULL for those fields, and the try_reads below will fail. For now, I'm not really
-        // expecting the puzzle database itself to change after it's initially imported, but we
-        // should probably enforce data integrity with foreign key constraints, or just handle the
-        // case when the puzzle data has changed in some way.
-        const QUERY: &'static str = "
+        let min_interval_seconds = min_interval.map(|i| i.num_seconds()).unwrap_or(0);
+
+        // TODO: if the puzzles for a card get deleted it will cause a weird disconnect between the
+        // user's due count and the cards they have due. For now we filter out cards with a NULL
+        // puzzle_id to stop them showing up in reviews but they'll still have more than 0 reviews
+        // forever which is weird.
+        let query = sqlx::query("
             SELECT * FROM cards
             LEFT JOIN puzzles
                 ON cards.puzzle_id = puzzles.puzzle_id
             WHERE datetime(due) < datetime(?)
             AND interval >= ?
+            AND puzzles.puzzle_id NOT NULL
             ORDER BY datetime(due) ASC
             LIMIT 1
-        ";
+        ");
 
-        let min_interval_seconds = min_interval.map(|i| i.num_seconds()).unwrap_or(0);
-
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, time.to_rfc3339().as_str())).map_err(Self::convert_error)?
-            .bind((2, min_interval_seconds)).map_err(Self::convert_error)?
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-
-                // Get puzzle id.
-                let puzzle_id = Self::try_read::<&str>(&row, "puzzle_id")?;
-
-                // Construct card.
-                let due = Self::try_parse_datetime(Self::try_read(&row, "due")?)?;
-                let interval = Duration::seconds(Self::try_read(&row, "interval")?);
-
-                let card = Card {
-                    id: puzzle_id.to_string(),
-                    due,
-                    interval,
-                    review_count: Self::try_read(&row, "review_count")?,
-                    ease: Self::try_read(&row, "ease")?,
-                    learning_stage: Self::try_read(&row, "learning_stage")?,
-                };
-
-                // Construct puzzle.
-                let puzzle = Puzzle {
-                    puzzle_id: puzzle_id.to_string(),
-                    fen: Self::try_read::<&str>(&row, "fen")?.to_string(),
-                    moves: Self::try_read::<&str>(&row, "moves")?.to_string(),
-                    rating: Self::try_read(&row, "rating")?,
-                };
-
-                Ok((card, puzzle)) as DbResult<(Card, Puzzle)>
+        query
+            .bind(time.to_rfc3339().as_str())
+            .bind(min_interval_seconds)
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|row: SqliteRow| {
+                let card: Card = sqlx::FromRow::from_row(&row)?;
+                let puzzle: Puzzle = sqlx::FromRow::from_row(&row)?;
+                Ok((card, puzzle))
             })
-            .next()
             .transpose()
     }
 
     /// Get a single card by ID.
-    pub fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
-        const QUERY: &'static str = "
-            SELECT due, interval, review_count, ease, learning_stage
+    pub async fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
+        log::info!("Getting card for puzzle {puzzle_id}");
+
+        let query = sqlx::query_as::<_, Card>("
+            SELECT *
             FROM cards
             WHERE puzzle_id = ?
-        ";
+        ");
 
-        log::info!("Getting card for puzzle {puzzle_id}");
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, puzzle_id)).map_err(Self::convert_error)?
-            .next()
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-
-                let due = Self::try_parse_datetime(Self::try_read(&row, "due")?)?;
-                let interval = Duration::seconds(Self::try_read(&row, "interval")?);
-
-                Ok(Card {
-                    id: puzzle_id.to_string(),
-                    due,
-                    interval,
-                    review_count: Self::try_read(&row, "review_count")?,
-                    ease: Self::try_read(&row, "ease")?,
-                    learning_stage: Self::try_read(&row, "learning_stage")?,
-                })
-            })
-            .transpose()
+        Ok(query
+            .bind(puzzle_id)
+            .fetch_optional(&self.pool)
+            .await?)
     }
 
     /// Update (or create) a card by ID.
-    pub fn update_or_create_card(&mut self, card: &Card) -> DbResult<()> {
-        const QUERY: &'static str="
-            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease, learning_stage)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ";
-
+    pub async fn update_or_create_card(&mut self, card: &Card) -> DbResult<()> {
         log::info!("Updating card for puzzle {}: {card:?}", card.id);
 
-        let due = card.due.to_rfc3339();
-        let interval = card.interval.num_seconds();
+        let query = sqlx::query("
+            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease, learning_stage)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
 
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, card.id.as_str())).map_err(Self::convert_error)?
-            .bind((2, due.as_str())).map_err(Self::convert_error)?
-            .bind((3, interval)).map_err(Self::convert_error)?
-            .bind((4, card.review_count as i64)).map_err(Self::convert_error)?
-            .bind((5, card.ease as f64)).map_err(Self::convert_error)?
-            .bind((6, card.learning_stage)).map_err(Self::convert_error)?
-            .next()
-            .transpose()
-            .map(|_| ())
-            .map_err(Self::convert_error)
+        query
+            .bind(&card.id)
+            .bind(card.due.to_rfc3339())
+            .bind(card.interval.num_seconds())
+            .bind(card.review_count)
+            .bind(card.ease)
+            .bind(card.learning_stage)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     /// Add a review record for a user.
-    pub fn add_review_for_user(&mut self, review: Review) -> DbResult<()>
+    pub async fn add_review_for_user(&mut self, review: Review) -> DbResult<()>
     {
-        const QUERY: &'static str = "
+        let query = sqlx::query("
             INSERT INTO reviews (user_id, puzzle_id, difficulty, date)
             VALUES (?, ?, ?, ?)
-        ";
+        ");
 
-        self.conn.prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, review.user_id.as_str())).map_err(Self::convert_error)?
-            .bind((2, review.puzzle_id.as_str())).map_err(Self::convert_error)?
-            .bind((3, review.difficulty.to_i64())).map_err(Self::convert_error)?
-            .bind((4, review.date.to_rfc3339().as_str())).map_err(Self::convert_error)?
-            .next()
-            .transpose()
-            .map(|_| ())
-            .map_err(Self::convert_error)
+        query
+            .bind(&review.user_id)
+            .bind(&review.puzzle_id)
+            .bind(review.difficulty.to_i64())
+            .bind(review.date.to_rfc3339())
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     /// Get up to the last n reviews for a user, and the rating for each one.
-    pub fn last_n_reviews_for_user(&self, user_id: &str, max_reviews: i64)
+    pub async fn last_n_reviews_for_user(&self, user_id: &str, max_reviews: i64)
         -> DbResult<Vec<(Review, i64)>>
     {
-        const QUERY: &'static str = "
-            SELECT reviews.puzzle_id, difficulty, date, rating
+        let query = sqlx::query("
+            SELECT reviews.*, puzzles.rating
             FROM reviews
             INNER JOIN puzzles ON reviews.puzzle_id = puzzles.puzzle_id
             WHERE reviews.user_id = ?
+            AND puzzles.rating NOT NULL
             ORDER BY date DESC
             LIMIT ?
-        ";
+        ");
 
-        self.conn.prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, user_id)).map_err(Self::convert_error)?
-            .bind((2, max_reviews)).map_err(Self::convert_error)?
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-
-                let puzzle_id = Self::try_read::<&str>(&row, "puzzle_id")?;
-                let date = Self::try_parse_datetime(Self::try_read(&row, "date")?)?;
-
-                let difficulty = Difficulty::from_i64(Self::try_read(&row, "difficulty")?)
-                    .map_err(|e| DatabaseError::ParsingError(ErrorDetails {
-                        backend: "Difficulty".to_string(),
-                        description: format!("Failed to parse difficulty value: {e}"),
-                        source: Some(e.into()),
-                    }))?;
-
-                let review = Review {
-                    user_id: user_id.to_string(),
-                    puzzle_id: puzzle_id.to_string(),
-                    difficulty,
-                    date,
-                };
-
-                let rating = Self::try_read(&row, "rating")?;
-
-                Ok((review, rating))
+        Ok(query
+            .bind(user_id)
+            .bind(max_reviews)
+            .fetch(&self.pool)
+            .map(|row: Result<SqliteRow, _>| {
+                let row = row?;
+                let review: Review = sqlx::FromRow::from_row(&row)?;
+                let rating: i64 = row.try_get("rating")?;
+                Ok((review, rating)) as Result<_, sqlx::Error>
             })
-            .collect()
+            .try_collect()
+            .await?)
     }
 
     /// Get the number of cards in the database.
-    pub fn get_card_count(&self) -> DbResult<i64> {
+    pub async fn get_card_count(&self) -> DbResult<i64> {
         // Get card and review count.
-        const QUERY: &'static str = "
-            SELECT
-                COUNT(*) AS card_count
+        let query = sqlx::query("
+            SELECT COUNT(*) as card_count
             FROM cards
-        ";
+        ");
 
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .next()
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-                Self::try_read::<i64>(&row, "card_count")
-            })
-            .unwrap_or(Ok(0))
+        Ok(query
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|row| row.try_get("card_count"))
+            .unwrap_or(Ok(0))?)
     }
 
     /// Get the number of reviews in the database.
-    pub fn get_review_count(&self) -> DbResult<i64> {
+    pub async fn get_review_count(&self) -> DbResult<i64> {
         // Get card and review count.
-        const QUERY: &'static str = "
+        let query = sqlx::query("
             SELECT
                 COALESCE(SUM(review_count), 0) AS review_count
             FROM cards
-        ";
+        ");
 
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .next()
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-                Self::try_read::<i64>(&row, "review_count")
-            })
-            .unwrap_or(Ok(0))
+        Ok(query
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|row| row.try_get("review_count"))
+            .unwrap_or(Ok(0))?)
     }
 
     /// Get the number of reviews due before a certain time.
-    pub fn reviews_due_by(&self, date: DateTime<FixedOffset>) -> DbResult<i64> {
-        const QUERY: &'static str = "
+    pub async fn reviews_due_by(&self, date: DateTime<FixedOffset>) -> DbResult<i64> {
+        let query = sqlx::query("
             SELECT count(*) as card_count
             FROM cards
             WHERE datetime(due) < datetime(?)
             ORDER BY datetime(due) ASC
-        ";
+        ");
 
-        self.conn
-            .prepare(QUERY).map_err(Self::convert_error)?
-            .into_iter()
-            .bind((1, date.to_rfc3339().as_str())).map_err(Self::convert_error)?
-            .map(|result| {
-                let row = result.map_err(Self::convert_error)?;
-                Self::try_read(&row, "card_count")
-            })
-            .next()
-            .unwrap_or(Ok(0))
+        Ok(query
+            .bind(date.to_rfc3339())
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|row| row.try_get("card_count"))
+            .unwrap_or(Ok(0))?)
     }
 }
