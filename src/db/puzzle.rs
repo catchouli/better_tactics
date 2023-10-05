@@ -35,7 +35,7 @@ impl PuzzleDatabase {
     /// Get the number of puzzles in the database.
     pub async fn get_puzzle_count(&self) -> DbResult<usize> {
         let query = sqlx::query("
-            SELECT COUNT(puzzle_id) as puzzle_count FROM puzzles;
+            SELECT count(puzzle_id) as puzzle_count FROM puzzles;
         ");
 
         query
