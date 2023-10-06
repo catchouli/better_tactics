@@ -1,12 +1,17 @@
 [1.6] - ????-??-??
 
+Changed:
+* Puzzle themes are now hidden until the puzzle is complete to avoid spoilers.
+
 [1.5] - 2023-10-06
+
 Added:
 * Added an About page, explaining what's going on and a lot of useful information.
 * Added a navigation menu to get to the various pages.
 * Added legal move display.
 
 [1.4] - 2023-10-06
+
 Changed:
 * Made the UI a bit more clean and sleek and also make it mobile friendly.
 * Highlight when the king is in check.
@@ -24,6 +29,7 @@ Fixed:
   start to show you reviews due until the *following 4am* (i.e. 28 hours later)
 
 [1.3] - 2023-10-01
+
 Changed:
 * Tweaked the rating sytstem once more. Once it gets a good idea of your actual rating, and your
   rating deviation goes low enough, it's actually producing extremely good results now, and doesn't
@@ -41,10 +47,12 @@ Changed:
 * Fixes various bugs with data access and error reporting.
 
 [1.2] - 2023-09-30
+
 Added:
 * Support promotion in the UI properly instead of assuming auto-queen.
 
 [1.1] - 2023-09-30
+
 Changed:
 * Tweaks the rating system to make the rating grow a bit more appropriately.
 
@@ -55,4 +63,5 @@ Added:
   the computer is making their move.
 
 [1.0] - 2023-09-29
+
 * Initial prototype version, with working rating system.
