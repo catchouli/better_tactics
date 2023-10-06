@@ -77,7 +77,7 @@ pub struct AboutTemplate {}
 
 /// Our routes.
 pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
-    -> impl Filter::<Extract: Reply> + Clone + Send + Sync + 'static
+    -> impl Filter::<Extract = impl Reply> + Clone + Send + Sync + 'static
 {
     // Serve the static assets.
     warp::path("assets").and(assets_filter())

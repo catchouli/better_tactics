@@ -1,4 +1,3 @@
-#![feature(associated_type_bounds)]
 mod db;
 mod route;
 mod controllers;

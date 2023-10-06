@@ -13,7 +13,7 @@
 A chess tactics trainer that with spaced repetition. New puzzles will be shown to you from the lichess puzzle db, according to your calculated rating level, and then puzzles that need reviewing wil be shown to you daily.
 
 To run it:
-* Either grab a build from the releases page and just run it, or download the repo and `cargo +nightly run --release`.
+* Either grab a build from the releases page and just run it, or download the repo and `cargo run --release`.
 * The lichess puzzles db will be automatically downloaded on the first run and saved to the application's sqlite database.
 * Once it says it's serving the site go to http://localhost:3030 to use the app.
 * Click the 'New Puzzle' button to see some new puzzles, which will then be added to your review queue, or the 'Review' app to do your daily reviews!
