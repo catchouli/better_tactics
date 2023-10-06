@@ -67,39 +67,41 @@
 <!-- The main puzzle interface, with the puzzle and other panels in it -->
 <div class="columns" id="puzzle-interface">
     <!-- The board column on the left -->
-    <div class="column is-two-thirds bt-panel" id="board-container">
-        <!-- The chessground board -->
-        <div class="chessground" id="board"></div>
+    <div class="column is-two-thirds">
+        <div class="bt-panel" id="board-container">
+            <!-- The chessground board -->
+            <div class="chessground" id="board"></div>
 
-        <!-- The promotion ui, which covers the board -->
-        <div id="promotion-ui" oncontextmenu="return false;">
-            <div class="promotion-pieces" id="white">
-                <button class="promotion-piece" data-piece="q">
-                    <img src="/assets/images/pieces/white-queen.svg">
-                </button>
-                <button class="promotion-piece" data-piece="r">
-                    <img src="/assets/images/pieces/white-rook.svg">
-                </button>
-                <button class="promotion-piece" data-piece="n">
-                    <img src="/assets/images/pieces/white-knight.svg">
-                </button>
-                <button class="promotion-piece" data-piece="b">
-                    <img src="/assets/images/pieces/white-bishop.svg">
-                </button>
-            </div>
-            <div class="promotion-pieces" id="black">
-                <button class="promotion-piece" data-piece="q">
-                    <img src="/assets/images/pieces/black-queen.svg">
-                </button>
-                <button class="promotion-piece" data-piece="r">
-                    <img src="/assets/images/pieces/black-rook.svg">
-                </button>
-                <button class="promotion-piece" data-piece="n">
-                    <img src="/assets/images/pieces/black-knight.svg">
-                </button>
-                <button class="promotion-piece" data-piece="b">
-                    <img src="/assets/images/pieces/black-bishop.svg">
-                </button>
+            <!-- The promotion ui, which covers the board -->
+            <div id="promotion-ui" oncontextmenu="return false;">
+                <div class="promotion-pieces" id="white">
+                    <button class="promotion-piece" data-piece="q">
+                        <img src="/assets/images/pieces/white-queen.svg">
+                    </button>
+                    <button class="promotion-piece" data-piece="r">
+                        <img src="/assets/images/pieces/white-rook.svg">
+                    </button>
+                    <button class="promotion-piece" data-piece="n">
+                        <img src="/assets/images/pieces/white-knight.svg">
+                    </button>
+                    <button class="promotion-piece" data-piece="b">
+                        <img src="/assets/images/pieces/white-bishop.svg">
+                    </button>
+                </div>
+                <div class="promotion-pieces" id="black">
+                    <button class="promotion-piece" data-piece="q">
+                        <img src="/assets/images/pieces/black-queen.svg">
+                    </button>
+                    <button class="promotion-piece" data-piece="r">
+                        <img src="/assets/images/pieces/black-rook.svg">
+                    </button>
+                    <button class="promotion-piece" data-piece="n">
+                        <img src="/assets/images/pieces/black-knight.svg">
+                    </button>
+                    <button class="promotion-piece" data-piece="b">
+                        <img src="/assets/images/pieces/black-bishop.svg">
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -238,14 +240,14 @@
                     </button>
                 </div>
             </div>
+        </div>
 
         {% if let Some(card) = card %}
             {% if !Self::card_due_now(card) %}
-                <br>
-                <div>
+            <div class="bt-panel controls-subpanel" id="reviewing-ahead">
                     Warning: you are reviewing ahead, which is fine, but it will push this card further
                     into the future each time you complete it.
-                </div>
+            </div>
             {% endif %}
         {% endif %}
     </div>
