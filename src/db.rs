@@ -35,6 +35,7 @@ impl PuzzleDatabase {
             .max_connections(5)
             .connect_with(SqliteConnectOptions::from_str(path)?
               .disable_statement_logging()
+              .create_if_missing(true)
             )
             .await
             .map_err(|e| DatabaseError::ConnectionError(ErrorDetails {
