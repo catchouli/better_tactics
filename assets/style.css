@@ -221,7 +221,7 @@ cg-board {
 
 /* Always show reviewing ahead panel if it's there */
 .controls-subpanel#reviewing-ahead {
-    display: initial;
+    display: initial !important;
 }
 
 #white-to-move, #black-to-move, #white-to-move-computer, #black-to-move-computer, #puzzle-info {

@@ -1,4 +1,4 @@
-[1.4] - ????-??-??
+[1.4] - 2023-10-06
 Changed:
 * Made the UI a bit more clean and sleek and also make it mobile friendly.
 * Highlight when the king is in check.
@@ -9,6 +9,11 @@ Changed:
   if needed. We keep track of the lichess puzzle import using a flag in the database, so
   if you don't let it complete at least once, it will restart every time the application
   starts until it is completed.
+* Add puzzle themes to the puzzle page.
+
+Fixed:
+* Fixes a bug where despite the review-ahead time for the day being until 4am, after midnight it'd
+  start to show you reviews due until the *following 4am* (i.e. 28 hours later)
 
 [1.3] - 2023-10-01
 Changed:
