@@ -61,9 +61,16 @@ cg-board {
 
 /* ==================== Mobile layout ==================== */
 .header {
+    position: relative;
+    display: flex;
+    align-items: center;
     flex-grow: 0;
     min-height: 60px;
     white-space: nowrap;
+}
+
+.header .title {
+    font-size: 2rem;
 }
 
 .section#main-section {
@@ -78,15 +85,8 @@ cg-board {
     padding: 0;
 }
 
-.header {
-    display: flex;
-    align-items: center;
-}
-
 .header #site-name-container {
     flex-grow: 1;
-    /* Make up for the size of the burger menu so it doesn't look off-center */
-    padding-left: 3rem;
 }
 
 /* Navbar */
@@ -114,6 +114,9 @@ cg-board {
 }
 
 .navbar-burger {
+    position: absolute;
+    right: 0.5rem;
+    top: 0.5rem;
     user-select: none;
     display: block !important;
 }
@@ -356,6 +359,10 @@ cg-board {
     /* Header */
     .header {
         margin-top: 1rem;
+    }
+
+    .header .title {
+        font-size: 3rem;
     }
 
     /* Footer */
