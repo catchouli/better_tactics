@@ -1,4 +1,4 @@
-[1.5] - ????-??-??
+[1.5] - 2023-10-06
 Added:
 * Added an About page, explaining what's going on and a lot of useful information.
 * Added a navigation menu to get to the various pages.
