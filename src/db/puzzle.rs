@@ -75,32 +75,45 @@ impl PuzzleDatabase {
 
     /// Add a batch of puzzles to the database.
     pub async fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
-        // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
-        // batch insert api that lets you supply an iterator but I'm not sure how to do that with
-        // the sqlite crate. Reusing the prepared statement was about the same overhead as just
-        // creating it every time, but building the query is much faster.
-        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
+        // Unfortunately we can only do about 2500 per query or we run out of sql variables due to
+        // the way sqlx builds the query.
+        const MAX_PER_QUERY: usize = 2500;
+
+        // Create transaction.
+        let tx = self.pool.begin().await?;
+
+        // Import chunks of up to MAX_PER_QUERY.
+        for chunk in puzzles.chunks(MAX_PER_QUERY) {
+            // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
+            // batch insert api that lets you supply an iterator but I'm not sure how to do that with
+            // the sqlite crate. Reusing the prepared statement was about the same overhead as just
+            // creating it every time, but building the query is much faster.
+            let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+                "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
                 popularity, number_of_plays, themes, game_url, opening_tags) "
-        );
+                );
 
-        query_builder.push_values(puzzles, |mut b, puzzle| {
-            b.push_bind(&puzzle.puzzle_id)
-                .push_bind(&puzzle.fen)
-                .push_bind(&puzzle.moves)
-                .push_bind(puzzle.rating)
-                .push_bind(puzzle.rating_deviation)
-                .push_bind(puzzle.popularity)
-                .push_bind(puzzle.number_of_plays)
-                .push_bind(puzzle.themes.join(" "))
-                .push_bind(&puzzle.game_url)
-                .push_bind(puzzle.opening_tags.join(" "));
-        });
+            query_builder.push_values(chunk, |mut b, puzzle| {
+                b.push_bind(&puzzle.puzzle_id)
+                    .push_bind(&puzzle.fen)
+                    .push_bind(&puzzle.moves)
+                    .push_bind(puzzle.rating)
+                    .push_bind(puzzle.rating_deviation)
+                    .push_bind(puzzle.popularity)
+                    .push_bind(puzzle.number_of_plays)
+                    .push_bind(puzzle.themes.join(" "))
+                    .push_bind(&puzzle.game_url)
+                    .push_bind(puzzle.opening_tags.join(" "));
+            });
 
-        query_builder
-            .build()
-            .execute(&self.pool)
-            .await?;
+            query_builder
+                .build()
+                .execute(&self.pool)
+                .await?;
+        }
+
+        // Commit the transaction.
+        tx.commit().await?;
 
         Ok(())
     }

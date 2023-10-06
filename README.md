@@ -14,8 +14,8 @@ A chess tactics trainer that with spaced repetition. New puzzles will be shown t
 
 To run it:
 * Either grab a build from the releases page and just run it, or download the repo and `cargo run --release`.
-* The lichess puzzles db will be automatically downloaded on the first run and saved to the application's sqlite database.
-* Once it says it's serving the site go to http://localhost:3030 to use the app.
+* Once it says it's serving the site go to http://localhost:3030 in your browser to access the app.
+* The lichess puzzles db will be automatically downloaded in the background the first time you run the application. If you don't let it finish, it'll start over again the next time you run it.
 * Click the 'New Puzzle' button to see some new puzzles, which will then be added to your review queue, or the 'Review' app to do your daily reviews!
 
 Note: For a standalone/portable build use the release build, as it compiles the static assets in, but the debug build references them from the ./assets directory.

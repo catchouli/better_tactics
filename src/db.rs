@@ -7,7 +7,7 @@ mod migration;
 use std::str::FromStr;
 
 use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
-use sqlx::{SqlitePool, ConnectOptions};
+use sqlx::{SqlitePool, ConnectOptions, Sqlite};
 
 pub use dbresult::*;
 pub use puzzle::*;
@@ -18,7 +18,7 @@ pub use card::*;
 
 /// The puzzle database interface type.
 pub struct PuzzleDatabase {
-    pool: SqlitePool,
+    pool: SqlitePool
 }
 
 #[derive(sqlx::FromRow)]

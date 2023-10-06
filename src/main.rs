@@ -12,6 +12,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{Write, SeekFrom, Seek};
 use std::sync::Arc;
+use csv::StringRecord;
 use futures::StreamExt;
 use tokio::sync::Mutex;
 
@@ -26,7 +27,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     env_logger::builder().init();
-    log::info!("Better tactics starting!");
+    log::info!("Better Tactics starting!");
 
     // Load app config.
     let app_config = AppConfig::from_env()?;
@@ -47,9 +48,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create routes and serve service.
     let routes = route::routes(puzzle_db);
-    let server_task = warp::serve(routes).run((app_config.bind_interface, app_config.bind_port));
+    let server_task = tokio::spawn(warp::serve(routes)
+       .run((app_config.bind_interface, app_config.bind_port)));
 
-    tokio::join!(server_task);
+    log::info!("The application is now started, access it at {}:{}",
+        app_config.bind_interface, app_config.bind_port);
+
+    tokio::join!(server_task).0?;
 
     Ok(())
 }
@@ -90,7 +95,7 @@ async fn download_puzzle_db() -> Result<File, String> {
     const LICHESS_DB_URL: &'static str = "https://database.lichess.org/lichess_db_puzzle.csv.zst";
 
     const BYTES_PER_MEGABYTE: usize = 1024 * 1024;
-    const BYTES_PER_PROGRESS_REPORT: usize = 10 * BYTES_PER_MEGABYTE;
+    const BYTES_PER_PROGRESS_REPORT: usize = 25 * BYTES_PER_MEGABYTE;
 
     // If the puzzle db is just already in the current working directory, just use that.
     if let Ok(file) = File::open(LICHESS_DB_NAME) {
@@ -139,27 +144,41 @@ async fn download_puzzle_db() -> Result<File, String> {
 async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw: File)
     -> Result<(), String>
 {
-    const MAX_PUZZLES_TO_IMPORT: usize = 10_000_000;
-    const PUZZLES_PER_PROGRESS_UPDATE: usize = 2500;
+    /// The total number of puzzles in the database. It's a shame to have to have this hardcoded
+    /// here, but there's no easy way to tell as we're reading it since we're streaming it from a
+    /// file, and this should work in the majority of cases. If it ever changes significantly, we
+    /// can just update it.
+    const TOTAL_PUZZLES: usize = 3_500_000;
 
-    log::info!("Importing lichess puzzle database");
+    const PUZZLES_PER_IMPORT_BATCH: usize = 2500;
+    const PUZZLES_PER_PROGRESS_UPDATE: usize = 100000;
+
+    // We expect 10 rows per puzzle entry.
+    const EXPECTED_ROWS: usize = 10;
+
+    log::info!("Importing lichess puzzle database in background...");
 
     if let Ok(decoder) = zstd::stream::Decoder::new(lichess_db_raw) {
         let mut csv_reader = csv::Reader::from_reader(decoder);
+
         let mut puzzles_imported = 0;
+        let mut last_report = 0;
 
         let mut puzzles = Vec::new();
+        let mut record: StringRecord = StringRecord::new();
 
-        for result in csv_reader.records().take(MAX_PUZZLES_TO_IMPORT) {
-            const EXPECTED_ROWS: usize = 10;
-
-            // Unwrap record.
-            let record = result.map_err(|e|
+        loop {
+            let read_record = csv_reader.read_record(&mut record).map_err(|e| {
                 format!("CSV parse error when importing lichess puzzles database: {e}")
-            )?;
+            })?;
+
+            if !read_record {
+                break;
+            }
 
             if record.len() != EXPECTED_ROWS {
-                log::warn!("Skipping record with {} entries, expected at least {}", record.len(), EXPECTED_ROWS);
+                log::warn!("Skipping record with {} entries, expected at least {}",
+                    record.len(), EXPECTED_ROWS);
                 continue;
             }
 
@@ -194,11 +213,16 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
             puzzles_imported += 1;
 
             // Bulk insert if we have enough.
-            if puzzles.len() >= PUZZLES_PER_PROGRESS_UPDATE {
+            if puzzles.len() >= PUZZLES_PER_IMPORT_BATCH {
                 db.lock().await.add_puzzles(&puzzles).await
                     .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
                 puzzles.clear();
-                log::info!("Progress: {puzzles_imported} puzzles imported...");
+            }
+
+            if puzzles_imported - last_report >= PUZZLES_PER_PROGRESS_UPDATE {
+                last_report = puzzles_imported;
+                let percent = 100 * puzzles_imported / TOTAL_PUZZLES;
+                log::info!("Puzzle database: {puzzles_imported} puzzles (~{percent}%) imported...");
             }
         }
 
