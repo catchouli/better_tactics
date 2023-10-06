@@ -1,3 +1,5 @@
+[1.6] - ????-??-??
+
 [1.5] - 2023-10-06
 Added:
 * Added an About page, explaining what's going on and a lot of useful information.
