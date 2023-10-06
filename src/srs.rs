@@ -1,6 +1,7 @@
 use std::error::Error;
 use lazy_static::lazy_static;
-use chrono::{DateTime, FixedOffset, Local, Duration};
+use chrono::{DateTime, FixedOffset, Duration, NaiveTime, Timelike};
+use crate::time::TimeProvider;
 
 lazy_static! {
     /// The initial intervals for new cards
@@ -21,6 +22,37 @@ const EASY_BONUS: f64 = 1.3;
 
 /// A result type that boxes errors to a Box<dyn Error>.
 pub type SrsResult<T> = Result<T, Box<dyn Error>>;
+
+/// The day end time. The user will be able to review-ahead cards before this time (as long as they
+/// aren't in learning, in which case the interval is less than 24h, usually around 10 minutes, and
+/// we want them to wait until it comes up again naturally.)
+/// TODO: make this configurable.
+fn day_end_time() -> NaiveTime {
+    // 4am by default, like in anki.
+    NaiveTime::from_hms_opt(4, 0, 0).unwrap()
+}
+
+/// Get day_end_time() as a datetime.
+pub fn day_end_datetime<TP: TimeProvider>() -> DateTime<FixedOffset> {
+    let day_end = day_end_time();
+
+    // If the current time is before the DAY_END time, (e.g. because it's after midnight but
+    // before 4am), we just need to get the current date and set the time to the DAY_END time.
+    let now = TP::now();
+    let day_end_date = if now.time() < day_end {
+        now.date_naive()
+    }
+    // If it's after that time, we need to add one day to get to the next DAY_END time.
+    else {
+        (now + Duration::seconds(60 * 60 * 24)).date_naive()
+    };
+
+    day_end_date
+        .and_hms_opt(day_end.hour(), day_end.minute(), day_end.second())
+        .unwrap()
+        .and_utc()
+        .fixed_offset()
+}
 
 /// Review difficulties.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -68,8 +100,6 @@ impl Difficulty {
 }
 
 // A single spaced repetition "card" (e.g. a puzzle).
-// TODO: if this is ever going to be a hosted web app we need to make sure time zones are handled
-// correctly. (They should be, all times are in ISO form with the timezone, but we need to check.)
 #[derive(Debug)]
 pub struct Card {
     pub id: String,
@@ -81,11 +111,11 @@ pub struct Card {
 }
 
 impl Card {
-    pub fn new(id: &str) -> Self
+    pub fn new<TP: TimeProvider>(id: &str) -> Self
     {
         Self {
             id: id.to_string(),
-            due: Local::now().fixed_offset(),
+            due: TP::now(),
             interval: INITIAL_INTERVALS[0],
             review_count: 0,
             ease: DEFAULT_EASE,
@@ -93,19 +123,6 @@ impl Card {
         }
     }
 
-    /// Generate the next 'due time', i.e. if a card is due before this time it is essentially due
-    /// today. For now we just use tommorow (local time) at 4am as the end of the day, and all cards
-    /// before that are due today, like in anki.
-    pub fn due_time() -> SrsResult<DateTime<FixedOffset>> {
-        Ok((Local::now() + Duration::seconds(60 * 60 * 24))
-            .date_naive()
-            .and_hms_opt(4, 0, 0)
-            .unwrap()
-            .and_local_timezone(Local)
-            .latest()
-            .ok_or_else(|| format!(""))?
-            .fixed_offset())
-    }
 
     /// Check whether the card is in 'learning' state.
     pub fn in_learning(&self) -> bool {
@@ -195,14 +212,45 @@ impl Card {
     }
 
     /// Get whether the card is due.
-    pub fn is_due(&self) -> bool {
-        let due_time = Self::due_time().unwrap();
+    pub fn is_due<TP: TimeProvider>(&self) -> bool {
+        let due_time = day_end_datetime::<TP>();
         (self.due - due_time).num_seconds() <= 0
     }
+}
 
-    /// Get a human readable time until due.
-    pub fn human_readable_due(&self) -> String {
-        let time_until_due = self.due - Local::now().fixed_offset();
-        crate::util::review_duration_to_human(time_until_due)
+#[cfg(test)]
+mod tests {
+    use crate::srs::day_end_time;
+    use crate::time::TestTimeProvider;
+    use super::day_end_datetime;
+    use chrono::{DateTime, Timelike};
+
+    #[test]
+    fn test_day_end_datetime() {
+        let day_end = day_end_time();
+        let expected = DateTime::parse_from_rfc3339(
+            &format!("2023-10-07T{:02}:{:02}:{:02}+00:00",
+                     day_end.hour(), day_end.minute(), day_end.second())
+        ).unwrap();
+
+        // Check that a regular-ish time in the middle of the day results in a day_end_datetime the
+        // the following day.
+        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 06, 09, 26, 00, 00, 00>>(), expected);
+
+        // Check that a time just before midnight works properly.
+        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 06, 23, 59, 59, 00, 00>>(), expected);
+
+        // Check that a time at midnight doesn't skip to the next day or anything.
+        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 00, 00, 00, 00, 00>>(), expected);
+
+        // Just after midnight.
+        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 00, 00, 01, 00, 00>>(), expected);
+
+        // Just before the day_end time.
+        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 03, 59, 59, 00, 00>>(), expected);
+
+        // Just after/at the day_end time should go to the next day.
+        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 04, 00, 00, 00, 00>>(),
+            DateTime::parse_from_rfc3339("2023-10-08T04:00:00+00:00").unwrap());
     }
 }

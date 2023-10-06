@@ -9,18 +9,12 @@ use warp::reply::Reply;
 use crate::rating::GameResult;
 use crate::route::{InternalError, InvalidParameter};
 use crate::db::{Puzzle, PuzzleDatabase, Stats, Review, User};
-use crate::srs::{Difficulty, Card};
+use crate::srs::{Difficulty, Card, self};
+use crate::time::{LocalTimeProvider, TimeProvider};
 use crate::util;
 
 /// The rating variation for puzzles, in percent.
 const PUZZLE_RATING_VARIATION: f64 = 1.05;
-
-/// The rating deviation for puzzles. This represents the certainty of the 'rating' for each puzzle
-/// in our database, and a higher number should cause the rating algorithm to make less drastic
-/// changes each time a puzzle is solved. In theory we could get this from the lichess puzzle db,
-/// but I didn't import it to begin with, and doing it now would break any existing databases since
-/// we don't have a way to migrate them.
-const PUZZLE_RATING_DEVIATION: i64 = 50;
 
 /// The puzzle mode.
 #[derive(Debug, PartialEq, Eq)]
@@ -57,6 +51,26 @@ pub struct PuzzleTemplate {
     card: Option<Card>,
     min_rating: i64,
     max_rating: i64,
+    puzzle_themes: Option<String>,
+}
+
+impl PuzzleTemplate {
+    /// Helper for the template so it can display the default intervals for a new card.
+    fn get_default_interval(difficulty: Difficulty) -> String {
+        Card::new::<LocalTimeProvider>("")
+            .next_interval_human(difficulty)
+    }
+
+    /// Get a human readable time until due for a card.
+    fn human_readable_due(card: &Card) -> String {
+        let time_until_due = card.due - LocalTimeProvider::now();
+        crate::util::review_duration_to_human(time_until_due)
+    }
+
+    /// Check whether a card is due now.
+    fn card_due_now(card: &Card) -> bool {
+        card.is_due::<LocalTimeProvider>()
+    }
 }
 
 /// The POST request for reviewing a card.
@@ -80,7 +94,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
-    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
     let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // Get the puzzle.
@@ -94,6 +108,9 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
         None
     };
 
+    // Generate list of puzzle themes.
+    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+
     Ok(PuzzleTemplate {
         user,
         stats,
@@ -103,6 +120,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
         card,
         min_rating: 0,
         max_rating: 0,
+        puzzle_themes,
     })
 }
 
@@ -120,7 +138,7 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
-    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
     let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // The min and max rating for puzzles, deviating from the user's rating by up to
@@ -142,6 +160,9 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         None
     };
 
+    // Generate list of puzzle themes.
+    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+
     Ok(PuzzleTemplate {
         user,
         stats,
@@ -151,6 +172,7 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         card,
         min_rating,
         max_rating,
+        puzzle_themes,
     })
 }
 
@@ -168,7 +190,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
     // Get the user's stats.
-    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
     let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // Get the user's next due review. The logic for this is a little complicated as we want to
@@ -182,7 +204,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .map_err(InternalError::from)?;
 
     let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d);
-    let review_cutoff_today = Card::due_time().map_err(InternalError::from)?;
+    let review_cutoff_today = srs::day_end_datetime::<LocalTimeProvider>();
     let next_non_learning_review_due_today =
         puzzle_db.get_next_review_due(review_cutoff_today, max_learning_interval).await
             .map_err(InternalError::from)?;
@@ -191,6 +213,9 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         Some((card, puzzle)) => (Some(card), Some(puzzle)),
         _ => (None, None)
     };
+
+    // Generate list of puzzle themes.
+    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
 
     Ok(PuzzleTemplate {
         user,
@@ -201,6 +226,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         card,
         min_rating: 0,
         max_rating: 0,
+        puzzle_themes,
     }.into_response())
 }
 
@@ -216,7 +242,7 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
     // Update the card.
     if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()).await {
         // If there's no existing card for the puzzle, create a new one.
-        let mut card = card.unwrap_or(Card::new(&request.id));
+        let mut card = card.unwrap_or(Card::new::<LocalTimeProvider>(&request.id));
 
         let mut user = puzzle_db.get_user_by_id(user_id).await
             .map_err(InternalError::from)?
@@ -247,7 +273,7 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
 
         user.rating.update(vec![GameResult {
             rating: puzzle.rating,
-            deviation: PUZZLE_RATING_DEVIATION,
+            deviation: puzzle.rating_deviation,
             score: difficulty.score(),
         }]);
 

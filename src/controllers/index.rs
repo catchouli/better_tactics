@@ -5,7 +5,8 @@ use tokio::sync::Mutex;
 
 use crate::db::{PuzzleDatabase, Stats, User};
 use crate::route::InternalError;
-use crate::srs::Card;
+use crate::srs;
+use crate::time::LocalTimeProvider;
 use crate::util;
 
 /// The template for displaying the index page.
@@ -27,7 +28,7 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .map_err(InternalError::from)?
         .ok_or(InternalError::new(format!("No local user record in database")))?;
 
-    let review_cutoff = Card::due_time().map_err(InternalError::from)?;
+    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
     let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     Ok(IndexTemplate {

@@ -125,6 +125,9 @@
                         </tr>
                     </tbody>
                 </table>
+                {% if let Some(puzzle_themes) = puzzle_themes %}
+                    <p><b>Themes:</b> {{ puzzle_themes }}</p>
+                {% endif %}
                 <a id="analysis-link" target="_blank">Analyse</a>
             {% else %}
                 No puzzle loaded
@@ -147,7 +150,7 @@
                             </tr>
                             <tr>
                                 <th scope="row">Due</th>
-                                <td>{{ card.human_readable_due() }}</td>
+                                <td>{{ Self::human_readable_due(card) }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -174,77 +177,77 @@
         </div>
 
         <!-- The puzzle controls panel, always visible but with various switchable sub-panels -->
-        <!--<div id="puzzle-controls" class="bt-panel sidebar-fill">-->
-            <!-- The initial panel shown -->
-            <div class="bt-panel controls-subpanel" id="find-the-line">
-                <p>Find the line!</p>
-            </div>
+        <!-- The initial panel shown -->
+        <div class="bt-panel controls-subpanel" id="find-the-line">
+            <p>Find the line!</p>
+        </div>
 
-            <!-- Shown when the user makes the right move -->
-            <div class="bt-panel controls-subpanel" id="right-move">
-                <p>Right move!</p>
-            </div>
+        <!-- Shown when the user makes the right move -->
+        <div class="bt-panel controls-subpanel" id="right-move">
+            <p>Right move!</p>
+        </div>
 
-            <!-- Shown when the user makes the wrong move -->
-            <div class="bt-panel controls-subpanel" id="wrong-move">
-                <p>Wrong move :(</p>
-                <!-- A button that lets them retry the puzzle -->
-                <div class="columns button-container">
-                    <div class="column">
-                        <button class="button" id="try-again">Reset puzzle</button>
-                    </div>
+        <!-- Shown when the user makes the wrong move -->
+        <div class="bt-panel controls-subpanel" id="wrong-move">
+            <p>Wrong move :(</p>
+            <!-- A button that lets them retry the puzzle -->
+            <div class="columns button-container">
+                <div class="column">
+                    <button class="button" id="try-again">Reset puzzle</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shown when the user completes the puzzle after making a mistake -->
+        <div class="bt-panel controls-subpanel" id="puzzle-failure">
+            <p>Puzzle complete (with mistakes)</p>
+
+            <div class="columns button-container">
+                <div class="column">
+                    <button class="button review-button" id="again" data-difficulty="0">
+                        <p class="main-text">Again</p>
+                        <p class="sub-text"></p>
+                    </button>
                 </div>
             </div>
 
-            <!-- Shown when the user completes the puzzle after making a mistake -->
-            <div class="bt-panel controls-subpanel" id="puzzle-failure">
-                <p>Puzzle complete (with mistakes)</p>
+            <a href="#" id="override-link">Submit positive answer anyway</a> (for example, because of a mouse slip)
+        </div>
 
-                <div class="columns button-container">
-                    <div class="column">
-                        <button class="button review-button" id="again" data-difficulty="0">
-                            <p class="main-text">Again</p>
-                            <p class="sub-text"></p>
-                        </button>
-                    </div>
+        <!-- Shown when the user completes the puzzle first try -->
+        <div class="bt-panel controls-subpanel" id="puzzle-success">
+            <p>Puzzle complete</p>
+
+            <div class="columns button-container">
+                <div class="column">
+                    <button class="button review-button" id="hard" data-difficulty="1">
+                        <p class="main-text">Hard</p>
+                        <p class="sub-text"></p>
+                    </button>
                 </div>
-
-                <a href="#" id="override-link">Submit positive answer anyway</a> (for example, because of a mouse slip)
+                <div class="column">
+                    <button class="button review-button" id="good" data-difficulty="2">
+                        <p class="main-text">Good</p>
+                        <p class="sub-text"></p>
+                    </button>
+                </div>
+                <div class="column">
+                    <button class="button review-button" id="easy" data-difficulty="3">
+                        <p class="main-text">Easy</p>
+                        <p class="sub-text"></p>
+                    </button>
+                </div>
             </div>
 
-            <!-- Shown when the user completes the puzzle first try -->
-            <div class="bt-panel controls-subpanel" id="puzzle-success">
-                <p>Puzzle complete</p>
-
-                <div class="columns button-container">
-                    <div class="column">
-                        <button class="button review-button" id="hard" data-difficulty="1">
-                            <p class="main-text">Hard</p>
-                            <p class="sub-text"></p>
-                        </button>
-                    </div>
-                    <div class="column">
-                        <button class="button review-button" id="good" data-difficulty="2">
-                            <p class="main-text">Good</p>
-                            <p class="sub-text"></p>
-                        </button>
-                    </div>
-                    <div class="column">
-                        <button class="button review-button" id="easy" data-difficulty="3">
-                            <p class="main-text">Easy</p>
-                            <p class="sub-text"></p>
-                        </button>
-                    </div>
-                </div>
-
-            {% if card.is_some() && !card.unwrap().is_due() %}
+        {% if let Some(card) = card %}
+            {% if !Self::card_due_now(card) %}
                 <br>
                 <div>
                     Warning: you are reviewing ahead, which is fine, but it will push this card further
                     into the future each time you complete it.
                 </div>
             {% endif %}
-        <!--</div>-->
+        {% endif %}
     </div>
 </div>
 
@@ -266,11 +269,10 @@
             const good_time = "{{ card.next_interval_human(Difficulty::Good) }}";
             const easy_time = "{{ card.next_interval_human(Difficulty::Easy) }}";
         {% else %}
-            {% let card = Card::new(puzzle.puzzle_id) %}
-            const again_time = "{{ card.next_interval_human(Difficulty::Again) }}";
-            const hard_time = "{{ card.next_interval_human(Difficulty::Hard) }}";
-            const good_time = "{{ card.next_interval_human(Difficulty::Good) }}";
-            const easy_time = "{{ card.next_interval_human(Difficulty::Easy) }}";
+            const again_time = "{{ Self::get_default_interval(Difficulty::Again) }}";
+            const hard_time = "{{ Self::get_default_interval(Difficulty::Hard) }}";
+            const good_time = "{{ Self::get_default_interval(Difficulty::Good) }}";
+            const easy_time = "{{ Self::get_default_interval(Difficulty::Easy) }}";
         {% endif %}
 
         // Add review time to buttons.

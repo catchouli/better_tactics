@@ -6,6 +6,7 @@ mod util;
 mod srs;
 mod rating;
 mod config;
+mod time;
 
 use std::env;
 use std::error::Error;
