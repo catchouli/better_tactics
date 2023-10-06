@@ -53,6 +53,11 @@ export class Puzzle {
         // Start puzzle.
         this.reset();
     }
+    
+    get_dests(square) {
+        return this._game.moves({ square })
+            .map(move => move.replace("+", "").replace("#", "").slice(-2));
+    }
 
     reset() {
         this._game = new Chess(this._fen);
@@ -77,6 +82,9 @@ export class Puzzle {
             lastMove: this._last_move ? this._last_move : null,
             turnColor: this._game.turn() == 'w' ? 'white' : 'black',
             check: this._game.isCheck(),
+            movable: {
+                dests: { get: this.get_dests.bind(this) }
+            },
         });
     }
 

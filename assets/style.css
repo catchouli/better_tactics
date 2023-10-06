@@ -20,6 +20,13 @@ a {
     text-decoration: none;
 }
 
+.my-navbar-menu {
+    background: #2A2537;
+}
+
+.bt-panel > .title {
+    text-align: center;
+}
 
 /* Button colors */
 .controls-subpanel button#try-again {
@@ -71,34 +78,86 @@ cg-board {
     padding: 0;
 }
 
+.header {
+    display: flex;
+    align-items: center;
+}
+
+.header #site-name-container {
+    flex-grow: 1;
+    /* Make up for the size of the burger menu so it doesn't look off-center */
+    padding-left: 3rem;
+}
+
+/* Navbar */
+.navbar {
+    min-height: 0;
+}
+
+.navbar {
+    position: relative;
+}
+
+.my-navbar-menu {
+    display: none;
+}
+
+.my-navbar-menu.is-active {
+    display: initial;
+}
+
+.navbar #nav-menu {
+    position: absolute;
+    right: 0;
+    border: solid 1px #1D1A26;
+    border-radius: 6px;
+}
+
+.navbar-burger {
+    user-select: none;
+    display: block !important;
+}
+
+.navbar-item {
+    display: block !important;
+    padding: 0.5rem 3rem;
+    text-decoration: none;
+    font-weight: bold;
+    text-align: center;
+}
+
+.navbar-item:hover {
+    background: #1D1A26 !important;
+}
+
 /* Index page */
-#tactics {
+#stats-panel {
     text-align: center;
     max-width: 25rem;
     margin: 0.5rem auto;
     padding-bottom: 1rem;
 }
 
-#tactics .stats {
+#stats-panel .stats {
     margin: 0 auto;
     margin-bottom: 2rem;
 }
 
-#tactics .stats > caption {
+#stats-panel .stats > caption {
     font-size: 24pt;
     margin-bottom: 1rem;
 }
 
-#tactics .stats > tbody > tr > th {
+#stats-panel .stats > tbody > tr > th {
     padding-right: 2rem;
     text-align: left;
 }
 
-#tactics .stats > tbody > tr > td {
+#stats-panel .stats > tbody > tr > td {
     text-align: center;
 }
 
-#tactics a.button {
+#stats-panel a.button {
     background: #416c86;
     text-decoration: none;
     width: 7rem;
@@ -255,6 +314,25 @@ cg-board {
     .controls-subpanel#find-the-line, .controls-subpanel#right-move {
         display: none !important;
     }
+}
+
+/* About page - these might apply to other pages too, but I thought I'd try them here first */
+#about h2 {
+    margin-bottom: 0;
+}
+
+#about p {
+    margin: 0.5em;
+}
+
+#about ul {
+    max-width: 90%;
+    margin: 0 auto;
+}
+
+#about ul li {
+    list-style: square;
+    margin: 0.5rem auto;
 }
 
 /* ==================== Desktop layout ==================== */

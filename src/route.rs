@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 use std::error::Error;
 
+use askama::Template;
 use tokio::sync::Mutex;
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use warp::reject::{self, Rejection};
@@ -69,6 +70,11 @@ impl From<Box<dyn Error>> for InternalError {
 
 impl reject::Reject for InternalError {}
 
+/// The about page.
+#[derive(Template)]
+#[template(path = "about.html")]
+pub struct AboutTemplate {}
+
 /// Our routes.
 pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> impl Filter::<Extract: Reply> + Clone + Send + Sync + 'static
@@ -83,6 +89,10 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
                 let puzzle_db = puzzle_db.clone();
                 move || index::index_page(puzzle_db.clone())
             }))
+
+        // Get /about - the about page.
+        .or(warp::path!("about")
+            .map(|| AboutTemplate {}))
 
         // GET /tactics/new - shows a new, new tactics puzzle.
         .or(warp::path!("tactics" / "new")

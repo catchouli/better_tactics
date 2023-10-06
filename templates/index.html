@@ -2,9 +2,9 @@
 
 {% block content %}
 <div class="columns">
-    <div id="tactics" class="column bt-panel">
+    <div id="stats-panel" class="column bt-panel">
         <table class="stats">
-            <caption>Stats</caption>
+            <caption class="is-2">Stats</caption>
             <tbody>
                 <tr>
                     <th scope="row">User rating</th>
@@ -35,5 +35,10 @@
         <a href="/tactics" class="button">Review</a>
         <a href="/tactics/new" class="button">New Puzzle</a>
     </div>
+</div>
+<div>
+    <p style="margin-top: 1rem; text-align: center;">
+        Don't know what's going on? See <a href="/about">About</a>.
+    </p>
 </div>
 {% endblock %}

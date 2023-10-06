@@ -1,5 +1,57 @@
 <header class="header has-text-centered is-flex-align-items-flex-end">
-    <a href="/">
-        <h1 class="title is-1">Better Tactics</h1>
-    </a>
+    <div id="site-name-container">
+        <a href="/">
+            <h1 class="title is-1">Better Tactics</h1>
+        </a>
+    </div>
+
+    <div id="navbar-burger-container">
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="nav-menu">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+        </a>
+    </div>
 </header>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+    <div id="nav-menu" class="my-navbar-menu">
+        <a class="navbar-item" href="/">
+            Home
+        </a>
+
+        <a class="navbar-item" href="/tactics">
+            Review
+        </a>
+
+        <a class="navbar-item" href="/tactics/new">
+            Practice
+        </a>
+
+        <a class="navbar-item" href="/about">
+            About
+        </a>
+    </div>
+</nav>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Get all "navbar-burger" elements
+    const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+    // Add a click event on each of them
+    $navbarBurgers.forEach( el => {
+        el.addEventListener('click', () => {
+
+            // Get the target from the "data-target" attribute
+            const target = el.dataset.target;
+            const $target = document.getElementById(target);
+
+            // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+            el.classList.toggle('is-active');
+            $target.classList.toggle('is-active');
+
+        });
+    });
+});
+</script>

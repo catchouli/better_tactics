@@ -1,4 +1,8 @@
 [1.5] - ????-??-??
+Added:
+* Added an About page, explaining what's going on and a lot of useful information.
+* Added a navigation menu to get to the various pages.
+* Added legal move display.
 
 [1.4] - 2023-10-06
 Changed:
