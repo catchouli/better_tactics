@@ -76,30 +76,30 @@
             <div id="promotion-ui" oncontextmenu="return false;">
                 <div class="promotion-pieces" id="white">
                     <button class="promotion-piece" data-piece="q">
-                        <img src="/assets/images/pieces/white-queen.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg">
                     </button>
                     <button class="promotion-piece" data-piece="r">
-                        <img src="/assets/images/pieces/white-rook.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-rook.svg">
                     </button>
                     <button class="promotion-piece" data-piece="n">
-                        <img src="/assets/images/pieces/white-knight.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-knight.svg">
                     </button>
                     <button class="promotion-piece" data-piece="b">
-                        <img src="/assets/images/pieces/white-bishop.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-bishop.svg">
                     </button>
                 </div>
                 <div class="promotion-pieces" id="black">
                     <button class="promotion-piece" data-piece="q">
-                        <img src="/assets/images/pieces/black-queen.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg">
                     </button>
                     <button class="promotion-piece" data-piece="r">
-                        <img src="/assets/images/pieces/black-rook.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-rook.svg">
                     </button>
                     <button class="promotion-piece" data-piece="n">
-                        <img src="/assets/images/pieces/black-knight.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-knight.svg">
                     </button>
                     <button class="promotion-piece" data-piece="b">
-                        <img src="/assets/images/pieces/black-bishop.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-bishop.svg">
                     </button>
                 </div>
             </div>
@@ -167,19 +167,19 @@
 
         <!-- The move indicators, visible when waiting for a move to be played -->
         <div id="white-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/white-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg"><br>
             White to move
         </div>
         <div id="black-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/black-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg"><br>
             Black to move
         </div>
         <div id="white-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/white-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg"><br>
             Computer to move
         </div>
         <div id="black-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/black-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg"><br>
             Computer to move
         </div>
 
@@ -260,7 +260,7 @@
 
 {% if let Some(puzzle) = puzzle %}
     <script type="module">
-        import { Puzzle } from '/assets/better-tactics.js';
+        import { Puzzle } from '/assets_{{base.assets_version}}/better-tactics.js';
 
         const container = document.getElementById("board");
 
@@ -462,7 +462,7 @@
     </script>
 {% else %}
     <script type="module">
-        import { Chessground } from '/assets/deps/chessground.min.js';
+        import { Chessground } from '/assets_{{base.assets_version}}/deps/chessground.min.js';
         // If there's no puzzle loaded, just show a chess board with input disabled.
         const container = document.getElementById("board");
         Chessground(container, {

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::error::Error;
 
 use askama::Template;
+use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use warp::reject::{self, Rejection};
@@ -10,6 +11,25 @@ use warp::reject::{self, Rejection};
 use crate::controllers::index;
 use crate::controllers::puzzle::{self, ReviewRequest};
 use crate::db::PuzzleDatabase;
+
+lazy_static! {
+    static ref ASSETS_VERSION: String = {
+        include_str!("../VERSION").trim().to_string()
+    };
+}
+
+/// The base template data.
+pub struct BaseTemplateData {
+    pub assets_version: String,
+}
+
+impl Default for BaseTemplateData {
+    fn default() -> Self {
+        Self {
+            assets_version: ASSETS_VERSION.to_string(),
+        }
+    }
+}
 
 /// Our error type for bad requests.
 #[derive(Debug)]
@@ -71,16 +91,19 @@ impl From<Box<dyn Error>> for InternalError {
 impl reject::Reject for InternalError {}
 
 /// The about page.
-#[derive(Template)]
+#[derive(Template, Default)]
 #[template(path = "about.html")]
-pub struct AboutTemplate {}
+pub struct AboutTemplate {
+    base: BaseTemplateData,
+}
 
 /// Our routes.
 pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> impl Filter::<Extract = impl Reply> + Clone + Send + Sync + 'static
 {
     // Serve the static assets.
-    warp::path("assets").and(assets_filter())
+    warp::path(format!("assets_{}", *ASSETS_VERSION))
+        .and(assets_filter())
 
         // GET / - the index page.
         .or(warp::path::end()
@@ -92,7 +115,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
         // Get /about - the about page.
         .or(warp::path!("about")
-            .map(|| AboutTemplate {}))
+            .map(|| AboutTemplate { ..Default::default() }))
 
         // GET /tactics/new - shows a new, new tactics puzzle.
         .or(warp::path!("tactics" / "new")
