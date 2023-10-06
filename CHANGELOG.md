@@ -1,3 +1,5 @@
+[1.5] - ????-??-??
+
 [1.4] - 2023-10-06
 Changed:
 * Made the UI a bit more clean and sleek and also make it mobile friendly.
