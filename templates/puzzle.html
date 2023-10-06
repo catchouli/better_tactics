@@ -128,7 +128,12 @@
                     </tbody>
                 </table>
                 {% if let Some(puzzle_themes) = puzzle_themes %}
-                    <p><b>Themes:</b> {{ puzzle_themes }}</p>
+                    <div id="themes-actual">
+                        <p><b>Themes:</b> {{ puzzle_themes }}</p>
+                    </div>
+                    <div id="themes-placeholder">
+                        <p><b>Themes:</b> ?</p>
+                    </div>
                 {% endif %}
                 <a id="analysis-link" target="_blank">Analyse</a>
             {% else %}
@@ -347,6 +352,9 @@
             else {
                 $('#puzzle-failure').css('display', 'initial');
             }
+
+            $('#puzzle-interface #themes-placeholder').css('display', 'none');
+            $('#puzzle-interface #themes-actual').css('display', 'initial');
         }
 
         function on_move(side_moved, move) {

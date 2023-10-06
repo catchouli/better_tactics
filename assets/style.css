@@ -246,6 +246,11 @@ cg-board {
     white-space: nowrap;
 }
 
+#puzzle-interface #themes-actual {
+    /* Hide themes by default */
+    display: none;
+}
+
 /* Sidebars (e.g. on the puzzle interface) */
 .sidebar {
     display: flex;
