@@ -7,7 +7,7 @@ mod migration;
 use std::str::FromStr;
 
 use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
-use sqlx::{SqlitePool, ConnectOptions, Sqlite};
+use sqlx::{SqlitePool, ConnectOptions};
 
 pub use dbresult::*;
 pub use puzzle::*;

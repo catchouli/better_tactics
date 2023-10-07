@@ -157,7 +157,10 @@
                             </tr>
                             <tr>
                                 <th scope="row">Due</th>
-                                <td>{{ Self::human_readable_due(card) }}</td>
+                                {% let due = Self::human_readable_due(card) %}
+                                <td {% if due != "now" %} title="reviewing ahead" {% endif %}>
+                                    {{ due }}
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -245,6 +248,11 @@
                     </button>
                 </div>
             </div>
+
+            <p>
+                Select the difficulty of the puzzle. The next review will be queued after the
+                amount of time shown.
+            </p>
         </div>
 
         {% if let Some(card) = card %}

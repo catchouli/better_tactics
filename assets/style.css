@@ -291,7 +291,7 @@ cg-board {
     display: initial !important;
 }
 
-#white-to-move, #black-to-move, #white-to-move-computer, #black-to-move-computer, #puzzle-info {
+.sidebar .bt-panel {
     text-align: center;
 }
 
