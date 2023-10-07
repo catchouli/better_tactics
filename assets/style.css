@@ -295,25 +295,27 @@ cg-board {
     text-align: center;
 }
 
-.controls-subpanel .button-container {
+.button-container {
     display: flex;
 }
 
-.controls-subpanel .button-container > div {
+.button-container > div {
     display: flex;
     justify-content: space-around;
 }
 
-.controls-subpanel button  {
+.button-container button  {
     display: block;
     min-height: 4rem;
+    width: 90%;
+    padding: 0.5em;
 }
 
-.controls-subpanel button > .main-text {
+.button-container button > .main-text {
     font-weight: bold;
 }
 
-.controls-subpanel button > .sub-text {
+.button-container button > .sub-text {
     font-size: 0.8em;
 }
 
@@ -446,12 +448,5 @@ cg-board {
 
     .controls-subpanel .button-container:last-of-type {
         margin-bottom: 1rem;
-    }
-
-    .controls-subpanel .button-container > div > button {
-        display: initial;
-        height: initial;
-        flex-grow: 0;
-        max-width: 90%;
     }
 }

@@ -202,9 +202,14 @@
             <p>Wrong move :(</p>
             <!-- A button that lets them retry the puzzle -->
             <div class="columns button-container">
+                <div class="column"></div>
                 <div class="column">
-                    <button class="button" id="try-again">Reset puzzle</button>
+                    <button class="button" id="try-again">
+                        <p class="main-text">Reset</p>
+                        <p class="sub-text"></p>
+                    </button>
                 </div>
+                <div class="column"></div>
             </div>
         </div>
 
@@ -213,12 +218,14 @@
             <p>Puzzle complete (with mistakes)</p>
 
             <div class="columns button-container">
+                <div class="column"></div>
                 <div class="column">
                     <button class="button review-button" id="again" data-difficulty="0">
                         <p class="main-text">Again</p>
                         <p class="sub-text"></p>
                     </button>
                 </div>
+                <div class="column"></div>
             </div>
 
             <a href="#" id="override-link">Submit positive answer anyway</a> (for example, because of a mouse slip)
