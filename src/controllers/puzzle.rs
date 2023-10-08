@@ -47,7 +47,7 @@ pub struct PuzzleTemplate {
     user: User,
     stats: Stats,
     mode: PuzzleMode,
-    puzzle_id: Option<String>,
+    source_id: Option<String>,
     puzzle: Option<Puzzle>,
     card: Option<Card>,
     min_rating: i64,
@@ -81,7 +81,7 @@ pub struct ReviewRequest {
     pub difficulty: i64,
 }
 
-pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: String)
+pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, source_id: String)
     -> Result<PuzzleTemplate, warp::Rejection>
 {
     let user_id = PuzzleDatabase::local_user_id();
@@ -99,25 +99,25 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     // Get the puzzle.
-    let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id).await
+    let puzzle = puzzle_db.get_puzzle_by_source_id(&source_id).await
         .map_err(InternalError::from)?;
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = if let Some(puzzle) = puzzle.as_ref() {
-        puzzle_db.get_card_by_id(&puzzle.puzzle_id).await.map_err(InternalError::from)?
+        puzzle_db.get_card_by_id(&puzzle.source_id).await.map_err(InternalError::from)?
     } else {
         None
     };
 
     // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+    let puzzle_themes = None;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
         user,
         stats,
         mode: PuzzleMode::Specific,
-        puzzle_id: Some(puzzle_id),
+        source_id: Some(source_id),
         puzzle,
         card,
         min_rating: 0,
@@ -157,20 +157,20 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 
     // Get the card for this puzzle (or a new empty card if it doesn't already exist).
     let card = if let Some(puzzle) = puzzle.as_ref() {
-        puzzle_db.get_card_by_id(&puzzle.puzzle_id).await.map_err(InternalError::from)?
+        puzzle_db.get_card_by_id(&puzzle.source_id).await.map_err(InternalError::from)?
     } else {
         None
     };
 
     // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+    let puzzle_themes = None;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
         user,
         stats,
         mode: PuzzleMode::Random,
-        puzzle_id: puzzle.as_ref().map(|p| p.puzzle_id.clone()),
+        source_id: puzzle.as_ref().map(|p| p.source_id.clone()),
         puzzle,
         card,
         min_rating,
@@ -218,14 +218,14 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     };
 
     // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+    let puzzle_themes = None;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
         user,
         stats,
         mode: PuzzleMode::Review,
-        puzzle_id: puzzle.as_ref().map(|p| p.puzzle_id.clone()),
+        source_id: puzzle.as_ref().map(|p| p.source_id.clone()),
         puzzle,
         card,
         min_rating: 0,
@@ -252,7 +252,7 @@ pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: Revie
             .map_err(InternalError::from)?
             .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
 
-        let puzzle = puzzle_db.get_puzzle_by_id(&card.id).await
+        let puzzle = puzzle_db.get_puzzle_by_source_id(&card.id).await
             .map_err(|_| InvalidParameter::new(&request.id))?
             .ok_or_else(|| InternalError::new(format!("No such puzzle {}", card.id)))?;
 

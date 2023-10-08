@@ -18,10 +18,10 @@
     {% endif %}
 
     {% if mode == PuzzleMode::Specific %}
-        {% let puzzle_id = puzzle_id.as_ref().unwrap() %}
+        {% let source_id = source_id.as_ref().unwrap() %}
         {% if let Some(puzzle) = puzzle %}
             <div class="column bt-panel">
-                Reviewing specific puzzle {{ puzzle_id }}
+                Reviewing specific puzzle {{ source_id }}
 
                 {% if card.is_some() && card.unwrap().review_count == 0 %}
                     (unseen)
@@ -29,7 +29,7 @@
             </div>
         {% else %}
             <div class="column bt-panel">
-                No such puzzle {{ puzzle_id }}
+                No such puzzle {{ source_id }}
             </div>
         {% endif %}
     {% endif %}
@@ -115,7 +115,7 @@
                     <tbody>
                         <tr>
                             <th scope="row">Lichess puzzle</th>
-                            <td><a href="/tactics/by_id/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a></td>
+                            <td><a href="/tactics/by_id/{{ puzzle.source_id }}">{{ puzzle.source_id }}</a></td>
                         </tr>
                         <tr>
                             <th scope="row">Puzzle rating</th>
@@ -279,7 +279,7 @@
 
         const container = document.getElementById("board");
 
-        const puzzle_id = "{{ puzzle.puzzle_id }}";
+        const puzzle_id = "{{ puzzle.source_id }}";
         const fen = "{{ puzzle.fen }}";
         const moves = "{{ puzzle.moves }}";
         const rating = {{ puzzle.rating }};
@@ -434,7 +434,7 @@
 
         // Bind review buttons.
         $('button.review-button').click(function() {
-            let puzzle_id = "{{ puzzle.puzzle_id }}";
+            let puzzle_id = "{{ puzzle.source_id }}";
             let difficulty = $(this).data('difficulty');
             console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
 

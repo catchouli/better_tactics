@@ -194,21 +194,17 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
                 .map_err(|e| format!("Failed to parse popularity field {e}"))?;
             let number_of_plays = record[6].parse()
                 .map_err(|e| format!("Failed to parse number_of_plays field {e}"))?;
-            let themes = record[7].to_string().split_whitespace().map(ToString::to_string).collect();
             let game_url = record[8].to_string();
-            let opening_tags = record[9].to_string().split_whitespace().map(ToString::to_string).collect();
 
             puzzles.push(Puzzle {
-                puzzle_id,
+                source_id: puzzle_id,
                 fen,
                 moves,
                 rating,
                 rating_deviation,
                 popularity,
                 number_of_plays,
-                themes,
                 game_url,
-                opening_tags,
             });
             puzzles_imported += 1;
 

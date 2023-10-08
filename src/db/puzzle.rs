@@ -6,34 +6,28 @@ use crate::db::{PuzzleDatabase, DbResult};
 /// A puzzle record from the db.
 #[derive(Debug, Clone)]
 pub struct Puzzle {
-    pub puzzle_id: String,
+    pub source_id: String,
     pub fen: String,
     pub moves: String,
     pub rating: i64,
     pub rating_deviation: i64,
     pub popularity: i64,
     pub number_of_plays: i64,
-    pub themes: Vec<String>,
     pub game_url: String,
-    pub opening_tags: Vec<String>,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
 {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
         Ok(Self {
-            puzzle_id: row.try_get("puzzle_id")?,
+            source_id: row.try_get("source_id")?,
             fen: row.try_get("fen")?,
             moves: row.try_get("moves")?,
             rating: row.try_get("rating")?,
             rating_deviation: row.try_get("rating_deviation")?,
             popularity: row.try_get("popularity")?,
             number_of_plays: row.try_get("number_of_plays")?,
-            themes: row.try_get::<String, _>("themes")?
-                .split_whitespace().map(ToString::to_string).collect(),
             game_url: row.try_get("game_url")?,
-            opening_tags: row.try_get::<String, _>("opening_tags")?
-                .split_whitespace().map(ToString::to_string).collect(),
         })
     }
 }
@@ -61,7 +55,7 @@ impl PuzzleDatabase {
     /// Get the number of puzzles in the database.
     pub async fn get_puzzle_count(&self) -> DbResult<usize> {
         let query = sqlx::query("
-            SELECT count(puzzle_id) as puzzle_count FROM puzzles;
+            SELECT count(source_id) as puzzle_count FROM puzzles;
         ");
 
         query
@@ -89,21 +83,19 @@ impl PuzzleDatabase {
             // the sqlite crate. Reusing the prepared statement was about the same overhead as just
             // creating it every time, but building the query is much faster.
             let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-                "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
-                popularity, number_of_plays, themes, game_url, opening_tags) "
+                "INSERT OR REPLACE INTO puzzles (source_id, fen, moves, rating, rating_deviation,
+                popularity, number_of_plays, game_url) "
                 );
 
             query_builder.push_values(chunk, |mut b, puzzle| {
-                b.push_bind(&puzzle.puzzle_id)
+                b.push_bind(&puzzle.source_id)
                     .push_bind(&puzzle.fen)
                     .push_bind(&puzzle.moves)
                     .push_bind(puzzle.rating)
                     .push_bind(puzzle.rating_deviation)
                     .push_bind(puzzle.popularity)
                     .push_bind(puzzle.number_of_plays)
-                    .push_bind(puzzle.themes.join(" "))
-                    .push_bind(&puzzle.game_url)
-                    .push_bind(puzzle.opening_tags.join(" "));
+                    .push_bind(&puzzle.game_url);
             });
 
             query_builder
@@ -118,19 +110,19 @@ impl PuzzleDatabase {
         Ok(())
     }
 
-    /// Get a puzzle by ID.
-    pub async fn get_puzzle_by_id(&self, puzzle_id: &str) -> DbResult<Option<Puzzle>>
+    /// Get a puzzle by source ID.
+    pub async fn get_puzzle_by_source_id(&self, source_id: &str) -> DbResult<Option<Puzzle>>
     {
-        log::info!("Getting puzzle {puzzle_id}");
+        log::info!("Getting puzzle {source_id}");
 
         let query = sqlx::query_as("
             SELECT *
             FROM puzzles
-            WHERE puzzle_id = ?
+            WHERE source_id = ?
         ");
 
         Ok(query
-            .bind(puzzle_id)
+            .bind(source_id)
             .fetch_optional(&self.pool)
             .await?)
     }

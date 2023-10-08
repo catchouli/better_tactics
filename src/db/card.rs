@@ -21,7 +21,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
         Ok(Self {
             user_id: row.try_get("user_id")?,
-            puzzle_id: row.try_get("user_id")?,
+            puzzle_id: row.try_get("puzzle_id")?,
             difficulty: Difficulty::from_i64(row.try_get("difficulty")?)
                 .map_err(|e| sqlx::Error::ColumnDecode {
                     index: "Difficulty".to_string(),
@@ -70,10 +70,10 @@ impl PuzzleDatabase {
         let query = sqlx::query("
             SELECT * FROM cards
             LEFT JOIN puzzles
-                ON cards.puzzle_id = puzzles.puzzle_id
+                ON cards.puzzle_id = puzzles.source_id
             WHERE datetime(due) <= datetime(?)
             AND interval >= ?
-            AND puzzles.puzzle_id NOT NULL
+            AND puzzles.source_id NOT NULL
             ORDER BY datetime(due) ASC
             LIMIT 1
         ");
@@ -155,7 +155,7 @@ impl PuzzleDatabase {
         let query = sqlx::query("
             SELECT reviews.*, puzzles.rating
             FROM reviews
-            INNER JOIN puzzles ON reviews.puzzle_id = puzzles.puzzle_id
+            INNER JOIN puzzles ON reviews.puzzle_id = puzzles.source_id
             WHERE reviews.user_id = ?
             AND puzzles.rating NOT NULL
             ORDER BY date DESC
