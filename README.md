@@ -38,6 +38,9 @@ If you get really stuck on a puzzle, you can click the 'Analyse' link next to th
 missing.
 
 # How it works
+
+<img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4.png">
+
 When you complete a puzzle, the difficulty score you select will be used to calculate how long it should be until you see the puzzle again, and also to update your rating. The scores are interpreted as follows:
 
 - 'Again' means that you failed to solve the puzzle on the first and need to review it again in the near future, in which case the Spaced Repetition algorithm will set the puzzle to be 're-learned', and you'll see it again the same day.
