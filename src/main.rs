@@ -16,7 +16,7 @@ use csv::StringRecord;
 use futures::StreamExt;
 use tokio::sync::Mutex;
 
-use crate::db::{PuzzleDatabase, Puzzle};
+use crate::db::{PuzzleDatabase, Puzzle, PuzzleTheme, PuzzleOpeningTag};
 use crate::config::AppConfig;
 
 #[tokio::main]
@@ -165,6 +165,8 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
         let mut last_report = 0;
 
         let mut puzzles = Vec::new();
+        let mut puzzle_themes = Vec::new();
+        let mut puzzle_opening_tags = Vec::new();
         let mut record: StringRecord = StringRecord::new();
 
         loop {
@@ -194,29 +196,46 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
                 .map_err(|e| format!("Failed to parse popularity field {e}"))?;
             let number_of_plays = record[6].parse()
                 .map_err(|e| format!("Failed to parse number_of_plays field {e}"))?;
-            let themes = record[7].to_string().split_whitespace().map(ToString::to_string).collect();
             let game_url = record[8].to_string();
-            let opening_tags = record[9].to_string().split_whitespace().map(ToString::to_string).collect();
 
             puzzles.push(Puzzle {
-                puzzle_id,
+                puzzle_id: puzzle_id.clone(),
                 fen,
                 moves,
                 rating,
                 rating_deviation,
                 popularity,
                 number_of_plays,
-                themes,
                 game_url,
-                opening_tags,
             });
+
+            for theme in record[7].split_whitespace() {
+                puzzle_themes.push(PuzzleTheme {
+                    puzzle_id: puzzle_id.to_string(),
+                    theme: theme.to_string(),
+                });
+            }
+
+            for opening_tag in record[9].split_whitespace() {
+                puzzle_opening_tags.push(PuzzleOpeningTag {
+                    puzzle_id: puzzle_id.to_string(),
+                    opening_tag: opening_tag.to_string(),
+                });
+            }
+
             puzzles_imported += 1;
 
             // Bulk insert if we have enough.
             if puzzles.len() >= PUZZLES_PER_IMPORT_BATCH {
                 db.lock().await.add_puzzles(&puzzles).await
                     .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
+                db.lock().await.add_themes(puzzle_themes).await
+                    .map_err(|e| format!("Failed to add puzzle themes to db: {e}"))?;
+                db.lock().await.add_opening_tags(&puzzle_opening_tags).await
+                    .map_err(|e| format!("Failed to add puzzle opening tags to db: {e}"))?;
                 puzzles.clear();
+                puzzle_opening_tags.clear();
+                puzzle_themes = Vec::new();
             }
 
             if puzzles_imported - last_report >= PUZZLES_PER_PROGRESS_UPDATE {
@@ -230,7 +249,10 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
         if !puzzles.is_empty() {
             db.lock().await.add_puzzles(&puzzles).await
                 .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
-            puzzles.clear();
+            db.lock().await.add_themes(puzzle_themes).await
+                .map_err(|e| format!("Failed to add puzzle themes to db: {e}"))?;
+            db.lock().await.add_opening_tags(&puzzle_opening_tags).await
+                .map_err(|e| format!("Failed to add puzzle opening tags to db: {e}"))?;
         }
 
         // Update flag in db to say the puzzles table is initialised.

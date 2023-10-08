@@ -254,6 +254,20 @@ cg-board {
     display: none;
 }
 
+/* Top bar */
+#theme-selector {
+    padding: 0;
+}
+
+#theme-selector select {
+    width: 100%;
+    height: 100%;
+    background: #2A2537;
+    border: 0;
+    border-radius: 6px;
+    padding-left: 0.5rem;
+}
+
 /* Sidebars (e.g. on the puzzle interface) */
 .sidebar {
     display: flex;

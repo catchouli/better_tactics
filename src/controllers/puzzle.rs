@@ -109,9 +109,6 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
         None
     };
 
-    // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
-
     Ok(PuzzleTemplate {
         base: Default::default(),
         user,
@@ -122,7 +119,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
         card,
         min_rating: 0,
         max_rating: 0,
-        puzzle_themes,
+        puzzle_themes: None,
     })
 }
 
@@ -162,9 +159,6 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         None
     };
 
-    // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
-
     Ok(PuzzleTemplate {
         base: Default::default(),
         user,
@@ -175,7 +169,8 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         card,
         min_rating,
         max_rating,
-        puzzle_themes,
+        // TODO:
+        puzzle_themes: None,
     })
 }
 
@@ -217,9 +212,6 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         _ => (None, None)
     };
 
-    // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
-
     Ok(PuzzleTemplate {
         base: Default::default(),
         user,
@@ -230,7 +222,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         card,
         min_rating: 0,
         max_rating: 0,
-        puzzle_themes,
+        puzzle_themes: None,
     }.into_response())
 }
 

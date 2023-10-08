@@ -8,12 +8,19 @@
 <!-- The bars at the top -->
 <div class="columns" id="top-bar">
     {% if mode == PuzzleMode::Random %}
-        <div class="column bt-panel">
+        <div class="column">
+            <div class="bt-panel">
             {% if puzzle.is_some() %}
                 Reviewing random puzzle in rating range {{ min_rating }}-{{ max_rating }}
             {% else %}
                 No puzzles found in category and rating range
             {% endif %}
+            </div>
+        </div>
+        <div class="column is-one-third" id="theme-selector">
+            <div class="bt-panel">
+                {% include "theme-selector.html" %}
+            </div>
         </div>
     {% endif %}
 

@@ -3,6 +3,8 @@ use sqlx::{Row, Sqlite, QueryBuilder, sqlite::SqliteRow};
 
 use crate::db::{PuzzleDatabase, DbResult};
 
+use itertools::*;
+
 /// A puzzle record from the db.
 #[derive(Debug, Clone)]
 pub struct Puzzle {
@@ -13,9 +15,19 @@ pub struct Puzzle {
     pub rating_deviation: i64,
     pub popularity: i64,
     pub number_of_plays: i64,
-    pub themes: Vec<String>,
     pub game_url: String,
-    pub opening_tags: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PuzzleTheme {
+    pub puzzle_id: String,
+    pub theme: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PuzzleOpeningTag {
+    pub puzzle_id: String,
+    pub opening_tag: String,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
@@ -29,11 +41,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
             rating_deviation: row.try_get("rating_deviation")?,
             popularity: row.try_get("popularity")?,
             number_of_plays: row.try_get("number_of_plays")?,
-            themes: row.try_get::<String, _>("themes")?
-                .split_whitespace().map(ToString::to_string).collect(),
             game_url: row.try_get("game_url")?,
-            opening_tags: row.try_get::<String, _>("opening_tags")?
-                .split_whitespace().map(ToString::to_string).collect(),
         })
     }
 }
@@ -90,7 +98,7 @@ impl PuzzleDatabase {
             // creating it every time, but building the query is much faster.
             let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
                 "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
-                popularity, number_of_plays, themes, game_url, opening_tags) "
+                popularity, number_of_plays, game_url) "
                 );
 
             query_builder.push_values(chunk, |mut b, puzzle| {
@@ -101,9 +109,7 @@ impl PuzzleDatabase {
                     .push_bind(puzzle.rating_deviation)
                     .push_bind(puzzle.popularity)
                     .push_bind(puzzle.number_of_plays)
-                    .push_bind(puzzle.themes.join(" "))
-                    .push_bind(&puzzle.game_url)
-                    .push_bind(puzzle.opening_tags.join(" "));
+                    .push_bind(&puzzle.game_url);
             });
 
             query_builder
@@ -113,6 +119,62 @@ impl PuzzleDatabase {
         }
 
         // Commit the transaction.
+        tx.commit().await?;
+
+        Ok(())
+    }
+
+    /// Add a batch of themes to the database.
+    pub async fn add_themes<'a>(&mut self, themes: Vec<PuzzleTheme>) -> DbResult<()> {
+        const MAX_PER_QUERY: usize = 10000;
+
+        // Start transaction.
+        let tx = self.pool.begin().await?;
+
+        for chunk in themes.chunks(MAX_PER_QUERY) {
+            let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+                "INSERT OR IGNORE INTO puzzle_themes (puzzle_id, theme) ");
+
+            query_builder.push_values(chunk, |mut b, puzzle_theme| {
+                b.push_bind(puzzle_theme.puzzle_id.as_str())
+                    .push_bind(puzzle_theme.theme.as_str());
+            });
+
+            query_builder
+                .build()
+                .execute(&self.pool)
+                .await?;
+        }
+
+        // Commit transaction.
+        tx.commit().await?;
+
+        Ok(())
+    }
+
+    /// Add a batch of opening tags to the database.
+    pub async fn add_opening_tags(&mut self, opening_tags: &Vec<PuzzleOpeningTag>) -> DbResult<()> {
+        const MAX_PER_QUERY: usize = 10000;
+
+        // Start transaction.
+        let tx = self.pool.begin().await?;
+
+        for chunk in opening_tags.chunks(MAX_PER_QUERY) {
+            let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+                "INSERT OR IGNORE INTO puzzle_opening_tags (puzzle_id, opening) ");
+
+            query_builder.push_values(chunk, |mut b, puzzle_opening_tag| {
+                b.push_bind(puzzle_opening_tag.puzzle_id.as_str())
+                    .push_bind(puzzle_opening_tag.opening_tag.as_str());
+            });
+
+            query_builder
+                .build()
+                .execute(&self.pool)
+                .await?;
+        }
+
+        // Commit transaction.
         tx.commit().await?;
 
         Ok(())
