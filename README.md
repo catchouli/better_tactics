@@ -1,12 +1,7 @@
 # better-tactics
 
-Better Tactics is a Chess tactics trainer that uses the concept of
-<a href="https://en.wikipedia.org/wiki/Spaced_repetition">Spaced Repetition</a>
-to help you master chess tactics. The idea is to help you gain calculation experience
-and tactical pattern recognition by repeating puzzles over time. Puzzles you've seen
-will get queued up for review daily, and Puzzles you find hard will be repeated more
-frequently, while puzzles you find easy will be repeated far less often to make the
-process more efficient.
+Better Tactics is a Chess tactics trainer that uses the concept of <a href="https://en.wikipedia.org/wiki/Spaced_repetition">Spaced Repetition</a> to help you master chess tactics. The idea is to help you gain calculation experience and tactical pattern recognition by repeating puzzles over time. Puzzles you've seen will get queued up for review daily, and puzzles you find hard will be repeated more
+frequently, while puzzles you find easy will be repeated far less often to make the process more efficient.
 
 <!-- Screenshot gallery -->
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1.png">
