@@ -233,4 +233,24 @@ impl PuzzleDatabase {
             .map(|row| row.try_get("card_count"))
             .unwrap_or(Ok(0))?)
     }
+
+    /// Get the reviews due in a given time window.
+    pub async fn reviews_due_between(&self, start: DateTime<FixedOffset>, end: DateTime<FixedOffset>)
+        -> DbResult<i64>
+    {
+        let query = sqlx::query("
+            SELECT count(ROWID) as card_count
+            FROM cards
+            WHERE due > ?
+            AND due <= ?
+        ");
+
+        Ok(query
+           .bind(start.to_rfc3339())
+           .bind(end.to_rfc3339())
+           .fetch_optional(&self.pool)
+           .await?
+           .map(|row| row.try_get("card_count"))
+           .unwrap_or(Ok(0))?)
+    }
 }

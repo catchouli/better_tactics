@@ -2,6 +2,7 @@
 
 {% block content %}
 <div class="columns">
+    <!-- The stats panel -->
     <div id="stats-panel" class="column bt-panel">
         <h2 class="title is-3">Stats</h2>
         <table class="stats">
@@ -35,6 +36,8 @@
         <a href="/tactics" class="button">Review</a>
         <a href="/tactics/new" class="button">New Puzzle</a>
     </div>
+
+    <!-- The review forecast -->
     <div id="review-graph-container" class="column bt-panel">
         <h2 class="title is-3">Review forecast</h2>
         <canvas id="review-graph"></canvas>
@@ -43,12 +46,12 @@
             new Chart(document.getElementById("review-graph"), {
                 type: 'bar',
                 data: {
-                    labels: ["0d", "1d", "2d", "3d", "4d", "5d", "6d", "7d", "8d"],
+                    labels: [...Array({{ self.review_forecast.len() }}).keys()].map(v => `${v}d`),
                     datasets: [
                         {
                             label: "Reviews due",
-                            backgroundColor: "#3cba9f",
-                            data: [200, 100, 50, 30, 20, 10, 8, 5, 1]
+                            backgroundColor: "#416c86",
+                            data: {{ self.review_forecast() }}
                         }
                     ]
                 },
