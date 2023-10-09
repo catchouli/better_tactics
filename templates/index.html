@@ -3,8 +3,8 @@
 {% block content %}
 <div class="columns">
     <div id="stats-panel" class="column bt-panel">
+        <h2 class="title is-3">Stats</h2>
         <table class="stats">
-            <caption class="is-2">Stats</caption>
             <tbody>
                 <tr>
                     <th scope="row">User rating</th>
@@ -34,6 +34,45 @@
         </table>
         <a href="/tactics" class="button">Review</a>
         <a href="/tactics/new" class="button">New Puzzle</a>
+    </div>
+    <div id="review-graph-container" class="column bt-panel">
+        <h2 class="title is-3">Review forecast</h2>
+        <canvas id="review-graph"></canvas>
+        <script type="module">
+            Chart.defaults.color = "rgb(248, 242, 242)";
+            new Chart(document.getElementById("review-graph"), {
+                type: 'bar',
+                data: {
+                    labels: ["0d", "1d", "2d", "3d", "4d", "5d", "6d", "7d", "8d"],
+                    datasets: [
+                        {
+                            label: "Reviews due",
+                            backgroundColor: "#3cba9f",
+                            data: [200, 100, 50, 30, 20, 10, 8, 5, 1]
+                        }
+                    ]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: false },
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: "Days from now"
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: "Reviews due"
+                            }
+                        }
+                    }
+                }
+            });
+        </script>
     </div>
 </div>
 <div>
