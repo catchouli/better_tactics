@@ -7,7 +7,7 @@ use serde::Deserialize;
 use warp::reply::Reply;
 
 use crate::rating::GameResult;
-use crate::route::{InternalError, InvalidParameter};
+use crate::route::{InternalError, InvalidParameter, BaseTemplateData};
 use crate::db::{Puzzle, PuzzleDatabase, Stats, Review, User};
 use crate::srs::{Difficulty, Card, self};
 use crate::time::{LocalTimeProvider, TimeProvider};
@@ -43,6 +43,7 @@ impl Display for PuzzleMode {
 #[derive(Template)]
 #[template(path = "puzzle.html")]
 pub struct PuzzleTemplate {
+    base: BaseTemplateData,
     user: User,
     stats: Stats,
     mode: PuzzleMode,
@@ -112,6 +113,7 @@ pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: S
     let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
 
     Ok(PuzzleTemplate {
+        base: Default::default(),
         user,
         stats,
         mode: PuzzleMode::Specific,
@@ -164,6 +166,7 @@ pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
 
     Ok(PuzzleTemplate {
+        base: Default::default(),
         user,
         stats,
         mode: PuzzleMode::Random,
@@ -218,6 +221,7 @@ pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
 
     Ok(PuzzleTemplate {
+        base: Default::default(),
         user,
         stats,
         mode: PuzzleMode::Review,

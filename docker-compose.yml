@@ -1,0 +1,7 @@
+services:
+  better-tactics:
+    build: .
+    environment:
+      BIND_INTERFACE: "0.0.0.0"
+    ports:
+      - 3030:3030

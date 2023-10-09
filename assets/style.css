@@ -61,9 +61,16 @@ cg-board {
 
 /* ==================== Mobile layout ==================== */
 .header {
+    position: relative;
+    display: flex;
+    align-items: center;
     flex-grow: 0;
     min-height: 60px;
     white-space: nowrap;
+}
+
+.header .title {
+    font-size: 2rem;
 }
 
 .section#main-section {
@@ -78,15 +85,8 @@ cg-board {
     padding: 0;
 }
 
-.header {
-    display: flex;
-    align-items: center;
-}
-
 .header #site-name-container {
     flex-grow: 1;
-    /* Make up for the size of the burger menu so it doesn't look off-center */
-    padding-left: 3rem;
 }
 
 /* Navbar */
@@ -114,6 +114,9 @@ cg-board {
 }
 
 .navbar-burger {
+    position: absolute;
+    right: 0.5rem;
+    top: 0.5rem;
     user-select: none;
     display: block !important;
 }
@@ -246,6 +249,11 @@ cg-board {
     white-space: nowrap;
 }
 
+#puzzle-interface #themes-actual {
+    /* Hide themes by default */
+    display: none;
+}
+
 /* Sidebars (e.g. on the puzzle interface) */
 .sidebar {
     display: flex;
@@ -283,29 +291,31 @@ cg-board {
     display: initial !important;
 }
 
-#white-to-move, #black-to-move, #white-to-move-computer, #black-to-move-computer, #puzzle-info {
+.sidebar .bt-panel {
     text-align: center;
 }
 
-.controls-subpanel .button-container {
+.button-container {
     display: flex;
 }
 
-.controls-subpanel .button-container > div {
+.button-container > div {
     display: flex;
     justify-content: space-around;
 }
 
-.controls-subpanel button  {
+.button-container button  {
     display: block;
     min-height: 4rem;
+    width: 90%;
+    padding: 0.5em;
 }
 
-.controls-subpanel button > .main-text {
+.button-container button > .main-text {
     font-weight: bold;
 }
 
-.controls-subpanel button > .sub-text {
+.button-container button > .sub-text {
     font-size: 0.8em;
 }
 
@@ -351,6 +361,10 @@ cg-board {
     /* Header */
     .header {
         margin-top: 1rem;
+    }
+
+    .header .title {
+        font-size: 3rem;
     }
 
     /* Footer */
@@ -434,12 +448,5 @@ cg-board {
 
     .controls-subpanel .button-container:last-of-type {
         margin-bottom: 1rem;
-    }
-
-    .controls-subpanel .button-container > div > button {
-        display: initial;
-        height: initial;
-        flex-grow: 0;
-        max-width: 90%;
     }
 }

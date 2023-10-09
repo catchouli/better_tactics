@@ -4,7 +4,7 @@ use askama::Template;
 use tokio::sync::Mutex;
 
 use crate::db::{PuzzleDatabase, Stats, User};
-use crate::route::InternalError;
+use crate::route::{InternalError, BaseTemplateData};
 use crate::srs;
 use crate::time::LocalTimeProvider;
 use crate::util;
@@ -13,6 +13,7 @@ use crate::util;
 #[derive(Template)]
 #[template(path = "index.html")]
 pub struct IndexTemplate {
+    base: BaseTemplateData,
     user: User,
     stats: Stats,
 }
@@ -32,6 +33,7 @@ pub async fn index_page(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
 
     Ok(IndexTemplate {
+        base: Default::default(),
         user,
         stats,
     })

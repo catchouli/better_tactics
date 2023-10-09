@@ -76,30 +76,30 @@
             <div id="promotion-ui" oncontextmenu="return false;">
                 <div class="promotion-pieces" id="white">
                     <button class="promotion-piece" data-piece="q">
-                        <img src="/assets/images/pieces/white-queen.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg">
                     </button>
                     <button class="promotion-piece" data-piece="r">
-                        <img src="/assets/images/pieces/white-rook.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-rook.svg">
                     </button>
                     <button class="promotion-piece" data-piece="n">
-                        <img src="/assets/images/pieces/white-knight.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-knight.svg">
                     </button>
                     <button class="promotion-piece" data-piece="b">
-                        <img src="/assets/images/pieces/white-bishop.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/white-bishop.svg">
                     </button>
                 </div>
                 <div class="promotion-pieces" id="black">
                     <button class="promotion-piece" data-piece="q">
-                        <img src="/assets/images/pieces/black-queen.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg">
                     </button>
                     <button class="promotion-piece" data-piece="r">
-                        <img src="/assets/images/pieces/black-rook.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-rook.svg">
                     </button>
                     <button class="promotion-piece" data-piece="n">
-                        <img src="/assets/images/pieces/black-knight.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-knight.svg">
                     </button>
                     <button class="promotion-piece" data-piece="b">
-                        <img src="/assets/images/pieces/black-bishop.svg">
+                        <img src="/assets_{{base.assets_version}}/images/pieces/black-bishop.svg">
                     </button>
                 </div>
             </div>
@@ -128,7 +128,12 @@
                     </tbody>
                 </table>
                 {% if let Some(puzzle_themes) = puzzle_themes %}
-                    <p><b>Themes:</b> {{ puzzle_themes }}</p>
+                    <div id="themes-actual">
+                        <p><b>Themes:</b> {{ puzzle_themes }}</p>
+                    </div>
+                    <div id="themes-placeholder">
+                        <p><b>Themes:</b> ?</p>
+                    </div>
                 {% endif %}
                 <a id="analysis-link" target="_blank">Analyse</a>
             {% else %}
@@ -152,7 +157,10 @@
                             </tr>
                             <tr>
                                 <th scope="row">Due</th>
-                                <td>{{ Self::human_readable_due(card) }}</td>
+                                {% let due = Self::human_readable_due(card) %}
+                                <td {% if due != "now" %} title="reviewing ahead" {% endif %}>
+                                    {{ due }}
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -162,19 +170,19 @@
 
         <!-- The move indicators, visible when waiting for a move to be played -->
         <div id="white-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/white-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg"><br>
             White to move
         </div>
         <div id="black-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/black-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg"><br>
             Black to move
         </div>
         <div id="white-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/white-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg"><br>
             Computer to move
         </div>
         <div id="black-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets/images/pieces/black-queen.svg"><br>
+            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg"><br>
             Computer to move
         </div>
 
@@ -194,9 +202,14 @@
             <p>Wrong move :(</p>
             <!-- A button that lets them retry the puzzle -->
             <div class="columns button-container">
+                <div class="column"></div>
                 <div class="column">
-                    <button class="button" id="try-again">Reset puzzle</button>
+                    <button class="button" id="try-again">
+                        <p class="main-text">Reset</p>
+                        <p class="sub-text"></p>
+                    </button>
                 </div>
+                <div class="column"></div>
             </div>
         </div>
 
@@ -205,12 +218,14 @@
             <p>Puzzle complete (with mistakes)</p>
 
             <div class="columns button-container">
+                <div class="column"></div>
                 <div class="column">
                     <button class="button review-button" id="again" data-difficulty="0">
                         <p class="main-text">Again</p>
                         <p class="sub-text"></p>
                     </button>
                 </div>
+                <div class="column"></div>
             </div>
 
             <a href="#" id="override-link">Submit positive answer anyway</a> (for example, because of a mouse slip)
@@ -240,6 +255,11 @@
                     </button>
                 </div>
             </div>
+
+            <p>
+                Select the difficulty of the puzzle. The next review will be queued after the
+                amount of time shown.
+            </p>
         </div>
 
         {% if let Some(card) = card %}
@@ -255,7 +275,7 @@
 
 {% if let Some(puzzle) = puzzle %}
     <script type="module">
-        import { Puzzle } from '/assets/better-tactics.js';
+        import { Puzzle } from '/assets_{{base.assets_version}}/better-tactics.js';
 
         const container = document.getElementById("board");
 
@@ -347,6 +367,9 @@
             else {
                 $('#puzzle-failure').css('display', 'initial');
             }
+
+            $('#puzzle-interface #themes-placeholder').css('display', 'none');
+            $('#puzzle-interface #themes-actual').css('display', 'initial');
         }
 
         function on_move(side_moved, move) {
@@ -454,7 +477,7 @@
     </script>
 {% else %}
     <script type="module">
-        import { Chessground } from '/assets/deps/chessground.min.js';
+        import { Chessground } from '/assets_{{base.assets_version}}/deps/chessground.min.js';
         // If there's no puzzle loaded, just show a chess board with input disabled.
         const container = document.getElementById("board");
         Chessground(container, {

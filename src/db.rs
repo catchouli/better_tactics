@@ -18,7 +18,7 @@ pub use card::*;
 
 /// The puzzle database interface type.
 pub struct PuzzleDatabase {
-    pool: SqlitePool,
+    pool: SqlitePool
 }
 
 #[derive(sqlx::FromRow)]
