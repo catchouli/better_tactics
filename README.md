@@ -15,7 +15,7 @@ frequently, while puzzles you find easy will be repeated far less often to make 
 </a>
 
 To run it:
-* Grab a build from the releases page and just run it, or download the repo and run `cargo +nightly run --release`\*
+* Grab a build from <a href="https://github.com/catchouli/better_tactics/releases/latest">the releases page</a> and just run it, or download the repo and run `cargo +nightly run --release`\*
 * Once it says it's serving the site go to http://localhost:3030 to use the app.
 * The lichess puzzles db will be automatically downloaded in the background and saved to the application's sqlite database.
 * Click the 'New Puzzle' button to see some new puzzles, which will then be added to your review queue, or the 'Review' app to do your daily reviews!
