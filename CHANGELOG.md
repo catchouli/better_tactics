@@ -6,6 +6,7 @@ Changed:
 Fixed:
 * Fixes the horizontal scrolling on phones due to the extra header width introduced with the burger
   menu.
+* Makes the database import a bit faster, and reduces the spammyness of it.
 
 [1.5] - 2023-10-06
 
