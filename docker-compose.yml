@@ -1,7 +1,11 @@
 services:
   better-tactics:
+    image: catchouli/better-tactics:main
     build: .
     environment:
       BIND_INTERFACE: "0.0.0.0"
+      SQLITE_DB_NAME: "/data/puzzles.sqlite"
     ports:
       - 3030:3030
+    volumes:
+      - ./data:/data
