@@ -3,3 +3,5 @@ target
 *.sqlite-journal
 lichess_db_puzzle.csv.zst
 docker-compose.yml
+my.secrets
+my.vars

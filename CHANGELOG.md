@@ -1,4 +1,4 @@
-[1.6] - ????-??-??
+[1.5.2] - 2023-10-09
 
 Added:
 * A review forecast to the home page which shows the number of reviews due per day for the next
@@ -12,6 +12,13 @@ Changed:
 Fixed:
 * Fixes the horizontal scrolling on phones due to the extra header width introduced with the burger
   menu.
+* Makes the database import a bit faster, and reduces the spammyness of it.
+
+[1.5.1] - 2023-10-06
+
+Fixed:
+* The database wasn't getting created automatically anymore, so the application was failing to
+  start if there was no existing database. The database now gets created correctly.
 
 [1.5] - 2023-10-06
 
