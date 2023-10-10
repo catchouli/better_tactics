@@ -1,5 +1,11 @@
 [1.5.2] - 2023-10-09
 
+Added:
+* A review forecast to the home page which shows the number of reviews due per day for the next
+  week.
+
+[1.5.2] - 2023-10-09
+
 Changed:
 * Puzzle themes are now hidden until the puzzle is complete to avoid spoilers.
 

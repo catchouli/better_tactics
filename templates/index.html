@@ -2,9 +2,10 @@
 
 {% block content %}
 <div class="columns">
+    <!-- The stats panel -->
     <div id="stats-panel" class="column bt-panel">
+        <h2 class="title is-3">Stats</h2>
         <table class="stats">
-            <caption class="is-2">Stats</caption>
             <tbody>
                 <tr>
                     <th scope="row">User rating</th>
@@ -34,6 +35,47 @@
         </table>
         <a href="/tactics" class="button">Review</a>
         <a href="/tactics/new" class="button">New Puzzle</a>
+    </div>
+
+    <!-- The review forecast -->
+    <div id="review-graph-container" class="column bt-panel">
+        <h2 class="title is-3">Review forecast</h2>
+        <canvas id="review-graph"></canvas>
+        <script type="module">
+            Chart.defaults.color = "rgb(248, 242, 242)";
+            new Chart(document.getElementById("review-graph"), {
+                type: 'bar',
+                data: {
+                    labels: [...Array({{ self.review_forecast.len() }}).keys()].map(v => `${v}d`),
+                    datasets: [
+                        {
+                            label: "Reviews due",
+                            backgroundColor: "#416c86",
+                            data: {{ self.review_forecast() }}
+                        }
+                    ]
+                },
+                options: {
+                    plugins: {
+                        legend: { display: false },
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: "Days from now"
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: "Reviews due"
+                            }
+                        }
+                    }
+                }
+            });
+        </script>
     </div>
 </div>
 <div>
