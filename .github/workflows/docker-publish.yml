@@ -17,7 +17,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: better-tactics
+  IMAGE_NAME: catchouli/better-tactics
 
 
 jobs:
