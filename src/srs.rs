@@ -229,7 +229,7 @@ mod tests {
     fn test_day_end_datetime() {
         let day_end = day_end_time();
         let expected = DateTime::parse_from_rfc3339(
-            &format!("2023-10-07T{:02}:{:02}:{:02}+00:01",
+            &format!("2023-10-07T{:02}:{:02}:{:02}+00:00",
                      day_end.hour(), day_end.minute(), day_end.second())
         ).unwrap();
 
