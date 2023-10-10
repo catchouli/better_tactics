@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::error::Error;
 
 use askama::Template;
-use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use warp::reject::{self, Rejection};
@@ -12,11 +11,7 @@ use crate::controllers::index;
 use crate::controllers::puzzle::{self, ReviewRequest};
 use crate::db::PuzzleDatabase;
 
-lazy_static! {
-    static ref ASSETS_VERSION: String = {
-        include_str!("../VERSION").trim().to_string()
-    };
-}
+static ASSETS_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 /// The base template data.
 pub struct BaseTemplateData {
@@ -102,7 +97,7 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> impl Filter::<Extract = impl Reply> + Clone + Send + Sync + 'static
 {
     // Serve the static assets.
-    warp::path(format!("assets_{}", *ASSETS_VERSION))
+    warp::path(format!("assets_{}", ASSETS_VERSION))
         .and(assets_filter())
 
         // GET / - the index page.

@@ -19,6 +19,9 @@ use tokio::sync::Mutex;
 use crate::db::{PuzzleDatabase, Puzzle};
 use crate::config::AppConfig;
 
+/// The application username, e.g. "better_tactics/0.0.1".
+static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Set RUST_LOG to info by default for other peoples' convenience.
@@ -27,7 +30,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     env_logger::builder().init();
-    log::info!("Better Tactics starting!");
+    log::info!("{APP_USER_AGENT}");
 
     // Load app config.
     let app_config = AppConfig::from_env()?;
