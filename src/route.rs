@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use lazy_static::lazy_static;
 use tokio::sync::Mutex;
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use warp::reject::{self, Rejection};
@@ -12,11 +11,7 @@ use crate::services::ServiceError;
 use crate::services::tactics_service::TacticsService;
 use crate::services::user_service::UserService;
 
-lazy_static! {
-    static ref ASSETS_VERSION: String = {
-        include_str!("../VERSION").trim().to_string()
-    };
-}
+static ASSETS_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 /// The base template data.
 pub struct BaseTemplateData {
@@ -40,7 +35,7 @@ pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     let tactics_service = TacticsService::new(app_config.srs, puzzle_db.clone());
 
     // Serve the static assets.
-    warp::path(format!("assets_{}", *ASSETS_VERSION))
+    warp::path(format!("assets_{}", ASSETS_VERSION))
         .and(assets_filter())
 
         // GET / - the index page.
