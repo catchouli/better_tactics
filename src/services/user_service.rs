@@ -1,0 +1,168 @@
+use std::sync::Arc;
+use chrono::{DateTime, FixedOffset, Local, Duration};
+use tokio::sync::Mutex;
+
+use crate::db::PuzzleDatabase;
+use crate::rating::{Rating, GameResult};
+use crate::srs::{self, Difficulty};
+use crate::time::LocalTimeProvider;
+
+use super::{ServiceResult, ServiceError};
+
+/// The maximum number of days to show in the review forecast.
+const REVIEW_FORECAST_LENGTH: usize = 8;
+
+/// Used for returning general user statistics.
+#[derive(Debug, Clone)]
+pub struct Stats {
+    pub card_count: i64,
+    pub review_count: i64,
+    pub reviews_due_now: i64,
+    pub reviews_due_today: i64,
+    pub next_review_due: Option<DateTime<FixedOffset>>,
+}
+
+/// Encapsulates any kind of application logic to do with users.
+#[derive(Clone)]
+pub struct UserService {
+    db: Arc<Mutex<PuzzleDatabase>>,
+}
+
+impl UserService {
+    pub fn new(db: Arc<Mutex<PuzzleDatabase>>) -> Self {
+        Self {
+            db,
+        }
+    }
+
+    /// Get the local user ID. (for now, we just have the local user, but if we ever want to turn
+    /// this into a 'proper' web app, we can switch over to using an account system.)
+    pub fn local_user_id() -> &'static str {
+        "local"
+    }
+
+    /// Get the rating for a user.
+    pub async fn get_user_rating(&self, user_id: &str) -> ServiceResult<Rating> {
+        Ok(self.db.lock().await
+            .get_user_by_id(user_id).await?
+            .ok_or_else(|| format!("No such user with id {user_id}"))?
+            .rating)
+    }
+
+    /// Reset a user's rating to the given value and rating deviation.
+    pub async fn reset_user_rating(&self, user_id: &str, rating: i64, deviation: i64, volatility: f64)
+        -> ServiceResult<()>
+    {
+        let mut db = self.db.lock().await;
+
+        let mut user = db.get_user_by_id(user_id).await?
+            .ok_or_else(|| format!("No such user with id {user_id}"))?;
+
+        user.rating = Rating {
+            rating,
+            deviation,
+            volatility
+        };
+
+        db.update_user(&user).await?;
+
+        Ok(())
+    }
+
+    /// Get the stats for a user.
+    pub async fn get_user_stats(&self, user_id: &str) -> ServiceResult<Stats> {
+        Self::validate_user_id(user_id)?;
+
+        let db = self.db.lock().await;
+
+        // Get the current time and day end.
+        let now = Local::now().fixed_offset();
+        let day_end = srs::day_end_datetime::<LocalTimeProvider>();
+
+        // Get the user's card count and review count.
+        let card_count = db.get_card_count().await?;
+        let review_count = db.get_review_count().await?;
+
+        // Get the reviews due now and reviews due today.
+        let reviews_due_now = db.reviews_due_by(now.clone(), day_end.clone()).await?;
+        let reviews_due_today = db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
+
+        // Get when the next review is due if there aren't any due now.
+        let next_review_due = match reviews_due_now {
+            0 => db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due),
+            _ => Some(now),
+        };
+
+        Ok(Stats {
+            card_count,
+            review_count,
+            reviews_due_now,
+            reviews_due_today,
+            next_review_due,
+        })
+    }
+
+    /// Get the review forecast for a user.
+    pub async fn get_review_forecast(&self, user_id: &str) -> ServiceResult<Vec<i64>> {
+        Self::validate_user_id(user_id)?;
+        let db = self.db.lock().await;
+
+        let mut review_forecast = Vec::new();
+
+        // Get the reviews due today as the initial value.
+        let day_end = srs::day_end_datetime::<LocalTimeProvider>();
+        review_forecast.push(db.reviews_due_by(day_end.clone(), day_end.clone()).await?);
+
+        // Start at the end of today and look up the reviews due for each day in the following week
+        // (or REVIEW_FORECAST_LENGTH days).
+        let mut start = day_end;
+        for _ in 0..REVIEW_FORECAST_LENGTH {
+            let end = start + Duration::days(1);
+            review_forecast.push(db.reviews_due_between(start, end).await?);
+            start = end;
+        }
+
+        Ok(review_forecast)
+    }
+
+    /// Update the rating for a user.
+    pub async fn update_rating(&self, user_id: &str, difficulty: Difficulty, result: GameResult<i64>)
+        -> ServiceResult<()>
+    {
+        Self::validate_user_id(user_id)?;
+        let mut db = self.db.lock().await;
+        
+        // Get the user.
+        let mut user = db.get_user_by_id(user_id).await?
+            .ok_or(ServiceError::from(format!("No such user {user_id}")))?;
+
+        // Update the user's rating every time a puzzle is solved, old puzzles don't give much
+        // rating anymore once your rating deviation is low enough.
+        let old_rating = user.rating;
+        user.rating.update(vec![result]);
+
+        // The downside is that sometimes 'Good' ratings for low rated puzzles actually lower the
+        // user's rating, due to the way we fudge the score for them. (They're scored somewhere
+        // between 'Easy', which is a win at 1.0, and 'Hard', which is a draw at 0.0). As a bit of
+        // an arbitrary fix, we just prevent 'Good' ratings from lowering the user's rating.
+        if difficulty != Difficulty::Good || user.rating.rating > old_rating.rating {
+            log::info!("Updating user's rating from {} to {}", old_rating.rating, user.rating.rating);
+            db.update_user(&user).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate a user id.
+    fn validate_user_id(user_id: &str) -> ServiceResult<()> {
+        // For now we only support a local user, so check that it's the local user's stats that are
+        // being requested. In the future, we might also want to store the user's stats in the
+        // users table and just update them as needed, to avoid having to look them up every time.
+        if user_id == Self::local_user_id() {
+            Ok(())
+        }
+        else {
+            Err(format!("Invalid user id {user_id} in local user mode"))?
+        }
+    }
+}

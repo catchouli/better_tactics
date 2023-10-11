@@ -18,8 +18,7 @@
     {% endif %}
 
     {% if mode == PuzzleMode::Specific %}
-        {% let puzzle_id = puzzle_id.as_ref().unwrap() %}
-        {% if let Some(puzzle) = puzzle %}
+        {% if let Some(puzzle_id) = self.get_puzzle_id() %}
             <div class="column bt-panel">
                 Reviewing specific puzzle {{ puzzle_id }}
 
@@ -29,7 +28,7 @@
             </div>
         {% else %}
             <div class="column bt-panel">
-                No such puzzle {{ puzzle_id }}
+                No such puzzle
             </div>
         {% endif %}
     {% endif %}
@@ -123,11 +122,11 @@
                         </tr>
                         <tr>
                             <th scope="row">User rating</th>
-                            <td>{{ user.rating.rating }}</td>
+                            <td>{{ user_rating.rating }}</td>
                         </tr>
                     </tbody>
                 </table>
-                {% if let Some(puzzle_themes) = puzzle_themes %}
+                {% if let Some(puzzle_themes) = self.puzzle_themes_list() %}
                     <div id="themes-actual">
                         <p><b>Themes:</b> {{ puzzle_themes }}</p>
                     </div>
@@ -284,18 +283,10 @@
         const moves = "{{ puzzle.moves }}";
         const rating = {{ puzzle.rating }};
 
-        // Bit redundant but the template wouldn't compile when I tried unwrap_or.
-        {% if let Some(card) = card %}
-            const again_time = "{{ card.next_interval_human(Difficulty::Again) }}";
-            const hard_time = "{{ card.next_interval_human(Difficulty::Hard) }}";
-            const good_time = "{{ card.next_interval_human(Difficulty::Good) }}";
-            const easy_time = "{{ card.next_interval_human(Difficulty::Easy) }}";
-        {% else %}
-            const again_time = "{{ Self::get_default_interval(Difficulty::Again) }}";
-            const hard_time = "{{ Self::get_default_interval(Difficulty::Hard) }}";
-            const good_time = "{{ Self::get_default_interval(Difficulty::Good) }}";
-            const easy_time = "{{ Self::get_default_interval(Difficulty::Easy) }}";
-        {% endif %}
+        const again_time = "{{ self.next_interval_human(Difficulty::Again) }}";
+        const hard_time = "{{ self.next_interval_human(Difficulty::Hard) }}";
+        const good_time = "{{ self.next_interval_human(Difficulty::Good) }}";
+        const easy_time = "{{ self.next_interval_human(Difficulty::Easy) }}";
 
         // Add review time to buttons.
         $('button#again > .sub-text').text(again_time);

@@ -1,11 +1,12 @@
-mod db;
-mod route;
-mod controllers;
-mod util;
-mod srs;
-mod rating;
 mod config;
+mod controllers;
+mod db;
+mod rating;
+mod route;
+mod services;
+mod srs;
 mod time;
+mod util;
 
 use std::env;
 use std::error::Error;
@@ -47,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Create routes and serve service.
-    let routes = route::routes(puzzle_db);
+    let routes = route::routes(app_config.clone(), puzzle_db);
     let server_task = tokio::spawn(warp::serve(routes)
        .run((app_config.bind_interface, app_config.bind_port)));
 

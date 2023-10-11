@@ -13,7 +13,7 @@ pub struct AppConfig {
     pub srs: SrsConfig,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct SrsConfig {
     pub default_ease: f64,
     pub minimum_ease: f64,

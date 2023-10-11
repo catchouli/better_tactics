@@ -1,20 +1,18 @@
 use std::fmt::Display;
-use std::sync::Arc;
 use askama::Template;
-use chrono::{Utc, Local};
-use tokio::sync::Mutex;
 use serde::Deserialize;
 use warp::reply::Reply;
 
-use crate::rating::GameResult;
-use crate::route::{InternalError, InvalidParameter, BaseTemplateData};
-use crate::db::{Puzzle, PuzzleDatabase, Stats, Review, User};
-use crate::srs::{Difficulty, Card, self};
+use crate::config::SrsConfig;
+use crate::rating::{GameResult, Rating};
+use crate::route::BaseTemplateData;
+use crate::db::Puzzle;
+use crate::services::ServiceError;
+use crate::services::tactics_service::TacticsService;
+use crate::services::user_service::{UserService, Stats};
+use crate::srs::{Difficulty, Card};
 use crate::time::{LocalTimeProvider, TimeProvider};
 use crate::util;
-
-/// The rating variation for puzzles, in percent.
-const PUZZLE_RATING_VARIATION: f64 = 1.05;
 
 /// The puzzle mode.
 #[derive(Debug, PartialEq, Eq)]
@@ -44,22 +42,22 @@ impl Display for PuzzleMode {
 #[template(path = "puzzle.html")]
 pub struct PuzzleTemplate {
     base: BaseTemplateData,
-    user: User,
+    user_rating: Rating,
     stats: Stats,
     mode: PuzzleMode,
-    puzzle_id: Option<String>,
     puzzle: Option<Puzzle>,
     card: Option<Card>,
     min_rating: i64,
     max_rating: i64,
-    puzzle_themes: Option<String>,
+    srs_config: SrsConfig,
 }
 
 impl PuzzleTemplate {
-    /// Helper for the template so it can display the default intervals for a new card.
-    fn get_default_interval(difficulty: Difficulty) -> String {
-        Card::new::<LocalTimeProvider>("")
-            .next_interval_human(difficulty)
+    /// Get the next interval after a review with score `score` in human readable form.
+    fn next_interval_human(&self, score: Difficulty) -> String {
+        let interval = self.card.as_ref().unwrap_or(&Card::new::<LocalTimeProvider>("", &self.srs_config))
+            .next_interval(score, &self.srs_config);
+        crate::util::review_duration_to_human(interval)
     }
 
     /// Get a human readable time until due for a card.
@@ -72,6 +70,16 @@ impl PuzzleTemplate {
     fn card_due_now(card: &Card) -> bool {
         card.is_due::<LocalTimeProvider>()
     }
+
+    /// Get the puzzle themes as a list.
+    fn puzzle_themes_list(&self) -> Option<String> {
+        self.puzzle.as_ref().map(|p| p.themes.join(", "))
+    }
+
+    /// Get the puzzle id.
+    fn get_puzzle_id(&self) -> Option<&str> {
+        self.puzzle.as_ref().map(|p| p.puzzle_id.as_str())
+    }
 }
 
 /// The POST request for reviewing a card.
@@ -81,217 +89,104 @@ pub struct ReviewRequest {
     pub difficulty: i64,
 }
 
-pub async fn specific_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, puzzle_id: String)
-    -> Result<PuzzleTemplate, warp::Rejection>
+/// GET /tactics/by_id/{puzzle_id}
+pub async fn specific_puzzle(srs_config: SrsConfig, user_service: UserService,
+    tactics_service: TacticsService, puzzle_id: String) -> Result<PuzzleTemplate, warp::Rejection>
 {
-    let user_id = PuzzleDatabase::local_user_id();
+    // Get the user's rating and stats.
+    let user_rating = user_service.get_user_rating(UserService::local_user_id()).await?;
+    let stats = user_service.get_user_stats(UserService::local_user_id()).await?;
 
-    // Get connection to puzzle db.
-    let puzzle_db = puzzle_db.lock().await;
-
-    // Get the user.
-    let user = puzzle_db.get_user_by_id(user_id).await
-        .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
-
-    // Get the user's stats.
-    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
-
-    // Get the puzzle.
-    let puzzle = puzzle_db.get_puzzle_by_id(&puzzle_id).await
-        .map_err(InternalError::from)?;
-
-    // Get the card for this puzzle (or a new empty card if it doesn't already exist).
-    let card = if let Some(puzzle) = puzzle.as_ref() {
-        puzzle_db.get_card_by_id(&puzzle.puzzle_id).await.map_err(InternalError::from)?
-    } else {
-        None
-    };
-
-    // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+    // Get the specified puzzle and card.
+    let (puzzle, card) = tactics_service.get_puzzle_by_id(&puzzle_id).await?;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
-        user,
+        user_rating,
         stats,
         mode: PuzzleMode::Specific,
-        puzzle_id: Some(puzzle_id),
         puzzle,
         card,
         min_rating: 0,
         max_rating: 0,
-        puzzle_themes,
+        srs_config,
     })
 }
 
-pub async fn random_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
-    -> Result<PuzzleTemplate, warp::Rejection>
+/// GET /tactics/new
+pub async fn random_puzzle(srs_config: SrsConfig, user_service: UserService,
+    tactics_service: TacticsService) -> Result<PuzzleTemplate, warp::Rejection>
 {
-    let user_id = PuzzleDatabase::local_user_id();
+    // Get the user's rating and stats.
+    let user_rating = user_service.get_user_rating(UserService::local_user_id()).await?;
+    let stats = user_service.get_user_stats(UserService::local_user_id()).await?;
 
-    // Get connection to puzzle db.
-    let puzzle_db = puzzle_db.lock().await;
-
-    // Get the user.
-    let user = puzzle_db.get_user_by_id(user_id).await
-        .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
-
-    // Get the user's stats.
-    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
-
-    // The min and max rating for puzzles, deviating from the user's rating by up to
-    // PUZZLE_RATING_VARIATION.
-    let max_puzzle_rating = puzzle_db.get_max_puzzle_rating().await.map_err(InternalError::from)?;
-    let base_rating = i64::min(user.rating.rating, max_puzzle_rating);
-    let min_rating = (base_rating as f64 / PUZZLE_RATING_VARIATION) as i64;
-    let max_rating = (base_rating as f64 * PUZZLE_RATING_VARIATION) as i64;
-
-    // Get a random puzzle.
-    let puzzle = puzzle_db.get_puzzles_by_rating(min_rating, max_rating, 1).await
-        .map(|vec| vec.into_iter().nth(0))
-        .map_err(InternalError::from)?;
-
-    // Get the card for this puzzle (or a new empty card if it doesn't already exist).
-    let card = if let Some(puzzle) = puzzle.as_ref() {
-        puzzle_db.get_card_by_id(&puzzle.puzzle_id).await.map_err(InternalError::from)?
-    } else {
-        None
-    };
-
-    // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+    // Get random puzzle in rating range.
+    // TODO: note that this can actually return a card that isn't new (it's unlikely but in some
+    // rating ranges maybe it's more likely?). We should filter by it, or try again.
+    let (min_rating, max_rating) = tactics_service.get_rating_range(&user_rating).await?;
+    let (puzzle, card) = tactics_service.get_random_puzzle(min_rating, max_rating).await?;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
-        user,
+        user_rating,
         stats,
         mode: PuzzleMode::Random,
-        puzzle_id: puzzle.as_ref().map(|p| p.puzzle_id.clone()),
         puzzle,
         card,
         min_rating,
         max_rating,
-        puzzle_themes,
+        srs_config,
     })
 }
 
-pub async fn next_review(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
+/// GET /tactics
+pub async fn next_review(srs_config: SrsConfig, user_service: UserService, tactics_service: TacticsService)
     -> Result<impl warp::Reply, warp::Rejection>
 {
-    let user_id = PuzzleDatabase::local_user_id();
+    // Get the user's rating and stats.
+    let user_rating = user_service.get_user_rating(UserService::local_user_id()).await?;
+    let stats = user_service.get_user_stats(UserService::local_user_id()).await?;
 
-    // Get connection to puzzle db.
-    let puzzle_db = puzzle_db.lock().await;
-
-    // Get the user.
-    let user = puzzle_db.get_user_by_id(user_id).await
-        .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
-
-    // Get the user's stats.
-    let review_cutoff = srs::day_end_datetime::<LocalTimeProvider>();
-    let stats = puzzle_db.get_user_stats(user_id, review_cutoff).await.map_err(InternalError::from)?;
-
-    // Get the user's next due review. The logic for this is a little complicated as we want to
-    // show cards that are due any time today (before the review cutoff) so the user can do their
-    // reviews all at once rather than them trickling in throughout the day. On the other hand, we
-    // don't want cards that are still in learning, with potentially low intervals, to show up
-    // before they're due unless there's absolutely no other cards left, because otherwise they'll
-    // show up repeatedly in front of other cards that are due later today.
-    let time_now = Local::now().fixed_offset();
-    let new_review_due_now = puzzle_db.get_next_review_due(time_now, None).await
-        .map_err(InternalError::from)?;
-
-    let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d);
-    let review_cutoff_today = srs::day_end_datetime::<LocalTimeProvider>();
-    let next_non_learning_review_due_today =
-        puzzle_db.get_next_review_due(review_cutoff_today, max_learning_interval).await
-            .map_err(InternalError::from)?;
-
-    let (card, puzzle) = match new_review_due_now.or(next_non_learning_review_due_today) {
-        Some((card, puzzle)) => (Some(card), Some(puzzle)),
-        _ => (None, None)
-    };
-
-    // Generate list of puzzle themes.
-    let puzzle_themes = puzzle.as_ref().map(|p| p.themes.join(", "));
+    // Get the next due puzzle and card.
+    let (puzzle, card)  = tactics_service.get_next_review().await?;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
-        user,
+        user_rating,
         stats,
         mode: PuzzleMode::Review,
-        puzzle_id: puzzle.as_ref().map(|p| p.puzzle_id.clone()),
         puzzle,
         card,
         min_rating: 0,
         max_rating: 0,
-        puzzle_themes,
+        srs_config,
     }.into_response())
 }
 
-pub async fn review_puzzle(puzzle_db: Arc<Mutex<PuzzleDatabase>>, request: ReviewRequest)
-    -> Result<impl warp::Reply, warp::Rejection>
+/// POST /review
+pub async fn review_puzzle(srs_config: SrsConfig, user_service: UserService,
+    tactics_service: TacticsService, request: ReviewRequest) -> Result<impl warp::Reply, warp::Rejection>
 {
-    let user_id = PuzzleDatabase::local_user_id();
-    let mut puzzle_db = puzzle_db.lock().await;
+    let user_id = UserService::local_user_id();
 
     let difficulty = Difficulty::from_i64(request.difficulty)
-        .map_err(|_| InvalidParameter::new("difficulty"))?;
+        .map_err(|_| ServiceError::InvalidParameter("difficulty".to_string()))?;
 
-    // Update the card.
-    if let Ok(card) = puzzle_db.get_card_by_id(request.id.as_str()).await {
-        // If there's no existing card for the puzzle, create a new one.
-        let mut card = card.unwrap_or(Card::new::<LocalTimeProvider>(&request.id));
+    // Get the puzzle for this puzzle id.
+    let (puzzle, card) = tactics_service.get_puzzle_by_id(&request.id).await?;
+    let puzzle = puzzle.ok_or(ServiceError::from(format!("No such puzzle {}", request.id)))?;
+    let card = card.unwrap_or(Card::new::<LocalTimeProvider>(&request.id, &srs_config));
 
-        let mut user = puzzle_db.get_user_by_id(user_id).await
-            .map_err(InternalError::from)?
-            .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
+    // Review the card.
+    tactics_service.apply_review(user_id, card, difficulty).await?;
 
-        let puzzle = puzzle_db.get_puzzle_by_id(&card.id).await
-            .map_err(|_| InvalidParameter::new(&request.id))?
-            .ok_or_else(|| InternalError::new(format!("No such puzzle {}", card.id)))?;
-
-        // Apply the review to the card.
-        card.review(Utc::now().fixed_offset(), difficulty);
-
-        // Create a review record in the database.
-        puzzle_db.add_review_for_user(Review {
-            user_id: user_id.to_string(),
-            puzzle_id: card.id.to_string(),
-            difficulty,
-            date: Local::now().fixed_offset(),
-        }).await.map_err(InternalError::from)?;
-
-        // Update (or create) the card in the database.
-        puzzle_db.update_or_create_card(&card).await
-            .map_err(InternalError::from)?;
-
-        // Update the user's rating every time a puzzle is solved, old puzzles don't give much
-        // rating anymore once your rating deviation is low enough.
-        let old_rating = user.rating;
-
-        user.rating.update(vec![GameResult {
-            rating: puzzle.rating,
-            deviation: puzzle.rating_deviation,
-            score: difficulty.score(),
-        }]);
-
-        // The downside is that sometimes 'Good' ratings for low rated puzzles actually lower the
-        // user's rating, due to the way we fudge the score for them. (They're scored somewhere
-        // between 'Easy', which is a win at 1.0, and 'Hard', which is a draw at 0.0). As a bit of
-        // an arbitrary fix, we just prevent 'Good' ratings from lowering the user's rating.
-        if difficulty != Difficulty::Good || user.rating.rating > old_rating.rating {
-            log::info!("Updating user's rating from {} to {}", old_rating.rating, user.rating.rating);
-
-            puzzle_db.update_user(&user).await
-                .map_err(InternalError::from)?;
-        }
-    }
+    // Update the user's rating.
+    user_service.update_rating(user_id, difficulty, GameResult {
+        rating: puzzle.rating,
+        deviation: puzzle.rating_deviation,
+        score: difficulty.score(),
+    }).await?;
 
     Ok(warp::reply())
 }

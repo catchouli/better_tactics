@@ -20,8 +20,12 @@ a {
     text-decoration: none;
 }
 
-.my-navbar-menu {
-    background: #2A2537;
+.my-navbar-menu, .navbar-item {
+    background: #2A2537 !important;
+}
+
+.navbar-item:hover {
+    background: #1D1A26 !important;
 }
 
 .bt-panel > .title {
@@ -114,11 +118,11 @@ cg-board {
 }
 
 .navbar-burger {
+    display: block !important;
     position: absolute;
     right: 0.5rem;
     top: 0.5rem;
     user-select: none;
-    display: block !important;
 }
 
 .navbar-item {
@@ -127,10 +131,6 @@ cg-board {
     text-decoration: none;
     font-weight: bold;
     text-align: center;
-}
-
-.navbar-item:hover {
-    background: #1D1A26 !important;
 }
 
 /* Index page */
