@@ -104,7 +104,7 @@
     });
 
     // Rating graph.
-    let rating_history = {{ self.rating_history_json() | safe }};
+    let rating_history = {{ self.rating_history_json()|safe }};
     new Chart(document.getElementById("rating-graph"), {
         type: 'line',
         data: {
