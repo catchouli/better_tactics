@@ -159,15 +159,15 @@ impl PuzzleDatabase {
     pub async fn get_user_rating_history(&self, user_id: &str)
         -> DbResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
-        let query = sqlx::query("
+        let query = sqlx::query(r#"
             SELECT date, max(user_rating) as max_rating
             FROM reviews
             WHERE user_id = ?
             AND user_rating IS NOT NULL
             -- Group by day and then hour
             GROUP BY date(date), strftime('%H', date)
-            ORDER BY datetime(date)
-        ");
+            ORDER BY datetime(date) ASC
+        "#);
 
         Ok(query
             .bind(user_id)

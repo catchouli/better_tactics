@@ -1,5 +1,5 @@
 use askama::Template;
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, Local, Duration};
 
 use crate::rating::Rating;
 use crate::route::BaseTemplateData;
@@ -50,11 +50,19 @@ pub async fn index_page(user_service: UserService)
 {
     let user_id = UserService::local_user_id();
 
+    let user_rating = user_service.get_user_rating(user_id).await?;
+    let mut rating_history = user_service.get_rating_history(user_id).await?;
+
+    // Push the current rating to the end so there's some data to show even if the user doesn't
+    // have any historical rating values.
+    rating_history.push((Local::now().fixed_offset(), user_rating.rating));
+    rating_history.push((Local::now().fixed_offset() + Duration::seconds(1), user_rating.rating));
+
     Ok(IndexTemplate {
         base: Default::default(),
-        user_rating: user_service.get_user_rating(user_id).await?,
+        user_rating,
         stats: user_service.get_user_stats(user_id).await?,
         review_forecast: user_service.get_review_forecast(user_id).await?,
-        rating_history: user_service.get_rating_history(user_id).await?,
+        rating_history,
     })
 }
