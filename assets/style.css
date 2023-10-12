@@ -343,6 +343,20 @@ cg-board {
     margin: 0.5rem auto;
 }
 
+.chart-panel {
+    display: flex;
+    flex-direction: column;
+    /* It needs this or the graphs get wider when you make the screen less wide but don't go back
+     * to normal after you resize it again. I'm not 100% sure why this works but I'm guessing it
+     * just stops the flex item from growing when the graph resizes and forces the graph to stay
+     * about the same size. */
+    overflow: hidden;
+}
+
+.chart-container {
+    flex-grow: 1;
+}
+
 /* ==================== Desktop layout ==================== */
 @media only screen and (min-width: 768px) {
     /* On desktop the main background color and panel background color should be different */
