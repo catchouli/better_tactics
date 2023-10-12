@@ -178,15 +178,15 @@ pub async fn review_puzzle(srs_config: SrsConfig, user_service: UserService,
     let puzzle = puzzle.ok_or(ServiceError::from(format!("No such puzzle {}", request.id)))?;
     let card = card.unwrap_or(Card::new::<LocalTimeProvider>(&request.id, srs_config));
 
-    // Review the card.
-    tactics_service.apply_review(user_id, card, difficulty).await?;
-
     // Update the user's rating.
-    user_service.update_rating(user_id, difficulty, GameResult {
+    let new_rating = user_service.update_rating(user_id, difficulty, GameResult {
         rating: puzzle.rating,
         deviation: puzzle.rating_deviation,
         score: difficulty.score(),
     }).await?;
+
+    // Review the card.
+    tactics_service.apply_review(user_id, new_rating, card, difficulty).await?;
 
     Ok(warp::reply())
 }

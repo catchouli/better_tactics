@@ -7,6 +7,8 @@ use sqlx::sqlite::SqliteRow;
 use crate::srs::{Card, Difficulty};
 use crate::db::{PuzzleDatabase, DbResult, Puzzle};
 
+use super::DatabaseError;
+
 /// A review record from the db.
 #[derive(Debug, Clone)]
 pub struct Review {
@@ -14,6 +16,7 @@ pub struct Review {
     pub puzzle_id: String,
     pub difficulty: Difficulty,
     pub date: DateTime<FixedOffset>,
+    pub user_rating: Option<i64>,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
@@ -32,6 +35,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
                     index: "date".to_string(),
                     source: e.to_string().into(),
                 })?,
+            user_rating: row.try_get("user_rating").ok(),
         })
     }
 }
@@ -135,8 +139,8 @@ impl PuzzleDatabase {
     pub async fn add_review_for_user(&mut self, review: Review) -> DbResult<()>
     {
         let query = sqlx::query("
-            INSERT INTO reviews (user_id, puzzle_id, difficulty, date)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO reviews (user_id, puzzle_id, difficulty, date, user_rating)
+            VALUES (?, ?, ?, ?, ?)
         ");
 
         query
@@ -144,35 +148,35 @@ impl PuzzleDatabase {
             .bind(&review.puzzle_id)
             .bind(review.difficulty.to_i64())
             .bind(review.date.to_rfc3339())
+            .bind(review.user_rating)
             .execute(&self.pool)
             .await?;
 
         Ok(())
     }
 
-    /// Get up to the last n reviews for a user, and the rating for each one.
-    pub async fn last_n_reviews_for_user(&self, user_id: &str, max_reviews: i64)
-        -> DbResult<Vec<(Review, i64)>>
+    /// Get a rating history for a user. 
+    pub async fn get_user_rating_history(&self, user_id: &str)
+        -> DbResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
         let query = sqlx::query("
-            SELECT reviews.*, puzzles.rating
+            SELECT date, max(user_rating) as max_rating
             FROM reviews
-            INNER JOIN puzzles ON reviews.puzzle_id = puzzles.puzzle_id
-            WHERE reviews.user_id = ?
-            AND puzzles.rating NOT NULL
-            ORDER BY date DESC
-            LIMIT ?
+            WHERE user_id = ?
+            AND user_rating IS NOT NULL
+            -- Group by day and then hour
+            GROUP BY date(date), strftime('%H', date)
+            ORDER BY datetime(date)
         ");
 
         Ok(query
             .bind(user_id)
-            .bind(max_reviews)
             .fetch(&self.pool)
             .map(|row: Result<SqliteRow, _>| {
                 let row = row?;
-                let review: Review = sqlx::FromRow::from_row(&row)?;
-                let rating: i64 = row.try_get("rating")?;
-                Ok((review, rating)) as Result<_, sqlx::Error>
+                let date = DateTime::parse_from_rfc3339(row.try_get("date")?)?;
+                let rating: i64 = row.try_get("max_rating")?;
+                Ok((date, rating)) as Result<_, DatabaseError>
             })
             .try_collect()
             .await?)

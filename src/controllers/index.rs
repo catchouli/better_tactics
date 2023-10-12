@@ -1,5 +1,5 @@
 use askama::Template;
-use chrono::NaiveDate;
+use chrono::{DateTime, FixedOffset};
 
 use crate::rating::Rating;
 use crate::route::BaseTemplateData;
@@ -14,7 +14,7 @@ pub struct IndexTemplate {
     stats: Stats,
     user_rating: Rating,
     review_forecast: Vec<i64>,
-    rating_history: Vec<(NaiveDate, i64)>,
+    rating_history: Vec<(DateTime<FixedOffset>, i64)>,
 }
 
 impl IndexTemplate {
@@ -36,7 +36,7 @@ impl IndexTemplate {
             .iter()
             .map(|(date, rating)| {
                 let mut map = serde_json::Map::new();
-                map.insert("date".to_string(), Value::String(format!("{date}")));
+                map.insert("date".to_string(), Value::String(date.to_rfc3339()));
                 map.insert("rating".to_string(), Value::Number((*rating).into()));
                 Value::Object(map)
             })

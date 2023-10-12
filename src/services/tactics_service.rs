@@ -15,7 +15,7 @@ const PUZZLE_RATING_VARIATION: f64 = 1.05;
 /// Encapsulates any kind of application logic to do with tactics.
 #[derive(Clone)]
 pub struct TacticsService {
-    db: Arc<Mutex<PuzzleDatabase>>,
+    pub db: Arc<Mutex<PuzzleDatabase>>,
 }
 
 impl TacticsService {
@@ -97,8 +97,8 @@ impl TacticsService {
         Ok((puzzle, card))
     }
 
-    pub async fn apply_review(&self, user_id: &str, mut card: Card, difficulty: Difficulty)
-        -> ServiceResult<()>
+    pub async fn apply_review(&self, user_id: &str, user_rating: Rating, mut card: Card,
+        difficulty: Difficulty) -> ServiceResult<()>
     {
         // Apply the review to the card.
         card.review(Local::now().fixed_offset(), difficulty);
@@ -113,6 +113,7 @@ impl TacticsService {
             puzzle_id: card.id.to_string(),
             difficulty,
             date: Local::now().fixed_offset(),
+            user_rating: Some(user_rating.rating),
         }).await?;
 
         Ok(())

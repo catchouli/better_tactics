@@ -109,7 +109,10 @@
         type: 'line',
         data: {
             datasets: [{
+                label: "All themes",
                 data: rating_history.map(o => { return { x: o.date, y: o.rating } }),
+                pointStyle: false,
+                tension: 0.4,
             }],
         },
         options: {
@@ -119,12 +122,13 @@
             },
             scales: {
                 x: {
-                    ticks: {
-                        maxTicksLimit: 10,
-                        font: {
-                            size: 12,
+                    type: 'time',
+                    time: {
+                        unit: 'day',
+                        displayFormats: {
+                           'day': 'MMM DD',
                         },
-                    },
+                    }
                 },
                 y: {
                     suggestedMax: 1000,
