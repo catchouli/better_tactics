@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="columns">
+<div class="columns" id="stats-columns">
     <!-- The stats panel -->
-    <div id="stats-panel" class="column bt-panel">
+    <div id="stats-panel" class="column bt-panel stats-panel">
         <h2 class="title is-3">Stats</h2>
         <table class="stats">
             <tbody>
@@ -38,233 +38,106 @@
     </div>
 
     <!-- The review forecast -->
-    <div id="review-graph-container" class="column bt-panel chart-panel">
+    <div id="review-graph-container" class="column bt-panel chart-panel stats-panel">
         <h2 class="title is-3">Review forecast</h2>
         <div class="chart-container">
             <canvas id="review-graph"></canvas>
         </div>
-        <script type="module">
-            Chart.defaults.color = "rgb(248, 242, 242)";
-            new Chart(document.getElementById("review-graph"), {
-                type: 'bar',
-                data: {
-                    labels: [...Array({{ self.review_forecast.len() }}).keys()].map(v => `${v}d`),
-                    datasets: [
-                        {
-                            label: "Reviews due",
-                            backgroundColor: "#416c86",
-                            data: {{ self.review_forecast() }}
-                        }
-                    ]
-                },
-                options: {
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                    },
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: "Days from now"
-                            }
-                        },
-                        y: {
-                            min: 0,
-                            suggestedMax: 25,
-                            title: {
-                                display: true,
-                                text: "Reviews due",
-                            },
-                            ticks: {
-                                precision: 0
-                            }
-                        }
-                    }
-                }
-            });
-        </script>
-    </div>
-</div>
-
-<div class="columns">
-    <!-- Rating over time -->
-    <div id="rating-graph-container" class="column bt-panel">
-        <h2 class="title is-3">Rating history</h2>
-        <canvas id="rating-graph"></canvas>
-        <script type="module">
-            Chart.defaults.color = "rgb(248, 242, 242)";
-            new Chart(document.getElementById("rating-graph"), {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        data: [
-                            { x: '2023-08-01', y: 1400 },
-                            { x: '2023-08-02', y: 1400 },
-                            { x: '2023-08-03', y: 1400 },
-                            { x: '2023-08-04', y: 1400 },
-                            { x: '2023-08-05', y: 1400 },
-                            { x: '2023-08-06', y: 1400 },
-                            { x: '2023-08-07', y: 1400 },
-                            { x: '2023-08-08', y: 1400 },
-                            { x: '2023-08-09', y: 1400 },
-                            { x: '2023-08-10', y: 1400 },
-                            { x: '2023-08-11', y: 1400 },
-                            { x: '2023-08-12', y: 1400 },
-                            { x: '2023-08-13', y: 1400 },
-                            { x: '2023-08-14', y: 1400 },
-                            { x: '2023-08-15', y: 1400 },
-                            { x: '2023-08-16', y: 1400 },
-                            { x: '2023-08-17', y: 1400 },
-                            { x: '2023-08-18', y: 1400 },
-                            { x: '2023-08-19', y: 1400 },
-                            { x: '2023-08-20', y: 1400 },
-                            { x: '2023-08-21', y: 1400 },
-                            { x: '2023-08-22', y: 1400 },
-                            { x: '2023-08-23', y: 1400 },
-                            { x: '2023-08-24', y: 1400 },
-                            { x: '2023-08-25', y: 1400 },
-                            { x: '2023-08-26', y: 1400 },
-                            { x: '2023-08-27', y: 1400 },
-                            { x: '2023-08-28', y: 1400 },
-                            { x: '2023-08-29', y: 1400 },
-                            { x: '2023-08-30', y: 1400 },
-                            { x: '2023-09-01', y: 1400 },
-                            { x: '2023-09-02', y: 1400 },
-                            { x: '2023-09-03', y: 1400 },
-                            { x: '2023-09-04', y: 1400 },
-                            { x: '2023-09-05', y: 1400 },
-                            { x: '2023-09-06', y: 1400 },
-                            { x: '2023-09-07', y: 1400 },
-                            { x: '2023-09-08', y: 1400 },
-                            { x: '2023-09-09', y: 1400 },
-                            { x: '2023-09-10', y: 1400 },
-                            { x: '2023-09-11', y: 1400 },
-                            { x: '2023-09-12', y: 1400 },
-                            { x: '2023-09-13', y: 1400 },
-                            { x: '2023-09-14', y: 1400 },
-                            { x: '2023-09-15', y: 1400 },
-                            { x: '2023-09-16', y: 1400 },
-                            { x: '2023-09-17', y: 1400 },
-                            { x: '2023-09-18', y: 1400 },
-                            { x: '2023-09-19', y: 1400 },
-                            { x: '2023-09-20', y: 1400 },
-                            { x: '2023-09-21', y: 1400 },
-                            { x: '2023-09-22', y: 1400 },
-                            { x: '2023-09-23', y: 1400 },
-                            { x: '2023-09-24', y: 1400 },
-                            { x: '2023-09-25', y: 1400 },
-                            { x: '2023-09-26', y: 1400 },
-                            { x: '2023-09-27', y: 1400 },
-                            { x: '2023-09-28', y: 1400 },
-                            { x: '2023-09-29', y: 1400 },
-                            { x: '2023-09-30', y: 1400 },
-                            { x: '2023-10-07', y: 1400 },
-                            { x: '2023-10-08', y: 1500 },
-                            { x: '2023-10-09', y: 1600 },
-                            { x: '2023-10-10', y: 1700 },
-                        ]
-                    }],
-                },
-                options: {
-                    plugins: {
-                        legend: { display: false },
-                    },
-                }
-            });
-        </script>
     </div>
 
     <!-- Rating over time -->
-    <div id="rating-graph-container-2" class="column bt-panel">
+    <div id="rating-graph-container" class="column bt-panel chart-panel stats-panel">
         <h2 class="title is-3">Rating history</h2>
-        <canvas id="rating-graph-2"></canvas>
-        <script type="module">
-            Chart.defaults.color = "rgb(248, 242, 242)";
-            new Chart(document.getElementById("rating-graph-2"), {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        data: [
-                            { x: '2023-08-01', y: 1400 },
-                            { x: '2023-08-02', y: 1400 },
-                            { x: '2023-08-03', y: 1400 },
-                            { x: '2023-08-04', y: 1400 },
-                            { x: '2023-08-05', y: 1400 },
-                            { x: '2023-08-06', y: 1400 },
-                            { x: '2023-08-07', y: 1400 },
-                            { x: '2023-08-08', y: 1400 },
-                            { x: '2023-08-09', y: 1400 },
-                            { x: '2023-08-10', y: 1400 },
-                            { x: '2023-08-11', y: 1400 },
-                            { x: '2023-08-12', y: 1400 },
-                            { x: '2023-08-13', y: 1400 },
-                            { x: '2023-08-14', y: 1400 },
-                            { x: '2023-08-15', y: 1400 },
-                            { x: '2023-08-16', y: 1400 },
-                            { x: '2023-08-17', y: 1400 },
-                            { x: '2023-08-18', y: 1400 },
-                            { x: '2023-08-19', y: 1400 },
-                            { x: '2023-08-20', y: 1400 },
-                            { x: '2023-08-21', y: 1400 },
-                            { x: '2023-08-22', y: 1400 },
-                            { x: '2023-08-23', y: 1400 },
-                            { x: '2023-08-24', y: 1400 },
-                            { x: '2023-08-25', y: 1400 },
-                            { x: '2023-08-26', y: 1400 },
-                            { x: '2023-08-27', y: 1400 },
-                            { x: '2023-08-28', y: 1400 },
-                            { x: '2023-08-29', y: 1400 },
-                            { x: '2023-08-30', y: 1400 },
-                            { x: '2023-09-01', y: 1400 },
-                            { x: '2023-09-02', y: 1400 },
-                            { x: '2023-09-03', y: 1400 },
-                            { x: '2023-09-04', y: 1400 },
-                            { x: '2023-09-05', y: 1400 },
-                            { x: '2023-09-06', y: 1400 },
-                            { x: '2023-09-07', y: 1400 },
-                            { x: '2023-09-08', y: 1400 },
-                            { x: '2023-09-09', y: 1400 },
-                            { x: '2023-09-10', y: 1400 },
-                            { x: '2023-09-11', y: 1400 },
-                            { x: '2023-09-12', y: 1400 },
-                            { x: '2023-09-13', y: 1400 },
-                            { x: '2023-09-14', y: 1400 },
-                            { x: '2023-09-15', y: 1400 },
-                            { x: '2023-09-16', y: 1400 },
-                            { x: '2023-09-17', y: 1400 },
-                            { x: '2023-09-18', y: 1400 },
-                            { x: '2023-09-19', y: 1400 },
-                            { x: '2023-09-20', y: 1400 },
-                            { x: '2023-09-21', y: 1400 },
-                            { x: '2023-09-22', y: 1400 },
-                            { x: '2023-09-23', y: 1400 },
-                            { x: '2023-09-24', y: 1400 },
-                            { x: '2023-09-25', y: 1400 },
-                            { x: '2023-09-26', y: 1400 },
-                            { x: '2023-09-27', y: 1400 },
-                            { x: '2023-09-28', y: 1400 },
-                            { x: '2023-09-29', y: 1400 },
-                            { x: '2023-09-30', y: 1400 },
-                            { x: '2023-10-07', y: 1400 },
-                            { x: '2023-10-08', y: 1500 },
-                            { x: '2023-10-09', y: 1600 },
-                            { x: '2023-10-10', y: 1700 },
-                        ]
-                    }],
-                },
-                options: {
-                    plugins: {
-                        legend: { display: false },
-                    },
-                }
-            });
-        </script>
+        <div class="chart-container">
+            <canvas id="rating-graph"></canvas>
+        </div>
     </div>
 </div>
+
 <div>
     <p style="margin-top: 1rem; text-align: center;">
         Don't know what's going on? See <a href="/about">About</a>.
     </p>
 </div>
+
+<script type="module">
+    // Set default text color for charts.js.
+    Chart.defaults.color = "rgb(221, 211, 211)";
+
+    new Chart(document.getElementById("review-graph"), {
+        type: 'bar',
+        data: {
+            labels: [...Array({{ self.review_forecast.len() }}).keys()].map(v => `${v}d`),
+            datasets: [
+                {
+                    label: "Reviews due",
+                    backgroundColor: "#416c86",
+                    data: {{ self.review_forecast() }}
+                }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: "Days from now"
+                    }
+                },
+                y: {
+                    min: 0,
+                    suggestedMax: 25,
+                    title: {
+                        display: true,
+                        text: "Reviews due",
+                    },
+                    ticks: {
+                        precision: 0,
+                    }
+                }
+            }
+        }
+    });
+
+    // Rating graph.
+    let rating_history = {{ self.rating_history_json() | safe }};
+    new Chart(document.getElementById("rating-graph"), {
+        type: 'line',
+        data: {
+            datasets: [{
+                data: rating_history.map(o => { return { x: o.date, y: o.rating } }),
+            }],
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxTicksLimit: 10,
+                        font: {
+                            size: 12,
+                        },
+                    },
+                },
+                y: {
+                    suggestedMax: 1000,
+                    title: {
+                        display: true,
+                        text: "Overall rating",
+                    },
+                    ticks: {
+                        precision: 0,
+                    },
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}

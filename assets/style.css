@@ -355,6 +355,8 @@ cg-board {
 
 .chart-container {
     flex-grow: 1;
+    min-height: 15rem;
+    padding: 0.5rem;
 }
 
 /* ==================== Desktop layout ==================== */
@@ -421,14 +423,25 @@ cg-board {
         margin: 0.5rem;
     }
 
-    .sidebar {
-        flex-direction: column;
-        flex-wrap: nowrap;
+    /* Stats page, we want the stats panels to be in rows of two on desktop */
+    #stats-columns {
+        flex-wrap: wrap;    
+        justify-content: center;
+    }
+
+    .stats-panel {
+        flex-basis: calc(50% - 1rem);
+        flex-grow: 0;
     }
 
     /* Puzzle interface */
     #puzzle-interface {
         padding-bottom: 0;
+    }
+
+    .sidebar {
+        flex-direction: column;
+        flex-wrap: nowrap;
     }
 
     .to-move-piece {

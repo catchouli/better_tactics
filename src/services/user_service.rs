@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use chrono::{DateTime, FixedOffset, Local, Duration};
+use chrono::{DateTime, FixedOffset, Local, Duration, NaiveDate};
 use tokio::sync::Mutex;
 
 use crate::db::PuzzleDatabase;
@@ -123,6 +123,83 @@ impl UserService {
         }
 
         Ok(review_forecast)
+    }
+
+    /// Get the rating history for a user.
+    pub async fn get_rating_history(&self, user_id: &str)
+        -> ServiceResult<Vec<(NaiveDate, i64)>>
+    {
+        Self::validate_user_id(user_id)?;
+
+        // Placeholder data.
+        let res = vec![
+            (NaiveDate::from_ymd_opt(2023, 08, 01).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 02).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 03).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 04).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 05).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 06).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 07).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 08).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 09).unwrap(), 1000),
+            (NaiveDate::from_ymd_opt(2023, 08, 10).unwrap(), 1100),
+            (NaiveDate::from_ymd_opt(2023, 08, 11).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 12).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 13).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 14).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 15).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 16).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 17).unwrap(), 1150),
+            (NaiveDate::from_ymd_opt(2023, 08, 18).unwrap(), 1100),
+            (NaiveDate::from_ymd_opt(2023, 08, 19).unwrap(), 1100),
+            (NaiveDate::from_ymd_opt(2023, 08, 20).unwrap(), 1100),
+            (NaiveDate::from_ymd_opt(2023, 08, 21).unwrap(), 1200),
+            (NaiveDate::from_ymd_opt(2023, 08, 22).unwrap(), 1200),
+            (NaiveDate::from_ymd_opt(2023, 08, 23).unwrap(), 1200),
+            (NaiveDate::from_ymd_opt(2023, 08, 24).unwrap(), 1200),
+            (NaiveDate::from_ymd_opt(2023, 08, 25).unwrap(), 1200),
+            (NaiveDate::from_ymd_opt(2023, 08, 26).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 08, 27).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 08, 28).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 08, 29).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 08, 30).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 01).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 02).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 03).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 04).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 05).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 06).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 07).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 08).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 09).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 10).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 11).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 12).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 13).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 14).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 15).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 16).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 17).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 18).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 19).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 20).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 21).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 22).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 23).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 24).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 25).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 26).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 27).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 28).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 29).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 09, 30).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 10, 07).unwrap(), 1400),
+            (NaiveDate::from_ymd_opt(2023, 10, 08).unwrap(), 1500),
+            (NaiveDate::from_ymd_opt(2023, 10, 09).unwrap(), 1600),
+            (NaiveDate::from_ymd_opt(2023, 10, 10).unwrap(), 1700),
+        ];
+
+        Ok(res)
     }
 
     /// Update the rating for a user.

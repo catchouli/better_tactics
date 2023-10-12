@@ -42,6 +42,7 @@ pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         .or(warp::path::end()
             .and_then({
                 // A bit ugly and there's probably a better way to do this than cloning it twice...
+                // TODO: just change away from warp to axum because this routing is kind of horrible.
                 let user_service = user_service.clone();
                 move || index::index_page(user_service.clone())
             }))
