@@ -1,8 +1,8 @@
 [1.5.2] - 2023-10-09
 
 Added:
-* A review forecast to the home page which shows the number of reviews due per day for the next
-  week.
+* A review forecast to the stats page which shows the number of reviews due per day for the next
+  week, and a rating history which shows the user's rating growth over time.
 
 [1.5.2] - 2023-10-09
 
