@@ -38,9 +38,11 @@
     </div>
 
     <!-- The review forecast -->
-    <div id="review-graph-container" class="column bt-panel">
+    <div id="review-graph-container" class="column bt-panel chart-panel">
         <h2 class="title is-3">Review forecast</h2>
-        <canvas id="review-graph"></canvas>
+        <div class="chart-container">
+            <canvas id="review-graph"></canvas>
+        </div>
         <script type="module">
             Chart.defaults.color = "rgb(248, 242, 242)";
             new Chart(document.getElementById("review-graph"), {
@@ -56,6 +58,7 @@
                     ]
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: { display: false },
                     },
