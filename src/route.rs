@@ -32,7 +32,7 @@ pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
 {
     // Instantiate services.
     let user_service = UserService::new(puzzle_db.clone());
-    let tactics_service = TacticsService::new(app_config.srs, puzzle_db.clone());
+    let tactics_service = TacticsService::new(puzzle_db.clone());
 
     // Serve the static assets.
     warp::path(format!("assets_{}", ASSETS_VERSION))

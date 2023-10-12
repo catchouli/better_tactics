@@ -2,7 +2,6 @@ use std::sync::Arc;
 use chrono::Local;
 use tokio::sync::Mutex;
 
-use crate::config::SrsConfig;
 use crate::db::{PuzzleDatabase, Puzzle, Review};
 use crate::rating::Rating;
 use crate::srs::{Card, Difficulty, self};
@@ -16,14 +15,12 @@ const PUZZLE_RATING_VARIATION: f64 = 1.05;
 /// Encapsulates any kind of application logic to do with tactics.
 #[derive(Clone)]
 pub struct TacticsService {
-    srs_config: SrsConfig,
     db: Arc<Mutex<PuzzleDatabase>>,
 }
 
 impl TacticsService {
-    pub fn new(srs_config: SrsConfig, db: Arc<Mutex<PuzzleDatabase>>) -> Self {
+    pub fn new(db: Arc<Mutex<PuzzleDatabase>>) -> Self {
         Self {
-            srs_config,
             db,
         }
     }
@@ -104,7 +101,7 @@ impl TacticsService {
         -> ServiceResult<()>
     {
         // Apply the review to the card.
-        card.review(Local::now().fixed_offset(), difficulty, &self.srs_config);
+        card.review(Local::now().fixed_offset(), difficulty);
 
         // Update (or create) the card in the database.
         let mut db = self.db.lock().await;

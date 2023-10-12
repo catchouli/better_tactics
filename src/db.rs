@@ -14,11 +14,14 @@ pub use puzzle::*;
 pub use user::*;
 pub use card::*;
 
+use crate::config::SrsConfig;
+
 // TODO: this whole file (and project) could do with unit tests once the proof of concept is working :)
 
 /// The puzzle database interface type.
 pub struct PuzzleDatabase {
-    pool: SqlitePool
+    pool: SqlitePool,
+    srs_config: SrsConfig,
 }
 
 #[derive(sqlx::FromRow)]
@@ -29,7 +32,7 @@ pub struct AppData {
 
 impl PuzzleDatabase {
     /// Open the given sqlite database, initialising it with schema if necessary.
-    pub async fn open(path: &str) -> DbResult<Self> {
+    pub async fn open(path: &str, srs_config: SrsConfig) -> DbResult<Self> {
         // Open sqlite database.
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -49,7 +52,8 @@ impl PuzzleDatabase {
         sqlx::migrate!().run(&pool).await?;
 
         Ok(Self {
-            pool
+            pool,
+            srs_config,
         })
     }
 

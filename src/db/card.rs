@@ -36,10 +36,11 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
     }
 }
 
-impl<'r> sqlx::FromRow<'r, SqliteRow> for Card
-{
-    fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
-        Ok(Self {
+impl PuzzleDatabase {
+    /// Build a card from a result row. The reason we have it defined here instead of as a FromRow
+    /// instance is because we need access to self.srs_config.
+    fn card_from_row<'r>(&self, row: &'r SqliteRow) -> Result<Card, sqlx::Error> {
+        Ok(Card {
             id: row.try_get("puzzle_id")?,
             interval: Duration::seconds(row.try_get("interval")?),
             review_count: row.try_get("review_count")?,
@@ -50,11 +51,10 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Card
                     index: "due".to_string(),
                     source: e.to_string().into(),
                 })?,
+            srs_config: self.srs_config,
         })
     }
-}
 
-impl PuzzleDatabase {
     /// Get the next due review. min_interval allows us to filter out cards with short intervals
     /// (e.g. because they're still in learning), because otherwise they'll show up, possibly
     /// repeatedly if learning or relearning, before other cards that are due later today.
@@ -84,7 +84,7 @@ impl PuzzleDatabase {
             .fetch_optional(&self.pool)
             .await?
             .map(|row: SqliteRow| {
-                let card: Card = sqlx::FromRow::from_row(&row)?;
+                let card: Card = self.card_from_row(&row)?;
                 let puzzle: Puzzle = sqlx::FromRow::from_row(&row)?;
                 Ok((card, puzzle))
             })
@@ -95,7 +95,7 @@ impl PuzzleDatabase {
     pub async fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
         log::info!("Getting card for puzzle {puzzle_id}");
 
-        let query = sqlx::query_as("
+        let query = sqlx::query("
             SELECT *
             FROM cards
             WHERE puzzle_id = ?
@@ -103,8 +103,10 @@ impl PuzzleDatabase {
 
         Ok(query
             .bind(puzzle_id)
+            .map(|row| self.card_from_row(&row))
             .fetch_optional(&self.pool)
-            .await?)
+            .await?
+            .transpose()?)
     }
 
     /// Update (or create) a card by ID.
