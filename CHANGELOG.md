@@ -1,4 +1,4 @@
-[1.6.0] - ????-??-??
+[1.6.0] - 2023-10-13
 
 Added:
 * A review forecast on the stats page which shows the number of reviews due per day for the next
