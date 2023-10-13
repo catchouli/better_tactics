@@ -169,16 +169,22 @@ impl PuzzleDatabase {
         -> DbResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
         let query = sqlx::query(r#"
-            SELECT date, max(user_rating) as max_rating
-            FROM reviews
-            WHERE user_id = ?
-            AND user_rating IS NOT NULL
-            -- Group by day and then hour
-            GROUP BY date(date), strftime('%H', date)
-            ORDER BY datetime(date) ASC
+            SELECT * FROM (
+                SELECT reviews.date, max(user_rating) as max_rating
+                FROM reviews
+                WHERE user_id = ?
+                AND user_rating IS NOT NULL
+                -- Group by day and then hour
+                GROUP BY date(reviews.date), strftime('%H', reviews.date)
+                -- Add the user's current rating to the end
+                UNION SELECT strftime("%Y-%m-%dT%H:%M:%SZ", datetime("now")),
+                    rating FROM users WHERE id = ?
+            )
+            ORDER BY datetime(date)
         "#);
 
         Ok(query
+            .bind(user_id)
             .bind(user_id)
             .fetch(&self.pool)
             .map(|row: Result<SqliteRow, _>| {

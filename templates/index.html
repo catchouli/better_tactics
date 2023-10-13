@@ -78,6 +78,9 @@
     /// The threshold for a user's rating deviation to count their rating as provisional.
     const RATING_DEVIATION_PROVISIONAL = 100;
 
+    /// The maximum number of rating history data points before the point style is disabled.
+    const RATING_DATA_POINT_CIRCLE_CUTOFF = 20;
+
     // Set default text color for charts.js.
     Chart.defaults.color = "rgb(221, 211, 211)";
 
@@ -156,7 +159,7 @@
                     datasets: [{
                         label: "All themes",
                         data: data.map(v => { return { x: v[0], y: v[1] } }),
-                        pointStyle: false,
+                        pointStyle: data.length > RATING_DATA_POINT_CIRCLE_CUTOFF ? false : 'circle',
                         tension: 0.01,
                         borderColor: "#416c86",
                     }],
@@ -177,7 +180,6 @@
                             }
                         },
                         y: {
-                            suggestedMax: 1000,
                             title: {
                                 display: true,
                                 text: "Overall rating",
@@ -215,24 +217,28 @@
                         backgroundColor: "#416c86",
                         data: again_dataset.map(v => v.review_count),
                         labels: again_dataset.map(review_histogram_label),
+                        maxBarThickness: 100,
                     },
                     {
                         label: 'Hard',
                         backgroundColor: '#B7881A',
                         data: hard_dataset.map(v => v.review_count),
                         labels: hard_dataset.map(review_histogram_label),
+                        maxBarThickness: 100,
                     },
                     {
                         label: 'Good',
                         backgroundColor: '#2E680D',
                         data: good_dataset.map(v => v.review_count),
                         labels: good_dataset.map(review_histogram_label),
+                        maxBarThickness: 100,
                     },
                     {
                         label: 'Easy',
                         backgroundColor: '#269326',
                         data: easy_dataset.map(v => v.review_count),
                         labels: easy_dataset.map(review_histogram_label),
+                        maxBarThickness: 100,
                     },
                 ],
                 labels: [...review_histogram_labels],
