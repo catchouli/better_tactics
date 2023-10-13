@@ -4,7 +4,7 @@ use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use warp::reject::{self, Rejection};
 
 use crate::config::AppConfig;
-use crate::controllers::{index, about};
+use crate::controllers::{index, about, api};
 use crate::controllers::puzzle::{self, ReviewRequest};
 use crate::db::PuzzleDatabase;
 use crate::services::ServiceError;
@@ -41,10 +41,7 @@ pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         // GET / - the index page.
         .or(warp::path::end()
             .and_then({
-                // A bit ugly and there's probably a better way to do this than cloning it twice...
-                // TODO: just change away from warp to axum because this routing is kind of horrible.
-                let user_service = user_service.clone();
-                move || index::index_page(user_service.clone())
+                move || index::index_page()
             }))
 
         // Get /about - the about page.
@@ -56,6 +53,8 @@ pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
+                // A bit ugly and there's probably a better way to do this than cloning it twice...
+                // TODO: just change away from warp to axum because this routing is kind of horrible.
                 let user_service = user_service.clone();
                 let tactics_service = tactics_service.clone();
                 move || puzzle::random_puzzle(app_config.srs, user_service.clone(), tactics_service.clone())
@@ -101,13 +100,53 @@ pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         // A temporary route that allows the user to set their rating without opening the sqlite
         // database externally. So if the new rating system causes ratings to go awry it's easy to
         // fix.
-        .or(warp::path!("set_rating" / i64)
+        .or(warp::path!("api" / "reset_rating" / i64)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
                 let user_service = user_service.clone();
                 move |new_rating: i64| {
-                    set_rating(user_service.clone(), new_rating)
+                    api::reset_user_rating(user_service.clone(), new_rating)
+                }
+            }))
+
+        .or(warp::path!("api" / "user_stats")
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move || {
+                    api::user_stats(user_service.clone())
+                }
+            }))
+
+        .or(warp::path!("api" / "review_forecast" / i64)
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move |length_days: i64| {
+                    api::review_forecast(user_service.clone(), length_days)
+                }
+            }))
+
+        .or(warp::path!("api" / "rating_history")
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move || {
+                    api::rating_history(user_service.clone())
+                }
+            }))
+
+        .or(warp::path!("api" / "review_score_histogram" / i64)
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move |bucket_size: i64| {
+                    api::review_score_histogram(user_service.clone(), bucket_size)
                 }
             }))
 
@@ -129,18 +168,6 @@ fn assets_filter() -> impl Filter<Extract = (warp::fs::File,), Error = Rejection
 fn assets_filter() -> impl Filter<Extract = (warp::reply::Response,), Error = Rejection> + Clone {
     use static_dir::static_dir;
     static_dir!("assets")
-}
-
-/// A debug endpoint that resets the user's rating to a specified value.
-/// TODO: move this into the settings page, or something like that.
-async fn set_rating(user_service: UserService, new_rating: i64)
-    -> Result<impl warp::Reply, warp::Rejection>
-{
-    log::info!("Manually resetting user's rating to {new_rating}");
-
-    user_service.reset_user_rating(UserService::local_user_id(), new_rating, 250, 0.06)
-        .await
-        .map(|_| Ok(warp::reply::html(format!("Reset user rating to {new_rating}"))))?
 }
 
 /// Implement reject::Reject for custom error types.

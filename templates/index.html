@@ -9,32 +9,27 @@
             <tbody>
                 <tr>
                     <th scope="row">User rating</th>
-                    <td>
-                        {{ user_rating.rating }}
-                        {% if user_rating.deviation > 100 %}
-                            (+-{{ user_rating.deviation }})
-                        {% endif %}
-                    </td>
+                    <td id="user_rating"></td>
                 </tr>
                 <tr>
                     <th scope="row">Unique puzzles done</th>
-                    <td>{{ stats.card_count }}</td>
+                    <td id="card_count"></td>
                 </tr>
                 <tr>
                     <th scope="row">Puzzle completions</th>
-                    <td>{{ stats.review_count }}</td>
+                    <td id="review_count"></td>
                 </tr>
                 <tr>
                     <th scope="row">Reviews due</th>
-                    <td>{{ stats.reviews_due_now }}</td>
+                    <td id="reviews_due_now"></td>
                 </tr>
                 <tr>
                     <th scope="row">Reviews left today</th>
-                    <td>{{ stats.reviews_due_today }}</td>
+                    <td id="reviews_due_today"></td>
                 </tr>
                 <tr>
                     <th scope="row">Next review due</th>
-                    <td>{{ util::maybe_review_timestamp_to_human(stats.next_review_due) }}</td>
+                    <td id="next_review_due"></td>
                 </tr>
             </tbody>
         </table>
@@ -74,163 +69,207 @@
 </div>
 
 <script type="module">
+    /// The length in days of the review forecast.
+    const REVIEW_FORECAST_LENGTH_DAYS = 10;
+
+    /// The rating range for the review score histogram.
+    const REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE = 50;
+
+    /// The threshold for a user's rating deviation to count their rating as provisional.
+    const RATING_DEVIATION_PROVISIONAL = 100;
+
     // Set default text color for charts.js.
     Chart.defaults.color = "rgb(221, 211, 211)";
 
-    new Chart(document.getElementById("review-graph"), {
-        type: 'bar',
-        data: {
-            labels: [...Array({{ self.review_forecast.len() }}).keys()].map(v => `${v}d`),
-            datasets: [
-                {
-                    label: "Reviews due",
-                    backgroundColor: "#416c86",
-                    data: {{ self.review_forecast() }}
-                }
-            ]
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: "Days from now"
-                    }
-                },
-                y: {
-                    min: 0,
-                    suggestedMax: 25,
-                    title: {
-                        display: true,
-                        text: "Reviews due",
-                    },
-                    ticks: {
-                        precision: 0,
-                    }
-                }
+    // Get data for user stats.
+    $.ajax(`/api/user_stats`)
+        .done(function(data) {
+            if (data.user_rating.deviation > RATING_DEVIATION_PROVISIONAL) {
+                $("#user_rating").text(`${data.user_rating.rating} (+-${data.user_rating.deviation})`);
             }
-        }
-    });
+            else {
+                $("#user_rating").text(data.user_rating.rating);
+            }
+
+            $("#card_count").text(data.card_count);
+            $("#review_count").text(data.review_count);
+            $("#reviews_due_now").text(data.reviews_due_now);
+            $("#reviews_due_today").text(data.reviews_due_today);
+            $("#next_review_due").text(data.next_review_due);
+        })
+        .fail(function(err) {
+            console.error(`Failed to get user stats: ${err.responseText}`);
+        });
+
+    // Get data for review forecast.
+    $.ajax(`/api/review_forecast/${REVIEW_FORECAST_LENGTH_DAYS}`)
+        .done(function(data) {
+            new Chart(document.getElementById("review-graph"), {
+                type: 'bar',
+                data: {
+                    labels: [...data.keys()].map(v => `${v}d`),
+                    datasets: [
+                        {
+                            label: "Reviews due",
+                            backgroundColor: "#416c86",
+                            data: data,
+                        }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: "Days from now"
+                            }
+                        },
+                        y: {
+                            min: 0,
+                            suggestedMax: 25,
+                            title: {
+                                display: true,
+                                text: "Reviews due",
+                            },
+                            ticks: {
+                                precision: 0,
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .fail(function(err) {
+            console.error(`Failed to get review forecast: ${err.responseText}`);
+        });
 
     // Rating graph.
-    let rating_history = {{ self.rating_history_json()|safe }};
-    new Chart(document.getElementById("rating-graph"), {
-        type: 'line',
-        data: {
-            datasets: [{
-                label: "All themes",
-                data: rating_history.map(o => { return { x: o.date, y: o.rating } }),
-                pointStyle: false,
-                tension: 0.01,
-                borderColor: "#416c86",
-            }],
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: 'day',
-                        displayFormats: {
-                           'day': 'MMM DD',
-                        },
-                    }
+    $.ajax("/api/rating_history")
+        .done(function(data) {
+            new Chart(document.getElementById("rating-graph"), {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: "All themes",
+                        data: data.map(v => { return { x: v[0], y: v[1] } }),
+                        pointStyle: false,
+                        tension: 0.01,
+                        borderColor: "#416c86",
+                    }],
                 },
-                y: {
-                    suggestedMax: 1000,
-                    title: {
-                        display: true,
-                        text: "Overall rating",
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
                     },
-                    ticks: {
-                        precision: 0,
-                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                   'day': 'MMM DD',
+                                },
+                            }
+                        },
+                        y: {
+                            suggestedMax: 1000,
+                            title: {
+                                display: true,
+                                text: "Overall rating",
+                            },
+                            ticks: {
+                                precision: 0,
+                            },
+                        }
+                    }
                 }
-            }
-        }
-    });
+            });
+        })
+        .fail(function(err) {
+            console.error(`Failed to get rating history: ${err.responseText}`);
+        });
 
     // Review score histogram.
     function review_histogram_label(record) {
         return `${record.puzzle_rating_min}-${record.puzzle_rating_max}`;
     }
 
-    let review_histogram_raw = {{ self.review_histogram_json()|safe }};
+    $.ajax(`/api/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
+        .done(function(data) {
+            let again_dataset = data.filter(v => v.difficulty == 0);
+            let hard_dataset = data.filter(v => v.difficulty == 1);
+            let good_dataset = data.filter(v => v.difficulty == 2);
+            let easy_dataset = data.filter(v => v.difficulty == 3);
 
-    let again_dataset = review_histogram_raw.filter(v => v.difficulty == 0);
-    let hard_dataset = review_histogram_raw.filter(v => v.difficulty == 1);
-    let good_dataset = review_histogram_raw.filter(v => v.difficulty == 2);
-    let easy_dataset = review_histogram_raw.filter(v => v.difficulty == 3);
+            let review_histogram_labels = new Set(data.map(review_histogram_label));
 
-    let review_histogram_labels = new Set(review_histogram_raw.map(review_histogram_label));
-
-    document.review_histogram_raw = review_histogram_raw;
-    const review_histogram_data = {
-        datasets: [
-            {
-                label: 'Again',
-                backgroundColor: "#416c86",
-                data: again_dataset.map(v => v.review_count),
-                labels: again_dataset.map(review_histogram_label),
-            },
-            {
-                label: 'Hard',
-                backgroundColor: '#B7881A',
-                data: hard_dataset.map(v => v.review_count),
-                labels: hard_dataset.map(review_histogram_label),
-            },
-            {
-                label: 'Good',
-                backgroundColor: '#2E680D',
-                data: good_dataset.map(v => v.review_count),
-                labels: good_dataset.map(review_histogram_label),
-            },
-            {
-                label: 'Easy',
-                backgroundColor: '#269326',
-                data: easy_dataset.map(v => v.review_count),
-                labels: easy_dataset.map(review_histogram_label),
-            },
-        ],
-        labels: [...review_histogram_labels],
-    };
-    new Chart(document.getElementById("review-score-graph"), {
-        type: 'bar',
-        data: review_histogram_data,
-        options: {
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: true },
-            },
-            scales: {
-                x: {
-                    stacked: true,
-                    title: {
-                        display: true,
-                        text: "Puzzle rating",
+            const review_histogram_data = {
+                datasets: [
+                    {
+                        label: 'Again',
+                        backgroundColor: "#416c86",
+                        data: again_dataset.map(v => v.review_count),
+                        labels: again_dataset.map(review_histogram_label),
                     },
-                },
-                y: {
-                    stacked: true,
-                    suggestedMax: 10,
-                    title: {
-                        display: true,
-                        text: "Number of reviews",
+                    {
+                        label: 'Hard',
+                        backgroundColor: '#B7881A',
+                        data: hard_dataset.map(v => v.review_count),
+                        labels: hard_dataset.map(review_histogram_label),
                     },
-                    ticks: {
-                        precision: 0,
+                    {
+                        label: 'Good',
+                        backgroundColor: '#2E680D',
+                        data: good_dataset.map(v => v.review_count),
+                        labels: good_dataset.map(review_histogram_label),
                     },
+                    {
+                        label: 'Easy',
+                        backgroundColor: '#269326',
+                        data: easy_dataset.map(v => v.review_count),
+                        labels: easy_dataset.map(review_histogram_label),
+                    },
+                ],
+                labels: [...review_histogram_labels],
+            };
+            new Chart(document.getElementById("review-score-graph"), {
+                type: 'bar',
+                data: review_histogram_data,
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true },
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: "Puzzle rating",
+                            },
+                        },
+                        y: {
+                            stacked: true,
+                            suggestedMax: 10,
+                            title: {
+                                display: true,
+                                text: "Number of reviews",
+                            },
+                            ticks: {
+                                precision: 0,
+                            },
+                        }
+                    }
                 }
-            }
-        }
-    });
+            });
+        })
+        .fail(function(err) {
+            console.error(`Failed to get review score histogram: ${err.responseText}`);
+        });
 </script>
 {% endblock %}
