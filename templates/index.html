@@ -197,52 +197,54 @@
         });
 
     // Review score histogram.
-    function review_histogram_label(record) {
-        return `${record.puzzle_rating_min}-${record.puzzle_rating_max}`;
+    function add_review_histogram_labels(dataset) {
+        return dataset.map(record => {
+            record.label = `${record.puzzle_rating_min}-${record.puzzle_rating_max}`;
+            return record;
+        });
     }
 
     $.ajax(`/api/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
         .done(function(data) {
+            data = add_review_histogram_labels(data);
+
             let again_dataset = data.filter(v => v.difficulty == 0);
             let hard_dataset = data.filter(v => v.difficulty == 1);
             let good_dataset = data.filter(v => v.difficulty == 2);
             let easy_dataset = data.filter(v => v.difficulty == 3);
 
-            let review_histogram_labels = new Set(data.map(review_histogram_label));
+            let review_histogram_labels = new Set(data.map(v => v.label));
 
             const review_histogram_data = {
                 datasets: [
                     {
                         label: 'Again',
                         backgroundColor: "#416c86",
-                        data: again_dataset.map(v => v.review_count),
-                        labels: again_dataset.map(review_histogram_label),
+                        data: again_dataset,
                         maxBarThickness: 100,
                     },
                     {
                         label: 'Hard',
                         backgroundColor: '#B7881A',
-                        data: hard_dataset.map(v => v.review_count),
-                        labels: hard_dataset.map(review_histogram_label),
+                        data: hard_dataset,
                         maxBarThickness: 100,
                     },
                     {
                         label: 'Good',
                         backgroundColor: '#2E680D',
-                        data: good_dataset.map(v => v.review_count),
-                        labels: good_dataset.map(review_histogram_label),
+                        data: good_dataset,
                         maxBarThickness: 100,
                     },
                     {
                         label: 'Easy',
                         backgroundColor: '#269326',
-                        data: easy_dataset.map(v => v.review_count),
-                        labels: easy_dataset.map(review_histogram_label),
+                        data: easy_dataset,
                         maxBarThickness: 100,
                     },
                 ],
                 labels: [...review_histogram_labels],
             };
+
             new Chart(document.getElementById("review-score-graph"), {
                 type: 'bar',
                 data: review_histogram_data,
@@ -270,7 +272,11 @@
                                 precision: 0,
                             },
                         }
-                    }
+                    },
+                    parsing: {
+                        xAxisKey: 'label',
+                        yAxisKey: 'review_count',
+                    },
                 }
             });
         })
