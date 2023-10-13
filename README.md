@@ -55,7 +55,7 @@ The difficulty you select is also used to calculate you a rating, according to t
 
 The initial rating is currently 500. Because we use glicko2 ratings, it should increase pretty fast if you press 'easy' on puzzles beyond your current rating, but you may still find it takes a while for your rating to become accurate. A planned feature is some kind of rating wizard to set the initial rating more accurately on a per-user basis.
 
-if you find you need to manually reset your rating or set it to a particular value, you can set it using the debug endpoint `/set_rating/{desired_rating}`, which also resets your rating variance and should allow the app to re-find your rating level at about the given level. (e.g. http://localhost:3030/set_rating/1000)
+if you find you need to manually reset your rating or set it to a particular value, you can set it using the debug endpoint `/api/reset_rating/{desired_rating}`, which also resets your rating variance and should allow the app to re-find your rating level at about the given level. (e.g. http://localhost:3030/api/reset_rating/1000)
 
 # Acknowledgements
 

@@ -1,6 +1,7 @@
 use std::error::Error;
 use lazy_static::lazy_static;
 use chrono::{DateTime, FixedOffset, Duration, NaiveTime, Timelike};
+use crate::config::SrsConfig;
 use crate::time::TimeProvider;
 
 lazy_static! {
@@ -10,18 +11,6 @@ lazy_static! {
         Duration::seconds(24 * 60 * 60),
     ];
 }
-
-/// The default ease
-const DEFAULT_EASE: f64 = 2.5;
-
-/// The minimum ease
-const MINIMUM_EASE: f64 = 1.3;
-
-/// The easy bonus
-const EASY_BONUS: f64 = 1.3;
-
-/// A result type that boxes errors to a Box<dyn Error>.
-pub type SrsResult<T> = Result<T, Box<dyn Error>>;
 
 /// The day end time. The user will be able to review-ahead cards before this time (as long as they
 /// aren't in learning, in which case the interval is less than 24h, usually around 10 minutes, and
@@ -73,13 +62,13 @@ impl Difficulty {
         }
     }
 
-    pub fn from_i64(value: i64) -> SrsResult<Self> {
+    pub fn from_i64(value: i64) -> Result<Self, Box<dyn Error>> {
         Ok(match value {
             0 => Self::Again,
             1 => Self::Hard,
             2 => Self::Good,
             3 => Self::Easy,
-            _ => Err("")?
+            _ => Err(format!("Attempted to convert invalid value to Difficulty: {value}"))?
         })
     }
 
@@ -108,18 +97,20 @@ pub struct Card {
     pub review_count: i64,
     pub ease: f64,
     pub learning_stage: i64,
+    pub srs_config: SrsConfig,
 }
 
 impl Card {
-    pub fn new<TP: TimeProvider>(id: &str) -> Self
+    pub fn new<TP: TimeProvider>(id: &str, srs_config: SrsConfig) -> Self
     {
         Self {
             id: id.to_string(),
             due: TP::now(),
             interval: INITIAL_INTERVALS[0],
             review_count: 0,
-            ease: DEFAULT_EASE,
+            ease: srs_config.default_ease,
             learning_stage: 0,
+            srs_config,
         }
     }
 
@@ -158,18 +149,13 @@ impl Card {
         // Scores of 'easy' should apply the easy growth bonus applied, and cards that are in
         // learning should immediately leave learning.
         else if score == Difficulty::Easy {
-            Self::mul_duration(self.interval, self.ease * EASY_BONUS)
+            Self::mul_duration(self.interval, self.ease * self.srs_config.easy_bonus)
                 .max(*INITIAL_INTERVALS.last().unwrap())
                 .max(self.next_interval(Difficulty::Good))
         }
         else {
             panic!("Missing difficulty")
         }
-    }
-
-    /// Get the next interval after a review with score `score` in human readable form.
-    pub fn next_interval_human(&self, score: Difficulty) -> String {
-        crate::util::review_duration_to_human(self.next_interval(score))
     }
 
     /// Review a card and update the interval, ease and due date.
@@ -194,11 +180,15 @@ impl Card {
         }
 
         // Update ease according to difficulty.
-        self.ease = f64::max(MINIMUM_EASE, match score {
+        self.ease = f64::max(self.srs_config.minimum_ease, match score {
             Difficulty::Again => self.ease - 0.2,
             Difficulty::Hard => self.ease - 0.15,
-            Difficulty::Good => self.ease,
             Difficulty::Easy => self.ease + 0.15,
+            // A tweak to the ease. If the ease is below the initial ease, allow it to correct
+            // towards the ease, but not exceed it.
+            Difficulty::Good => if self.ease < self.srs_config.default_ease {
+                f64::min(self.srs_config.default_ease, self.ease + 0.15)
+            } else { self.ease },
         });
 
         // Update review count.

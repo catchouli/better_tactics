@@ -1,15 +1,15 @@
-use std::fmt::Display;
 use std::sync::Arc;
-use std::error::Error;
-
-use askama::Template;
 use tokio::sync::Mutex;
 use warp::{Filter, reply, reply::Reply, http::StatusCode};
 use warp::reject::{self, Rejection};
 
-use crate::controllers::index;
+use crate::config::AppConfig;
+use crate::controllers::{index, about, api};
 use crate::controllers::puzzle::{self, ReviewRequest};
 use crate::db::PuzzleDatabase;
+use crate::services::ServiceError;
+use crate::services::tactics_service::TacticsService;
+use crate::services::user_service::UserService;
 
 static ASSETS_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -26,76 +26,14 @@ impl Default for BaseTemplateData {
     }
 }
 
-/// Our error type for bad requests.
-#[derive(Debug)]
-pub struct InvalidParameter {
-    pub param: String,
-}
-
-impl InvalidParameter {
-    pub fn new(param: &str) -> Self {
-        Self {
-            param: param.to_string()
-        }
-    }
-}
-
-impl Display for InvalidParameter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Invalid parameter {}", self.param)
-    }
-}
-
-impl reject::Reject for InvalidParameter {}
-
-/// Our error type for internal errors.
-#[derive(Debug)]
-pub struct InternalError {
-    pub description: String,
-}
-
-impl InternalError {
-    pub fn new(description: String) -> Self {
-        Self {
-            description,
-        }
-    }
-
-    /// Get the appropriate message to return to the user for an internal error. When debug assertions
-    /// are enabled, we return the original message.
-    #[cfg(debug_assertions)]
-    fn user_message(&self) -> String {
-        format!("Internal error: {}", self.description)
-    }
-
-    /// Get the appropriate message to return to the user for an internal error. When debug assertions
-    /// are not enabled, we simply return that there was an internal server error, to avoid leaking
-    /// any internals.
-    #[cfg(not(debug_assertions))]
-    fn user_message(&self) -> String {
-        format!("Internal server error")
-    }
-}
-
-impl From<Box<dyn Error>> for InternalError {
-    fn from(value: Box<dyn Error>) -> Self {
-        Self::new(value.to_string())
-    }
-}
-
-impl reject::Reject for InternalError {}
-
-/// The about page.
-#[derive(Template, Default)]
-#[template(path = "about.html")]
-pub struct AboutTemplate {
-    base: BaseTemplateData,
-}
-
 /// Our routes.
-pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
+pub fn routes(app_config: AppConfig, puzzle_db: Arc<Mutex<PuzzleDatabase>>)
     -> impl Filter::<Extract = impl Reply> + Clone + Send + Sync + 'static
 {
+    // Instantiate services.
+    let user_service = UserService::new(puzzle_db.clone());
+    let tactics_service = TacticsService::new(puzzle_db.clone());
+
     // Serve the static assets.
     warp::path(format!("assets_{}", ASSETS_VERSION))
         .and(assets_filter())
@@ -103,22 +41,23 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
         // GET / - the index page.
         .or(warp::path::end()
             .and_then({
-                // A bit ugly and there's probably a better way to do this than cloning it twice...
-                let puzzle_db = puzzle_db.clone();
-                move || index::index_page(puzzle_db.clone())
+                move || index::index_page()
             }))
 
         // Get /about - the about page.
         .or(warp::path!("about")
-            .map(|| AboutTemplate { ..Default::default() }))
+            .map(|| about::about_page()))
 
         // GET /tactics/new - shows a new, new tactics puzzle.
         .or(warp::path!("tactics" / "new")
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
-                let puzzle_db = puzzle_db.clone();
-                move || puzzle::random_puzzle(puzzle_db.clone())
+                // A bit ugly and there's probably a better way to do this than cloning it twice...
+                // TODO: just change away from warp to axum because this routing is kind of horrible.
+                let user_service = user_service.clone();
+                let tactics_service = tactics_service.clone();
+                move || puzzle::random_puzzle(app_config.srs, user_service.clone(), tactics_service.clone())
             }))
 
         // GET /tactics/by_id/{id} - displays a tactics puzzle by id.
@@ -126,8 +65,10 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
-                let puzzle_db = puzzle_db.clone();
-                move |id| puzzle::specific_puzzle(puzzle_db.clone(), id)
+                let user_service = user_service.clone();
+                let tactics_service = tactics_service.clone();
+                move |id| puzzle::specific_puzzle(app_config.srs, user_service.clone(),
+                    tactics_service.clone(), id)
             }))
 
         // GET /tactics - displays the user's next review.
@@ -135,8 +76,9 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
-                let puzzle_db = puzzle_db.clone();
-                move || puzzle::next_review(puzzle_db.clone())
+                let user_service = user_service.clone();
+                let tactics_service = tactics_service.clone();
+                move || puzzle::next_review(app_config.srs, user_service.clone(), tactics_service.clone())
             }))
 
         // POST /review - for submitting a review.
@@ -146,23 +88,65 @@ pub fn routes(puzzle_db: Arc<Mutex<PuzzleDatabase>>)
             .and(warp::body::content_length_limit(1024 * 16))
             .and(warp::body::json())
             .and_then({
-                let puzzle_db = puzzle_db.clone();
+                let user_service = user_service.clone();
+                let tactics_service = tactics_service.clone();
                 move |request: ReviewRequest| {
                     log::info!("Got review request: {request:?}");
-                    puzzle::review_puzzle(puzzle_db.clone(), request)
+                    puzzle::review_puzzle(app_config.srs, user_service.clone(), tactics_service.clone(),
+                        request)
                 }
             }))
 
         // A temporary route that allows the user to set their rating without opening the sqlite
         // database externally. So if the new rating system causes ratings to go awry it's easy to
         // fix.
-        .or(warp::path!("set_rating" / i64)
+        .or(warp::path!("api" / "reset_rating" / i64)
             .and(warp::path::end())
             .and(warp::get())
             .and_then({
-                let puzzle_db = puzzle_db.clone();
+                let user_service = user_service.clone();
                 move |new_rating: i64| {
-                    set_rating(puzzle_db.clone(), new_rating)
+                    api::reset_user_rating(user_service.clone(), new_rating)
+                }
+            }))
+
+        .or(warp::path!("api" / "user_stats")
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move || {
+                    api::user_stats(user_service.clone())
+                }
+            }))
+
+        .or(warp::path!("api" / "review_forecast" / i64)
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move |length_days: i64| {
+                    api::review_forecast(user_service.clone(), length_days)
+                }
+            }))
+
+        .or(warp::path!("api" / "rating_history")
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move || {
+                    api::rating_history(user_service.clone())
+                }
+            }))
+
+        .or(warp::path!("api" / "review_score_histogram" / i64)
+            .and(warp::path::end())
+            .and(warp::get())
+            .and_then({
+                let user_service = user_service.clone();
+                move |bucket_size: i64| {
+                    api::review_score_histogram(user_service.clone(), bucket_size)
                 }
             }))
 
@@ -186,25 +170,8 @@ fn assets_filter() -> impl Filter<Extract = (warp::reply::Response,), Error = Re
     static_dir!("assets")
 }
 
-async fn set_rating(puzzle_db: Arc<Mutex<PuzzleDatabase>>, new_rating: i64)
-    -> Result<impl warp::Reply, warp::Rejection>
-{
-    log::info!("Manually resetting user's rating to {new_rating}");
-
-    let mut puzzle_db = puzzle_db.lock().await;
-    let user_id = PuzzleDatabase::local_user_id();
-
-    let mut user = puzzle_db.get_user_by_id(user_id).await
-        .map_err(InternalError::from)?
-        .ok_or_else(|| InternalError::new(format!("Failed to get local user")))?;
-
-    user.rating.rating = new_rating;
-    user.rating.deviation = 250;
-
-    puzzle_db.update_user(&user).await
-        .map(|_| Ok(warp::reply::html(format!("Reset user rating to {new_rating}"))))
-        .map_err(InternalError::from)?
-}
+/// Implement reject::Reject for custom error types.
+impl reject::Reject for ServiceError {}
 
 /// Custom rejection handler that maps rejections into responses.
 /// TODO: return error page instead of message only.
@@ -213,14 +180,17 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
         let reply = warp::reply::html(format!("Page not found"));
         (reply, StatusCode::NOT_FOUND)
     }
-    else if let Some(err) = err.find::<InvalidParameter>() {
-        let reply = warp::reply::html(format!("Bad request: {}", err));
-        (reply, StatusCode::BAD_REQUEST)
-    }
-    else if let Some(err) = err.find::<InternalError>() {
-        log::error!("Internal error: {}", err.description);
-        let reply = warp::reply::html(format!("{}", err.user_message()));
-        (reply, StatusCode::INTERNAL_SERVER_ERROR)
+    else if let Some(err) = err.find::<ServiceError>() {
+        match err {
+            ServiceError::InternalError(desc) => (
+                warp::reply::html(format!("Internal error: {desc}")),
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            ServiceError::InvalidParameter(param) => (
+                warp::reply::html(format!("Bad request: parameter {param}")),
+                StatusCode::BAD_REQUEST
+            )
+        }
     }
     else {
         log::error!("Internal error of unknown type! {err:?}");

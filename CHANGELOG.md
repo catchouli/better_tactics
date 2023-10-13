@@ -1,8 +1,14 @@
-[1.5.2] - 2023-10-09
+[1.6.0] - ????-??-??
 
 Added:
-* A review forecast to the home page which shows the number of reviews due per day for the next
+* A review forecast on the stats page which shows the number of reviews due per day for the next
   week.
+* A rating history which shows the user's rating growth over time.
+* A review score histogram which shows the review scores being picked by the user by puzzle rating.
+
+Changed:
+* The user's rating deviation is now hidden from the stats page if it's under 100, the threshold
+  under which the user's rating is no longer provisional and should be quite accurate.
 
 [1.5.2] - 2023-10-09
 

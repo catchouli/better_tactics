@@ -1,11 +1,12 @@
-mod db;
-mod route;
-mod controllers;
-mod util;
-mod srs;
-mod rating;
 mod config;
+mod controllers;
+mod db;
+mod rating;
+mod route;
+mod services;
+mod srs;
 mod time;
+mod util;
 
 use std::env;
 use std::error::Error;
@@ -37,7 +38,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("{app_config:?}");
 
     // Open puzzle database.
-    let puzzle_db = Arc::new(Mutex::new(PuzzleDatabase::open(&app_config.db_name).await?));
+    let puzzle_db = PuzzleDatabase::open(&app_config.db_name, app_config.srs).await?;
+    let puzzle_db = Arc::new(Mutex::new(puzzle_db));
 
     // Initialise puzzle database.
     tokio::spawn({
@@ -50,7 +52,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Create routes and serve service.
-    let routes = route::routes(puzzle_db);
+    let routes = route::routes(app_config.clone(), puzzle_db);
     let server_task = tokio::spawn(warp::serve(routes)
        .run((app_config.bind_interface, app_config.bind_port)));
 
