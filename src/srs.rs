@@ -186,8 +186,12 @@ impl Card {
         self.ease = f64::max(self.srs_config.minimum_ease, match score {
             Difficulty::Again => self.ease - 0.2,
             Difficulty::Hard => self.ease - 0.15,
-            Difficulty::Good => self.ease,
             Difficulty::Easy => self.ease + 0.15,
+            // A tweak to the ease. If the ease is below the initial ease, allow it to correct
+            // towards the ease, but not exceed it.
+            Difficulty::Good => if self.ease < self.srs_config.default_ease {
+                f64::min(self.srs_config.default_ease, self.ease + 0.15)
+            } else { self.ease },
         });
 
         // Update review count.
