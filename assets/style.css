@@ -353,6 +353,10 @@ cg-board {
     overflow: hidden;
 }
 
+.chart-panel .title {
+    margin-bottom: 0;
+}
+
 .chart-container {
     flex-grow: 1;
     min-height: 15rem;

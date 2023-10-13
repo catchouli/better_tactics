@@ -9,7 +9,12 @@
             <tbody>
                 <tr>
                     <th scope="row">User rating</th>
-                    <td>{{ user_rating.rating }} (+-{{ user_rating.deviation }})</td>
+                    <td>
+                        {{ user_rating.rating }}
+                        {% if user_rating.deviation > 100 %}
+                            (+-{{ user_rating.deviation }})
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <th scope="row">Unique puzzles done</th>
@@ -50,6 +55,14 @@
         <h2 class="title is-3">Rating history</h2>
         <div class="chart-container">
             <canvas id="rating-graph"></canvas>
+        </div>
+    </div>
+
+    <!-- Review score histogram -->
+    <div id="review-score-graph-container" class="column bt-panel chart-panel stats-panel">
+        <h2 class="title is-3">Review scores</h2>
+        <div class="chart-container">
+            <canvas id="review-score-graph"></canvas>
         </div>
     </div>
 </div>
@@ -113,6 +126,7 @@
                 data: rating_history.map(o => { return { x: o.date, y: o.rating } }),
                 pointStyle: false,
                 tension: 0.01,
+                borderColor: "#416c86",
             }],
         },
         options: {
@@ -135,6 +149,81 @@
                     title: {
                         display: true,
                         text: "Overall rating",
+                    },
+                    ticks: {
+                        precision: 0,
+                    },
+                }
+            }
+        }
+    });
+
+    // Review score histogram.
+    function review_histogram_label(record) {
+        return `${record.puzzle_rating_min}-${record.puzzle_rating_max}`;
+    }
+
+    let review_histogram_raw = {{ self.review_histogram_json()|safe }};
+
+    let again_dataset = review_histogram_raw.filter(v => v.difficulty == 0);
+    let hard_dataset = review_histogram_raw.filter(v => v.difficulty == 1);
+    let good_dataset = review_histogram_raw.filter(v => v.difficulty == 2);
+    let easy_dataset = review_histogram_raw.filter(v => v.difficulty == 3);
+
+    let review_histogram_labels = new Set(review_histogram_raw.map(review_histogram_label));
+
+    document.review_histogram_raw = review_histogram_raw;
+    const review_histogram_data = {
+        datasets: [
+            {
+                label: 'Again',
+                backgroundColor: "#416c86",
+                data: again_dataset.map(v => v.review_count),
+                labels: again_dataset.map(review_histogram_label),
+            },
+            {
+                label: 'Hard',
+                backgroundColor: '#B7881A',
+                data: hard_dataset.map(v => v.review_count),
+                labels: hard_dataset.map(review_histogram_label),
+            },
+            {
+                label: 'Good',
+                backgroundColor: '#2E680D',
+                data: good_dataset.map(v => v.review_count),
+                labels: good_dataset.map(review_histogram_label),
+            },
+            {
+                label: 'Easy',
+                backgroundColor: '#269326',
+                data: easy_dataset.map(v => v.review_count),
+                labels: easy_dataset.map(review_histogram_label),
+            },
+        ],
+        labels: [...review_histogram_labels],
+    };
+    new Chart(document.getElementById("review-score-graph"), {
+        type: 'bar',
+        data: review_histogram_data,
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true },
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: "Puzzle rating",
+                    },
+                },
+                y: {
+                    stacked: true,
+                    suggestedMax: 10,
+                    title: {
+                        display: true,
+                        text: "Number of reviews",
                     },
                     ticks: {
                         precision: 0,

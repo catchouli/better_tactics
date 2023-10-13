@@ -12,9 +12,6 @@ lazy_static! {
     ];
 }
 
-/// A result type that boxes errors to a Box<dyn Error>.
-pub type SrsResult<T> = Result<T, Box<dyn Error>>;
-
 /// The day end time. The user will be able to review-ahead cards before this time (as long as they
 /// aren't in learning, in which case the interval is less than 24h, usually around 10 minutes, and
 /// we want them to wait until it comes up again naturally.)
@@ -65,13 +62,13 @@ impl Difficulty {
         }
     }
 
-    pub fn from_i64(value: i64) -> SrsResult<Self> {
+    pub fn from_i64(value: i64) -> Result<Self, Box<dyn Error>> {
         Ok(match value {
             0 => Self::Again,
             1 => Self::Hard,
             2 => Self::Good,
             3 => Self::Easy,
-            _ => Err("")?
+            _ => Err(format!("Attempted to convert invalid value to Difficulty: {value}"))?
         })
     }
 

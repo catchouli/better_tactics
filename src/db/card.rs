@@ -5,7 +5,7 @@ use sqlx::Row;
 use sqlx::sqlite::SqliteRow;
 
 use crate::srs::{Card, Difficulty};
-use crate::db::{PuzzleDatabase, DbResult, Puzzle};
+use crate::db::{PuzzleDatabase, DbResult, Puzzle, ErrorDetails};
 
 use super::DatabaseError;
 
@@ -17,6 +17,15 @@ pub struct Review {
     pub difficulty: Difficulty,
     pub date: DateTime<FixedOffset>,
     pub user_rating: Option<i64>,
+}
+
+/// A bucket of review scores for puzzles in the given review range with the given score.
+#[derive(Debug)]
+pub struct ReviewScoreBucket {
+    pub puzzle_rating_min: i64,
+    pub puzzle_rating_max: i64,
+    pub difficulty: Difficulty,
+    pub review_count: i64,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
@@ -258,5 +267,45 @@ impl PuzzleDatabase {
            .await?
            .map(|row| row.try_get("card_count"))
            .unwrap_or(Ok(0))?)
+    }
+
+    /// Get the review score history for a user, in buckets of `rating_bucket_span` rating span.
+    /// e.g. rating_bucket_span = 50 means you'll get buckets every 50 puzzle rating, so 450-500,
+    /// 500-550, etc.
+    pub async fn get_review_score_history(&self, user_id: &str, rating_bucket_span: i64)
+        -> DbResult<Vec<ReviewScoreBucket>>
+    {
+        let query = sqlx::query("
+            SELECT reviews.difficulty,
+                puzzles.rating - puzzles.rating % ? AS min_rating,
+                count(reviews.difficulty) AS review_count
+            FROM reviews
+            JOIN puzzles ON reviews.puzzle_id = puzzles.puzzle_id
+            WHERE reviews.user_id = ?
+            GROUP BY min_rating, difficulty
+            ORDER BY min_rating, difficulty
+        ");
+
+        Ok(query
+            .bind(rating_bucket_span)
+            .bind(user_id)
+            .fetch(&self.pool)
+            .map(|row| {
+                let row = row?;
+                let min_rating = row.try_get("min_rating")?;
+                Ok(ReviewScoreBucket {
+                    puzzle_rating_min: min_rating,
+                    puzzle_rating_max: min_rating + rating_bucket_span,
+                    difficulty: Difficulty::from_i64(row.try_get("difficulty")?)
+                        .map_err(|e| DatabaseError::ParsingError(ErrorDetails {
+                            backend: "srs".to_string(),
+                            description: e.to_string(),
+                            source: Some(e),
+                        }))?,
+                    review_count: row.try_get("review_count")?,
+                }) as DbResult<ReviewScoreBucket>
+            })
+            .try_collect::<Vec<ReviewScoreBucket>>()
+            .await?)
     }
 }

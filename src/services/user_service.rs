@@ -2,15 +2,12 @@ use std::sync::Arc;
 use chrono::{DateTime, FixedOffset, Local, Duration};
 use tokio::sync::Mutex;
 
-use crate::db::PuzzleDatabase;
+use crate::db::{PuzzleDatabase, ReviewScoreBucket};
 use crate::rating::{Rating, GameResult};
 use crate::srs::{self, Difficulty};
 use crate::time::LocalTimeProvider;
 
 use super::{ServiceResult, ServiceError};
-
-/// The maximum number of days to show in the review forecast.
-const REVIEW_FORECAST_LENGTH: usize = 8;
 
 /// Used for returning general user statistics.
 #[derive(Debug, Clone)]
@@ -103,7 +100,9 @@ impl UserService {
     }
 
     /// Get the review forecast for a user.
-    pub async fn get_review_forecast(&self, user_id: &str) -> ServiceResult<Vec<i64>> {
+    pub async fn get_review_forecast(&self, user_id: &str, length_days: i64)
+        -> ServiceResult<Vec<i64>>
+    {
         Self::validate_user_id(user_id)?;
         let db = self.db.lock().await;
 
@@ -116,7 +115,7 @@ impl UserService {
         // Start at the end of today and look up the reviews due for each day in the following week
         // (or REVIEW_FORECAST_LENGTH days).
         let mut start = day_end;
-        for _ in 0..REVIEW_FORECAST_LENGTH {
+        for _ in 0..length_days {
             let end = start + Duration::days(1);
             review_forecast.push(db.reviews_due_between(start, end).await?);
             start = end;
@@ -129,11 +128,18 @@ impl UserService {
     pub async fn get_rating_history(&self, user_id: &str)
         -> ServiceResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
-        Self::validate_user_id(user_id)?;
-
         Ok(self.db.lock().await
-            .get_user_rating_history(Self::local_user_id())
+            .get_user_rating_history(user_id)
             .await?)
+    }
+
+    /// Get the review score histogram for a user.
+    pub async fn get_review_score_histogram(&self, user_id: &str, bucket_size: i64)
+        -> ServiceResult<Vec<ReviewScoreBucket>>
+    {
+        Ok(self.db.lock().await
+           .get_review_score_history(user_id, bucket_size)
+           .await?)
     }
 
     /// Update the rating for a user.
