@@ -34,6 +34,8 @@ impl PuzzleDatabase {
     /// Open the given sqlite database, initialising it with schema if necessary.
     pub async fn open(path: &str, srs_config: SrsConfig) -> DbResult<Self> {
         // Open sqlite database.
+        // TODO: we aren't really making use of the database pools right now because we have a
+        // single PuzzleDatabase instance behind a mutex.
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect_with(SqliteConnectOptions::from_str(path)?

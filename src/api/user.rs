@@ -1,32 +1,46 @@
+use axum::Router;
+use axum::extract::{State, Json, Path};
+use serde::Deserialize;
 use serde_json::Value;
 
+use crate::api::{ApiError, ApiResponse};
+use crate::rating::GameResult;
+use crate::route::{AppState, ControllerError};
 use crate::services::ServiceError;
 use crate::services::user_service::UserService;
+use crate::srs::{Difficulty, Card};
+use crate::time::LocalTimeProvider;
 use crate::util;
+
+use crate::controllers::puzzle;
+
 
 /// A debug endpoint that resets the user's rating to a specified value.
 /// TODO: add this into the settings page, or something like that.
-pub async fn reset_user_rating(user_service: UserService, new_rating: i64)
-    -> Result<impl warp::Reply, warp::Rejection>
+pub async fn reset_rating(user_service: UserService, new_rating: i64)
+    -> Result<ApiResponse, ApiError>
 {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
     log::info!("Manually resetting user's rating to {new_rating}");
     user_service.reset_user_rating(user_id, new_rating, 250, 0.06)
-        .await
-        .map(|_| Ok(warp::reply::html(format!("Reset user rating to {new_rating}"))))?
+        .await?;
+
+    Ok(ApiResponse {
+        description: format!("Reset user rating to {new_rating}"),
+    })
 }
 
 /// Get a user's stats.
-pub async fn user_stats(user_service: UserService)
-    -> Result<warp::reply::Json, warp::Rejection>
+pub async fn stats(State(state): State<AppState>)
+    -> Result<Json<serde_json::Value>, ApiError>
 {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    let user_rating = user_service.get_user_rating(user_id).await?;
-    let stats = user_service.get_user_stats(user_id).await?;
+    let user_rating = state.user_service.get_user_rating(user_id).await?;
+    let stats = state.user_service.get_user_stats(user_id).await?;
 
     let json_stats = Value::Object({
         let mut map = serde_json::Map::new();
@@ -46,12 +60,14 @@ pub async fn user_stats(user_service: UserService)
         map
     });
 
-    Ok(warp::reply::json(&json_stats))
+    Ok(json_stats.into())
 }
 
 /// Get a user's review forecast.
-pub async fn review_forecast(user_service: UserService, length_days: i64)
-    -> Result<warp::reply::Json, warp::Rejection>
+pub async fn review_forecast(
+    State(state): State<AppState>,
+    Path(length_days): Path<i64>,
+) -> Result<Json<Vec<i64>>, ApiError>
 {
     const MIN_LENGTH_DAYS: i64 = 0;
     const MAX_LENGTH_DAYS: i64 = 30;
@@ -63,29 +79,31 @@ pub async fn review_forecast(user_service: UserService, length_days: i64)
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    let review_forecast = user_service.get_review_forecast(user_id, length_days).await?;
+    let review_forecast = state.user_service.get_review_forecast(user_id, length_days).await?;
 
-    Ok(warp::reply::json(&review_forecast))
+    Ok(review_forecast.into())
 }
 
 /// Get a user's rating history.
-pub async fn rating_history(user_service: UserService)
-    -> Result<warp::reply::Json, warp::Rejection>
+pub async fn rating_history(State(state): State<AppState>)
+    -> Result<Json<Vec<(String, i64)>>, ApiError>
 {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    let rating_history = user_service.get_rating_history(user_id).await?
+    let rating_history = state.user_service.get_rating_history(user_id).await?
         .into_iter()
         .map(|(date, rating)| (date.to_rfc3339(), rating))
         .collect::<Vec<_>>();
 
-    Ok(warp::reply::json(&rating_history))
+    Ok(rating_history.into())
 }
 
 /// Get a user's review histogram with the specified bucket size.
-pub async fn review_score_histogram(user_service: UserService, bucket_size: i64)
-    -> Result<warp::reply::Json, warp::Rejection>
+pub async fn review_score_histogram(
+    State(state): State<AppState>,
+    Path(bucket_size): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError>
 {
     const MIN_BUCKET_SIZE: i64 = 50;
 
@@ -96,7 +114,7 @@ pub async fn review_score_histogram(user_service: UserService, bucket_size: i64)
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    let json_data = Value::Array(user_service
+    let json_data = Value::Array(state.user_service
         .get_review_score_histogram(user_id, bucket_size)
         .await?
         .into_iter()
@@ -111,5 +129,5 @@ pub async fn review_score_histogram(user_service: UserService, bucket_size: i64)
         .collect()
     );
 
-    Ok(warp::reply::json(&json_data))
+    Ok(json_data.into())
 }

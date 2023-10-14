@@ -9,7 +9,7 @@ pub struct AboutTemplate {
     base: BaseTemplateData,
 }
 
-pub fn about_page() -> AboutTemplate {
+pub async fn about_page() -> AboutTemplate {
     AboutTemplate {
         ..Default::default()
     }

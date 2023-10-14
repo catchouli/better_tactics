@@ -236,7 +236,7 @@
 
             <div class="columns button-container">
                 <div class="column">
-                    <button class="button review-button" id="hard" data-difficulty="1">
+                    <button class="button review-button" id="hard" data-difficulty="9">
                         <p class="main-text">Hard</p>
                         <p class="sub-text"></p>
                     </button>
@@ -433,7 +433,7 @@
 
             $.ajax({
                 type: "POST",
-                url: "/review",
+                url: "/api/tactics/review",
                 data: JSON.stringify({
                     id: puzzle_id,
                     difficulty: difficulty
