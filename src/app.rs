@@ -11,6 +11,9 @@ use crate::services::tactics_service::TacticsService;
 use crate::services::user_service::UserService;
 use crate::srs::SrsConfig;
 
+/// The application useragent, e.g. "better_tactics/0.0.1".
+pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+
 /// The application configuration.
 #[derive(Debug, Clone)]
 pub struct AppConfig {

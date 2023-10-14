@@ -1,3 +1,4 @@
+use askama::Template;
 use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
@@ -30,14 +31,17 @@ pub fn routes(app_state: AppState) -> Router {
         .with_state(app_state)
 }
 
-/// Not found handler.
-pub async fn not_found(req: Request<Body>) -> ControllerError {
-    ControllerError::NotFound(req.uri().to_string())
-}
-
 /// The base template data.
 pub struct BaseTemplateData {
     pub assets_version: String,
+}
+
+/// Internal server error template.
+#[derive(Template, Default)]
+#[template(path = "internal_server_error.html")]
+pub struct InternalServerErrorTemplate {
+    base: BaseTemplateData,
+    error_details: String,
 }
 
 impl Default for BaseTemplateData {
@@ -48,10 +52,25 @@ impl Default for BaseTemplateData {
     }
 }
 
+/// Not found template.
+#[derive(Template, Default)]
+#[template(path = "not_found.html")]
+pub struct NotFoundTemplate {
+    base: BaseTemplateData,
+    request_uri: String,
+}
+
+/// Not found handler.
+pub async fn not_found(req: Request<Body>) -> NotFoundTemplate {
+    NotFoundTemplate {
+        base: Default::default(),
+        request_uri: req.uri().to_string(),
+    }
+}
+
 /// Type for controller errors.
 pub enum ControllerError {
-    InternalError(String),
-    NotFound(String),
+    InternalError(String)
 }
 
 /// Convert ServiceError into ControllerError.
@@ -66,17 +85,15 @@ impl From<ServiceError> for ControllerError {
 }
 
 /// Convert ControllerError to error response.
-/// TODO: have an actual error page.
 impl IntoResponse for ControllerError {
     fn into_response(self) -> askama_axum::Response {
         match self {
-            Self::NotFound(resource) => (
-                StatusCode::NOT_FOUND,
-                format!("Not found: {resource}"),
-            ),
             Self::InternalError(desc) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Internal server error: {desc}"),
+                InternalServerErrorTemplate {
+                    base: Default::default(),
+                    error_details: desc,
+                }
             ),
         }.into_response()
     }

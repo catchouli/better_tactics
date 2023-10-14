@@ -33,14 +33,14 @@ pub async fn not_found(req: Request<Body>) -> ApiError {
 }
 
 /// Type for API responses.
+#[derive(serde::Serialize)]
 pub struct ApiResponse {
-    description: String,
+    response: String,
 }
 
-/// TODO: return json.
 impl IntoResponse for ApiResponse {
     fn into_response(self) -> Response {
-        (StatusCode::OK, self.description).into_response()
+        (StatusCode::OK, Json(self)).into_response()
     }
 }
 
@@ -56,7 +56,6 @@ struct ApiErrorResponse {
     error: String,
 }
 
-/// TODO: return json.
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {

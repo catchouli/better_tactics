@@ -6,8 +6,8 @@ use crate::app::AppState;
 use crate::services::user_service::UserService;
 use crate::util;
 
-/// A debug endpoint that resets the user's rating to a specified value.
-/// TODO: add this into the settings page, or something like that.
+/// Reset the user's rating to the specified value.
+/// TODO: add this into the settings page.
 pub async fn reset_rating(
     State(state): State<AppState>,
     Path(new_rating): Path<i64>,
@@ -20,9 +20,8 @@ pub async fn reset_rating(
     state.user_service.reset_user_rating(user_id, new_rating, 250, 0.06)
         .await?;
 
-    // TODO: check the response is json.
     Ok(ApiResponse {
-        description: format!("Reset user rating to {new_rating}"),
+        response: format!("Reset user rating to {new_rating}"),
     })
 }
 

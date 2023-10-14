@@ -12,6 +12,12 @@ html, body {
     background: #2A2537;
 }
 
+code {
+    background: initial;
+    display: block;
+    margin: 1rem;
+}
+
 a {
     text-decoration: underline;
 }

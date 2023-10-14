@@ -17,16 +17,14 @@ pub struct ReviewRequest {
 }
 
 /// POST /api/tactics/review.
-/// TODO: why is this slow?
 pub async fn review(
     State(state): State<AppState>,
     Json(request): Json<ReviewRequest>,
-) -> Result<String, ApiError>
+) -> Result<(), ApiError>
 {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    // TODO: change error type.
     let difficulty = Difficulty::from_i64(request.difficulty)
         .map_err(|_| ApiError::InvalidParameter("difficulty".into()))?;
 
@@ -45,6 +43,5 @@ pub async fn review(
     // Review the card.
     state.tactics_service.apply_review(user_id, new_rating, card, difficulty).await?;
 
-    // TODO: seems unnecessary.
-    Ok("".into())
+    Ok(())
 }
