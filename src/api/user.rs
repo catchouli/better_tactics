@@ -1,32 +1,26 @@
-use axum::Router;
 use axum::extract::{State, Json, Path};
-use serde::Deserialize;
 use serde_json::Value;
 
 use crate::api::{ApiError, ApiResponse};
-use crate::rating::GameResult;
-use crate::route::{AppState, ControllerError};
-use crate::services::ServiceError;
+use crate::app::AppState;
 use crate::services::user_service::UserService;
-use crate::srs::{Difficulty, Card};
-use crate::time::LocalTimeProvider;
 use crate::util;
-
-use crate::controllers::puzzle;
-
 
 /// A debug endpoint that resets the user's rating to a specified value.
 /// TODO: add this into the settings page, or something like that.
-pub async fn reset_rating(user_service: UserService, new_rating: i64)
-    -> Result<ApiResponse, ApiError>
+pub async fn reset_rating(
+    State(state): State<AppState>,
+    Path(new_rating): Path<i64>,
+) -> Result<ApiResponse, ApiError>
 {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
     log::info!("Manually resetting user's rating to {new_rating}");
-    user_service.reset_user_rating(user_id, new_rating, 250, 0.06)
+    state.user_service.reset_user_rating(user_id, new_rating, 250, 0.06)
         .await?;
 
+    // TODO: check the response is json.
     Ok(ApiResponse {
         description: format!("Reset user rating to {new_rating}"),
     })
@@ -73,7 +67,8 @@ pub async fn review_forecast(
     const MAX_LENGTH_DAYS: i64 = 30;
 
     if length_days < MIN_LENGTH_DAYS || length_days > MAX_LENGTH_DAYS {
-        Err(ServiceError::InvalidParameter("length_days".to_string()))?;
+        Err(ApiError::InvalidParameter(format!("length_days must be between {} and {}",
+                                               MIN_LENGTH_DAYS, MAX_LENGTH_DAYS)))?;
     }
 
     // TODO: use a JWT to get the user_id.
@@ -108,7 +103,8 @@ pub async fn review_score_histogram(
     const MIN_BUCKET_SIZE: i64 = 50;
 
     if bucket_size < MIN_BUCKET_SIZE {
-        Err(ServiceError::InvalidParameter("bucket_size".to_string()))?;
+        Err(ApiError::InvalidParameter(format!("bucket_size must be greater than {}",
+                                               MIN_BUCKET_SIZE)))?;
     }
 
     // TODO: use a JWT to get the user_id.

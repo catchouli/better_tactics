@@ -1,9 +1,8 @@
 mod api;
-mod config;
+mod app;
 mod controllers;
 mod db;
 mod rating;
-mod route;
 mod services;
 mod srs;
 mod time;
@@ -15,21 +14,16 @@ use std::fs::File;
 use std::io::{Write, SeekFrom, Seek};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use axum::Router;
-use controllers::about::{AboutTemplate, self};
 use csv::StringRecord;
 use futures::StreamExt;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 
 use crate::db::{PuzzleDatabase, Puzzle};
-use crate::config::AppConfig;
-use crate::route::AppState;
+use crate::app::{AppConfig, AppState};
 
 /// The application useragent, e.g. "better_tactics/0.0.1".
 const APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
-const ASSETS_VERSION: &str = env!("CARGO_PKG_VERSION");
-const ASSETS_PATH: &str = concat!("/assets_", env!("CARGO_PKG_VERSION"));
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -64,14 +58,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app_state = AppState::new(app_config.clone(), puzzle_db);
     let app = controllers::routes(app_state.clone())
         .nest_service("/api", api::routes(app_state))
-        .nest_service(ASSETS_PATH, ServeDir::new("assets"));
+        .nest_service(concat!("/assets_", env!("CARGO_PKG_VERSION")), ServeDir::new("assets"));
 
     // Start web server.
     log::info!("The application is now started, access it at {}:{}",
         app_config.bind_interface, app_config.bind_port);
 
     let socket_addr = SocketAddr::from((app_config.bind_interface, app_config.bind_port));
-    let server_task = axum::Server::bind(&socket_addr).serve(app.into_make_service()).await?;
+    axum::Server::bind(&socket_addr).serve(app.into_make_service()).await?;
 
     Ok(())
 }

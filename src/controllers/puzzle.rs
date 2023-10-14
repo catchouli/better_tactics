@@ -1,18 +1,16 @@
 use std::fmt::Display;
 use askama::Template;
-use axum::extract::{State, Path, Json};
-use serde::Deserialize;
+use axum::extract::{State, Path};
 
-use crate::config::SrsConfig;
-use crate::rating::{GameResult, Rating};
-use crate::route::{BaseTemplateData, ControllerError, AppState};
+use crate::rating::Rating;
+use crate::app::AppState;
 use crate::db::Puzzle;
-use crate::services::ServiceError;
-use crate::services::tactics_service::TacticsService;
 use crate::services::user_service::{UserService, Stats};
-use crate::srs::{Difficulty, Card};
+use crate::srs::{Difficulty, Card, SrsConfig};
 use crate::time::{LocalTimeProvider, TimeProvider};
 use crate::util;
+
+use super::{BaseTemplateData, ControllerError};
 
 /// The puzzle mode.
 #[derive(Debug, PartialEq, Eq)]

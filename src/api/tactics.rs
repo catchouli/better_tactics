@@ -1,17 +1,13 @@
-use axum::Router;
-use axum::extract::{State, Json, Path};
+use axum::extract::{State, Json};
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::api::ApiError;
-use crate::controllers::puzzle;
 use crate::rating::GameResult;
-use crate::route::{AppState, ControllerError};
+use crate::app::AppState;
 use crate::services::ServiceError;
 use crate::services::user_service::UserService;
 use crate::srs::{Difficulty, Card};
 use crate::time::LocalTimeProvider;
-use crate::util;
 
 /// Request JSON for /api/tactics/review.
 #[derive(Debug, Clone, Deserialize)]

@@ -10,7 +10,6 @@ type ServiceResult<T> = Result<T, ServiceError>;
 #[derive(Debug)]
 pub enum ServiceError {
     InternalError(String),
-    InvalidParameter(String),
 }
 
 impl From<String> for ServiceError {

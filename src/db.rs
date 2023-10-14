@@ -4,17 +4,16 @@ mod user;
 mod card;
 mod migration;
 
-use std::str::FromStr;
-
-use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
-use sqlx::{SqlitePool, ConnectOptions};
-
 pub use dbresult::*;
 pub use puzzle::*;
 pub use user::*;
 pub use card::*;
 
-use crate::config::SrsConfig;
+use std::str::FromStr;
+use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
+use sqlx::{SqlitePool, ConnectOptions};
+
+use crate::srs::SrsConfig;
 
 // TODO: this whole file (and project) could do with unit tests once the proof of concept is working :)
 

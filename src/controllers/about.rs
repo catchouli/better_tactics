@@ -1,6 +1,6 @@
 use askama::Template;
 
-use crate::route::BaseTemplateData;
+use super::BaseTemplateData;
 
 /// The about page.
 #[derive(Template, Default)]

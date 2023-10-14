@@ -1,7 +1,6 @@
 use askama::Template;
 
-use crate::route::{BaseTemplateData, ControllerError};
-use crate::services::ServiceError;
+use super::BaseTemplateData;
 
 /// The template for displaying the index page.
 #[derive(Template)]

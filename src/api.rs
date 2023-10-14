@@ -1,22 +1,13 @@
 mod tactics;
 mod user;
 
-use axum::Router;
-use axum::extract::{State, Json, Path};
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use serde::Deserialize;
-use serde_json::Value;
+use axum::{Router, Json};
+use axum::body::Body;
+use axum::http::{StatusCode, Request};
+use axum::response::{Response, IntoResponse};
 
-use crate::rating::GameResult;
-use crate::route::{AppState, ControllerError};
+use crate::app::AppState;
 use crate::services::ServiceError;
-use crate::services::user_service::UserService;
-use crate::srs::{Difficulty, Card};
-use crate::time::LocalTimeProvider;
-use crate::util;
-
-use crate::controllers::puzzle;
 
 /// API routes.
 pub fn routes(app_state: AppState) -> Router {
@@ -29,8 +20,16 @@ pub fn routes(app_state: AppState) -> Router {
         .route("/user/review_forecast/:length_days", axum::routing::get(user::review_forecast))
         .route("/user/rating_history", axum::routing::get(user::rating_history))
         .route("/user/review_score_histogram/:bucket_size", axum::routing::get(user::review_score_histogram))
+        .route("/user/reset_rating/:new_rating", axum::routing::get(user::reset_rating))
+
+        .fallback(not_found)
 
         .with_state(app_state)
+}
+
+/// Not found handler.
+pub async fn not_found(req: Request<Body>) -> ApiError {
+    ApiError::NotFound(req.uri().to_string())
 }
 
 /// Type for API responses.
@@ -38,17 +37,9 @@ pub struct ApiResponse {
     description: String,
 }
 
-impl ApiResponse {
-    pub fn ok() -> Self {
-        Self {
-            description: "OK".into(),
-        }
-    }
-}
-
 /// TODO: return json.
 impl IntoResponse for ApiResponse {
-    fn into_response(self) -> askama_axum::Response {
+    fn into_response(self) -> Response {
         (StatusCode::OK, self.description).into_response()
     }
 }
@@ -62,24 +53,30 @@ pub enum ApiError {
 
 #[derive(serde::Serialize)]
 struct ApiErrorResponse {
-    description: String,
+    error: String,
 }
 
 /// TODO: return json.
 impl IntoResponse for ApiError {
-    fn into_response(self) -> askama_axum::Response {
+    fn into_response(self) -> Response {
         match self {
-            Self::NotFound(resource) => (
+            Self::NotFound(endpoint) => (
                 StatusCode::NOT_FOUND,
-                format!("Not found: {resource}"),
+                Json(ApiErrorResponse {
+                    error: format!("No such api endpoint /api{endpoint}"),
+                })
             ),
             Self::InternalError(desc) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Internal server error: {desc}"),
+                Json(ApiErrorResponse {
+                    error: format!("Internal server error: {desc}"),
+                })
             ),
             Self::InvalidParameter(param) => (
                 StatusCode::BAD_REQUEST,
-                format!("Bad request: invalid parameter {param}"),
+                Json(ApiErrorResponse {
+                    error: format!("Bad request: invalid parameter {param}"),
+                })
             ),
         }.into_response()
     }
@@ -92,8 +89,6 @@ impl From<ServiceError> for ApiError {
         match err {
             ServiceError::InternalError(desc)
                 => Self::InternalError(format!("Service error: {desc}")),
-            ServiceError::InvalidParameter(param)
-                => Self::InternalError(format!("Invalid service parameter: {param}")),
         }
     }
 }
