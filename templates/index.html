@@ -87,7 +87,6 @@
     // Get data for user stats.
     $.ajax(`/api/user/stats`)
         .done(function(data) {
-            console.log(data);
             if (data.user_rating.deviation > RATING_DEVIATION_PROVISIONAL) {
                 $("#user_rating").text(`${data.user_rating.rating} (+-${data.user_rating.deviation})`);
             }

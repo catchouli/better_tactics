@@ -5,6 +5,10 @@
 {% let card = card.as_ref() %}
 {% let puzzle = puzzle.as_ref() %}
 
+<div class="columns" id="topper-bar">
+    hello snabbdom
+</div>
+
 <!-- The bars at the top -->
 <div class="columns" id="top-bar">
     {% if mode == PuzzleMode::Random %}
@@ -274,9 +278,13 @@
 
 {% if let Some(puzzle) = puzzle %}
     <script type="module">
-        import { Puzzle } from '/assets_{{base.assets_version}}/better-tactics.js';
+        import { PuzzleBoard } from '/assets_{{base.assets_version}}/scripts/puzzle-board.js';
+        import '/assets_{{base.assets_version}}/scripts/puzzle-ui.js';
 
         const container = document.getElementById("board");
+
+        const fen2 = "3r2k1/1br1qp1p/p3p1p1/5P2/2NP4/1P4Q1/6PP/3RR1K1 b - - 0 26";
+        const moves2 = "b7d5 f5f6 e7f6 g3c7";
 
         const puzzle_id = "{{ puzzle.puzzle_id }}";
         const fen = "{{ puzzle.fen }}";
@@ -463,8 +471,17 @@
         document.first_try = true;
 
         // Create puzzle.
-        document.puzzle = new Puzzle(container, puzzle_id, fen, moves, rating, on_success, on_move,
-            right_move, wrong_move, await_promotion);
+        document.puzzle = new PuzzleBoard(container, {
+            puzzle_id,
+            fen,
+            moves,
+            rating,
+            on_success,
+            on_move,
+            right_move,
+            wrong_move,
+            await_promotion
+        });
     </script>
 {% else %}
     <script type="module">
