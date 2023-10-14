@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="columns">
+    <div id="about" class="column bt-panel">
+        <h2 class="title is-3">
+            Internal Server Error
+        </h2>
+        <p>
+            Something unexpected happened when processing your request. Error details:
+        </p>
+
+        <code>
+            {{ error_details }}
+        </code>
+
+        <p>
+            There may be more information available in the application log.
+        </p>
+    </div>
+</div>
+{% endblock %}

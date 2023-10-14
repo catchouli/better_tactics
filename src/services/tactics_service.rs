@@ -101,13 +101,16 @@ impl TacticsService {
         difficulty: Difficulty) -> ServiceResult<()>
     {
         // Apply the review to the card.
+        log::info!("Reviewing card");
         card.review(Local::now().fixed_offset(), difficulty);
 
         // Update (or create) the card in the database.
         let mut db = self.db.lock().await;
+        log::info!("Updating card");
         db.update_or_create_card(&card).await?;
 
         // Create a review record in the database.
+        log::info!("Adding review for user");
         db.add_review_for_user(Review {
             user_id: user_id.to_string(),
             puzzle_id: card.id.to_string(),

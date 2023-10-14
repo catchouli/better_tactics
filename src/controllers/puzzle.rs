@@ -1,18 +1,16 @@
 use std::fmt::Display;
 use askama::Template;
-use serde::Deserialize;
-use warp::reply::Reply;
+use axum::extract::{State, Path};
 
-use crate::config::SrsConfig;
-use crate::rating::{GameResult, Rating};
-use crate::route::BaseTemplateData;
+use crate::rating::Rating;
+use crate::app::AppState;
 use crate::db::Puzzle;
-use crate::services::ServiceError;
-use crate::services::tactics_service::TacticsService;
 use crate::services::user_service::{UserService, Stats};
-use crate::srs::{Difficulty, Card};
+use crate::srs::{Difficulty, Card, SrsConfig};
 use crate::time::{LocalTimeProvider, TimeProvider};
 use crate::util;
+
+use super::{BaseTemplateData, ControllerError};
 
 /// The puzzle mode.
 #[derive(Debug, PartialEq, Eq)]
@@ -82,23 +80,18 @@ impl PuzzleTemplate {
     }
 }
 
-/// The POST request for reviewing a card.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ReviewRequest {
-    pub id: String,
-    pub difficulty: i64,
-}
-
 /// GET /tactics/by_id/{puzzle_id}
-pub async fn specific_puzzle(srs_config: SrsConfig, user_service: UserService,
-    tactics_service: TacticsService, puzzle_id: String) -> Result<PuzzleTemplate, warp::Rejection>
+pub async fn specific_puzzle(
+    State(state): State<AppState>,
+    Path(puzzle_id): Path<String>,
+) -> Result<PuzzleTemplate, ControllerError>
 {
     // Get the user's rating and stats.
-    let user_rating = user_service.get_user_rating(UserService::local_user_id()).await?;
-    let stats = user_service.get_user_stats(UserService::local_user_id()).await?;
+    let user_rating = state.user_service.get_user_rating(UserService::local_user_id()).await?;
+    let stats = state.user_service.get_user_stats(UserService::local_user_id()).await?;
 
     // Get the specified puzzle and card.
-    let (puzzle, card) = tactics_service.get_puzzle_by_id(&puzzle_id).await?;
+    let (puzzle, card) = state.tactics_service.get_puzzle_by_id(&puzzle_id).await?;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
@@ -109,23 +102,23 @@ pub async fn specific_puzzle(srs_config: SrsConfig, user_service: UserService,
         card,
         min_rating: 0,
         max_rating: 0,
-        srs_config,
+        srs_config: state.app_config.srs,
     })
 }
 
 /// GET /tactics/new
-pub async fn random_puzzle(srs_config: SrsConfig, user_service: UserService,
-    tactics_service: TacticsService) -> Result<PuzzleTemplate, warp::Rejection>
+pub async fn random_puzzle(State(state): State<AppState>)
+    -> Result<PuzzleTemplate, ControllerError>
 {
     // Get the user's rating and stats.
-    let user_rating = user_service.get_user_rating(UserService::local_user_id()).await?;
-    let stats = user_service.get_user_stats(UserService::local_user_id()).await?;
+    let user_rating = state.user_service.get_user_rating(UserService::local_user_id()).await?;
+    let stats = state.user_service.get_user_stats(UserService::local_user_id()).await?;
 
     // Get random puzzle in rating range.
     // TODO: note that this can actually return a card that isn't new (it's unlikely but in some
     // rating ranges maybe it's more likely?). We should filter by it, or try again.
-    let (min_rating, max_rating) = tactics_service.get_rating_range(&user_rating).await?;
-    let (puzzle, card) = tactics_service.get_random_puzzle(min_rating, max_rating).await?;
+    let (min_rating, max_rating) = state.tactics_service.get_rating_range(&user_rating).await?;
+    let (puzzle, card) = state.tactics_service.get_random_puzzle(min_rating, max_rating).await?;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
@@ -136,20 +129,20 @@ pub async fn random_puzzle(srs_config: SrsConfig, user_service: UserService,
         card,
         min_rating,
         max_rating,
-        srs_config,
+        srs_config: state.app_config.srs,
     })
 }
 
 /// GET /tactics
-pub async fn next_review(srs_config: SrsConfig, user_service: UserService, tactics_service: TacticsService)
-    -> Result<impl warp::Reply, warp::Rejection>
+pub async fn next_review(State(state): State<AppState>)
+    -> Result<PuzzleTemplate, ControllerError>
 {
     // Get the user's rating and stats.
-    let user_rating = user_service.get_user_rating(UserService::local_user_id()).await?;
-    let stats = user_service.get_user_stats(UserService::local_user_id()).await?;
+    let user_rating = state.user_service.get_user_rating(UserService::local_user_id()).await?;
+    let stats = state.user_service.get_user_stats(UserService::local_user_id()).await?;
 
     // Get the next due puzzle and card.
-    let (puzzle, card)  = tactics_service.get_next_review().await?;
+    let (puzzle, card) = state.tactics_service.get_next_review().await?;
 
     Ok(PuzzleTemplate {
         base: Default::default(),
@@ -160,33 +153,6 @@ pub async fn next_review(srs_config: SrsConfig, user_service: UserService, tacti
         card,
         min_rating: 0,
         max_rating: 0,
-        srs_config,
-    }.into_response())
-}
-
-/// POST /review
-pub async fn review_puzzle(srs_config: SrsConfig, user_service: UserService,
-    tactics_service: TacticsService, request: ReviewRequest) -> Result<impl warp::Reply, warp::Rejection>
-{
-    let user_id = UserService::local_user_id();
-
-    let difficulty = Difficulty::from_i64(request.difficulty)
-        .map_err(|_| ServiceError::InvalidParameter("difficulty".to_string()))?;
-
-    // Get the puzzle for this puzzle id.
-    let (puzzle, card) = tactics_service.get_puzzle_by_id(&request.id).await?;
-    let puzzle = puzzle.ok_or(ServiceError::from(format!("No such puzzle {}", request.id)))?;
-    let card = card.unwrap_or(Card::new::<LocalTimeProvider>(&request.id, srs_config));
-
-    // Update the user's rating.
-    let new_rating = user_service.update_rating(user_id, difficulty, GameResult {
-        rating: puzzle.rating,
-        deviation: puzzle.rating_deviation,
-        score: difficulty.score(),
-    }).await?;
-
-    // Review the card.
-    tactics_service.apply_review(user_id, new_rating, card, difficulty).await?;
-
-    Ok(warp::reply())
+        srs_config: state.app_config.srs,
+    })
 }

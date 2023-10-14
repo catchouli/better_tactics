@@ -1,6 +1,6 @@
 use askama::Template;
 
-use crate::route::BaseTemplateData;
+use super::BaseTemplateData;
 
 /// The template for displaying the index page.
 #[derive(Template)]
@@ -9,10 +9,9 @@ pub struct IndexTemplate {
     base: BaseTemplateData,
 }
 
-pub async fn index_page()
-    -> Result<IndexTemplate, warp::Rejection>
+pub async fn index_page() -> IndexTemplate
 {
-    Ok(IndexTemplate {
+    IndexTemplate {
         base: Default::default(),
-    })
+    }
 }

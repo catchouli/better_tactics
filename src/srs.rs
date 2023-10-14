@@ -1,7 +1,6 @@
 use std::error::Error;
 use lazy_static::lazy_static;
 use chrono::{DateTime, FixedOffset, Duration, NaiveTime, Timelike};
-use crate::config::SrsConfig;
 use crate::time::TimeProvider;
 
 lazy_static! {
@@ -10,6 +9,14 @@ lazy_static! {
         Duration::seconds(10 * 60),
         Duration::seconds(24 * 60 * 60),
     ];
+}
+
+/// Spaced repetition config.
+#[derive(Debug, Copy, Clone)]
+pub struct SrsConfig {
+    pub default_ease: f64,
+    pub minimum_ease: f64,
+    pub easy_bonus: f64,
 }
 
 /// The day end time. The user will be able to review-ahead cards before this time (as long as they

@@ -2,6 +2,17 @@ use std::env::{self, VarError};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+
+use crate::db::PuzzleDatabase;
+use crate::services::tactics_service::TacticsService;
+use crate::services::user_service::UserService;
+use crate::srs::SrsConfig;
+
+/// The application useragent, e.g. "better_tactics/0.0.1".
+pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
 /// The application configuration.
 #[derive(Debug, Clone)]
@@ -11,13 +22,6 @@ pub struct AppConfig {
     // TODO: change it to use the DATABASE_URL env var.
     pub db_name: String,
     pub srs: SrsConfig,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct SrsConfig {
-    pub default_ease: f64,
-    pub minimum_ease: f64,
-    pub easy_bonus: f64,
 }
 
 impl Default for AppConfig {
@@ -65,6 +69,24 @@ impl AppConfig {
             Ok(value) => Ok(value.parse()?),
             Err(VarError::NotPresent) => Ok(default),
             Err(err) => Err(err.into())
+        }
+    }
+}
+
+/// The application state.
+#[derive(Clone)]
+pub struct AppState {
+    pub app_config: AppConfig,
+    pub user_service: UserService,
+    pub tactics_service: TacticsService,
+}
+
+impl AppState {
+    pub fn new(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) -> AppState {
+        Self {
+            app_config,
+            user_service: UserService::new(db.clone()),
+            tactics_service: TacticsService::new(db.clone())
         }
     }
 }

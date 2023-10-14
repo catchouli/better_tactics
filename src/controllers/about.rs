@@ -1,6 +1,6 @@
 use askama::Template;
 
-use crate::route::BaseTemplateData;
+use super::BaseTemplateData;
 
 /// The about page.
 #[derive(Template, Default)]
@@ -9,7 +9,7 @@ pub struct AboutTemplate {
     base: BaseTemplateData,
 }
 
-pub fn about_page() -> AboutTemplate {
+pub async fn about_page() -> AboutTemplate {
     AboutTemplate {
         ..Default::default()
     }

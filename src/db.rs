@@ -4,17 +4,16 @@ mod user;
 mod card;
 mod migration;
 
-use std::str::FromStr;
-
-use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
-use sqlx::{SqlitePool, ConnectOptions};
-
 pub use dbresult::*;
 pub use puzzle::*;
 pub use user::*;
 pub use card::*;
 
-use crate::config::SrsConfig;
+use std::str::FromStr;
+use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions};
+use sqlx::{SqlitePool, ConnectOptions};
+
+use crate::srs::SrsConfig;
 
 // TODO: this whole file (and project) could do with unit tests once the proof of concept is working :)
 
@@ -34,6 +33,8 @@ impl PuzzleDatabase {
     /// Open the given sqlite database, initialising it with schema if necessary.
     pub async fn open(path: &str, srs_config: SrsConfig) -> DbResult<Self> {
         // Open sqlite database.
+        // TODO: we aren't really making use of the database pools right now because we have a
+        // single PuzzleDatabase instance behind a mutex.
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect_with(SqliteConnectOptions::from_str(path)?
