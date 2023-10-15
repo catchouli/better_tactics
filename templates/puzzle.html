@@ -21,7 +21,6 @@
     let puzzle = null;
     {% endif %}
 
-    {% if let Some(card) = card %}
     let card = {
         review_count: {{ card.review_count }},
         ease: {{ card.ease }},
@@ -32,25 +31,22 @@
         good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
         easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
     };
-    {% else %}
-    let card = null;
-    {% endif %}
-
-    // TODO: now we just have to change it to use api endpoints.
-    let stats = {
-        reviews_due_now: {{ stats.reviews_due_now }},
-        reviews_due_today: {{ stats.reviews_due_today }},
-        next_review_due: "{{ util::maybe_review_timestamp_to_human(stats.next_review_due)}}",
-    };
 
     let config = {
         puzzle,
         card,
-        stats,
-        user_rating: {{ user_rating.rating }},
         query: { mode: "{{ mode }}", min_rating: {{ min_rating }}, max_rating: {{ max_rating }} },
     };
 
     document.puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), config);
+
+    // Get user stats.
+    $.ajax(`/api/user/stats`)
+        .done(function(data) {
+            document.puzzle_ui.configure({ stats: data });
+        })
+        .fail(function(err) {
+            console.error(`Failed to get user stats: ${err.responseText}`);
+        });
 </script>
 {% endblock %}

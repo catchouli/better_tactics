@@ -128,7 +128,7 @@ export class PuzzleUi {
                 return 'No such puzzle';
             }
         }
-        else if (this.config.query.mode == "Review") {
+        else if (this.config.query.mode == "Review" && this.config.stats) {
             if (this.config.puzzle) {
                 let reviews_left = this.config.stats.reviews_due_now;
                 return `Reviewing next puzzle (${reviews_left} reviews left)`;
@@ -217,7 +217,7 @@ export class PuzzleUi {
                     ]),
                     h('tr', [
                         h('th', 'User rating'),
-                        h('td', this.config.user_rating),
+                        h('td', this.config.stats ? this.config.stats.user_rating.rating : ''),
                     ]),
                 ]),
             ]),
@@ -248,7 +248,7 @@ export class PuzzleUi {
     }
 
     card_stats() {
-        if (this.config.card) {
+        if (this.config.card && this.config.card.review_count > 0) {
             let ease = this.config.card.ease;
             return h("div#card-details.bt-panel", [
                 h("table.stats", [
