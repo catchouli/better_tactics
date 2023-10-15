@@ -2,117 +2,55 @@
 
 {% block content %}
 
-{% let card = card.as_ref() %}
-{% let puzzle = puzzle.as_ref() %}
-
-<!-- The bars at the top -->
-<div class="columns" id="top-bar">
-    {% if mode == PuzzleMode::Random %}
-        <div class="column bt-panel">
-            {% if puzzle.is_some() %}
-                Reviewing random puzzle in rating range {{ min_rating }}-{{ max_rating }}
-            {% else %}
-                No puzzles found in category and rating range
-            {% endif %}
-        </div>
-    {% endif %}
-
-    {% if mode == PuzzleMode::Specific %}
-        {% if let Some(puzzle_id) = self.get_puzzle_id() %}
-            <div class="column bt-panel">
-                Reviewing specific puzzle {{ puzzle_id }}
-
-                {% if card.is_some() && card.unwrap().review_count == 0 %}
-                    (unseen)
-                {% endif %}
-            </div>
-        {% else %}
-            <div class="column bt-panel">
-                No such puzzle
-            </div>
-        {% endif %}
-    {% endif %}
-
-    {% if mode == PuzzleMode::Review %}
-        {% if card.is_some() %}
-            <div class="column bt-panel">
-                Reviewing next puzzle
-
-                {% if stats.reviews_due_now > 0 %}
-                    ({{ stats.reviews_due_now }} reviews left)
-                {% else %}
-                    (reviewing ahead)
-                {% endif %}
-            </div>
-        {% else %}
-            <div class="column bt-panel">
-                <p>
-                    {% if stats.reviews_due_today > 0 %}
-                        You are done with reviews for now, the next review is due in
-                        {{ util::maybe_review_timestamp_to_human(stats.next_review_due) }}.
-                    {% else %}
-                        You are done with today's reviews!
-                    {% endif %}
-                </p>
-                <p>
-                    Perhaps it's time to try some <a href="/tactics/new">new puzzles</a>?
-                    Or return to the <a href="/">home page</a>?
-                </p>
-            </div>
-        {% endif %}
-    {% endif %}
-</div>
-
 <!-- The main puzzle interface, with the puzzle and other panels in it -->
 <div class="columns" id="puzzle-interface">
 </div>
 
-{% if let Some(puzzle) = puzzle %}
-    <script type="module">
-        import { PuzzleUi } from '/assets_{{base.assets_version}}/scripts/puzzle-ui.js';
+<script type="module">
+    import { PuzzleUi } from '/assets_{{base.assets_version}}/scripts/puzzle-ui.js';
 
-        {% if let Some(card) = card %}
-        let card = {
-            review_count: {{ card.review_count }},
-            ease: {{ card.ease }},
-            due: "{{ Self::human_readable_due(card) }}",
-            due_now: {{ Self::card_due_now(card) }},
-            again_time: "{{ self.next_interval_human(Difficulty::Again) }}",
-            hard_time: "{{ self.next_interval_human(Difficulty::Hard) }}",
-            good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
-            easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
-        };
-        {% else %}
-        let card = {};
-        {% endif %}
+    {% if let Some(puzzle) = puzzle %}
+    let puzzle = {
+        id: "{{puzzle.puzzle_id}}",
+        themes: "{{self.puzzle_themes_list().unwrap()}}",
+        fen: "{{ puzzle.fen }}",
+        moves: "{{ puzzle.moves }}",
+        rating: {{ puzzle.rating }},
+    };
+    {% else %}
+    let puzzle = null;
+    {% endif %}
 
-        let config = {
-            puzzle_id: "{{puzzle.puzzle_id}}",
-            puzzle_themes: "{{self.puzzle_themes_list().unwrap()}}",
-            fen: "{{ puzzle.fen }}",
-            moves: "{{ puzzle.moves }}",
-            user_rating: {{ user_rating.rating }},
-            puzzle_rating: {{ puzzle.rating }},
-            // TODO: remove duplicates.
-            again_time: "{{ self.next_interval_human(Difficulty::Again) }}",
-            hard_time: "{{ self.next_interval_human(Difficulty::Hard) }}",
-            good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
-            easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
-            card,
-        };
+    {% if let Some(card) = card %}
+    let card = {
+        review_count: {{ card.review_count }},
+        ease: {{ card.ease }},
+        due: "{{ Self::human_readable_due(card) }}",
+        due_now: {{ Self::card_due_now(card) }},
+        again_time: "{{ self.next_interval_human(Difficulty::Again) }}",
+        hard_time: "{{ self.next_interval_human(Difficulty::Hard) }}",
+        good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
+        easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
+    };
+    {% else %}
+    let card = null;
+    {% endif %}
 
-        document.puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), config);
-    </script>
-{% else %}
-    <script type="module">
-        import { Chessground } from '/assets_{{base.assets_version}}/deps/chessground.min.js';
-        // If there's no puzzle loaded, just show a chess board with input disabled.
-        const container = document.getElementById("board");
-        Chessground(container, {
-            movable: {
-                color: 'none'
-            }
-        });
-    </script>
-{% endif %}
+    // TODO: now we just have to change it to use api endpoints.
+    let stats = {
+        reviews_due_now: {{ stats.reviews_due_now }},
+        reviews_due_today: {{ stats.reviews_due_today }},
+        next_review_due: "{{ util::maybe_review_timestamp_to_human(stats.next_review_due)}}",
+    };
+
+    let config = {
+        puzzle,
+        card,
+        stats,
+        user_rating: {{ user_rating.rating }},
+        query: { mode: "{{ mode }}", min_rating: {{ min_rating }}, max_rating: {{ max_rating }} },
+    };
+
+    document.puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), config);
+</script>
 {% endblock %}

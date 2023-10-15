@@ -81,12 +81,22 @@ export class PuzzleBoard {
 
         this._remaining_moves = this._moves.slice();
 
-        // Make the player's pieces movable again, the 'wrong move' interface disables this.
-        this._board.set({
-            movable: {
-                color: this._player_color == 'w' ? 'white' : 'black'
-            }
-        });
+        if (this._remaining_moves.length > 0) {
+            // Make the player's pieces movable again, the 'wrong move' interface disables this.
+            this._board.set({
+                movable: {
+                    color: this._player_color == 'w' ? 'white' : 'black'
+                }
+            });
+        }
+        else {
+            // Disable moving if there are no moves to begin with.
+            this._board.set({
+                movable: {
+                    color: 'none'
+                }
+            });
+        }
 
         if (this._remaining_moves.length > 0) {
             setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);

@@ -36,10 +36,10 @@ export class PuzzleUi {
         // puzzle fen and first move to the analysis board, but lichess only supports pgn or fen,
         // and not both.
         this._analysis_fen = null;
-        if (config.fen && config.moves) {
+        if (config.puzzle && config.puzzle.fen && config.puzzle.moves) {
             try {
-                let game = new Chess(config.fen);
-                let first_move = config.moves.split(' ')[0];
+                let game = new Chess(config.puzzle.fen);
+                let first_move = config.puzzle.moves.split(' ')[0];
                 game.move(first_move);
                 this._analysis_fen = game.fen();
             }
@@ -55,13 +55,15 @@ export class PuzzleUi {
         // Render the layout and create the board container.
         this.render();
 
+        console.log(config);
+
         // Create puzzle board.
         this.puzzle = new PuzzleBoard(document.getElementById("board"));
         this.puzzle.configure({
-            puzzle_id: config.puzzle_id,
-            fen: config.fen,
-            moves: config.moves,
-            puzzle_rating: config.puzzle_rating,
+            puzzle_id: config.puzzle ? config.puzzle.id : null,
+            fen: config.puzzle ? config.puzzle.fen : null,
+            moves: config.puzzle ? config.puzzle.moves : null,
+            puzzle_rating: config.puzzle ? config.puzzle.rating : null,
             on_success: this.on_success.bind(this),
             on_move: this.on_move.bind(this),
             on_right_move: this.on_right_move.bind(this),
@@ -75,21 +77,79 @@ export class PuzzleUi {
     }
 
     view() {
-        return h('div#puzzle-interface.columns', [
-            // The board column on the left.
-            h('div.is-two-thirds.column', [
-                h('div#board-container.bt-panel', [
-                    // Chessground container.
-                    h('div#board.chessground'),
+        return h('div#puzzle-interface', [
+            this.topbar(),
 
-                    // Promotion ui.
-                    this.promotion_ui(),
+            h('div.columns', [
+                // The board column on the left.
+                h('div.is-two-thirds.column', [
+                    h('div#board-container.bt-panel', [
+                        // Chessground container.
+                        h('div#board.chessground'),
+
+                        // Promotion ui.
+                        this.promotion_ui(),
+                    ]),
                 ]),
-            ]),
 
-            // The sidebar.
-            this.sidebar(),
+                // The sidebar.
+                this.sidebar(),
+            ])
         ]);
+    }
+
+    topbar() {
+        let contents = this.topbar_contents();
+
+        if (contents) {
+            return h('div#top-bar.columns.bt-panel', contents);
+        }
+    }
+
+    topbar_contents() {
+        if (this.config.query.mode == "Random") {
+            if (this.config.puzzle && this.config.query) {
+                let min = this.config.query.min_rating ? this.config.query.min_rating : 0;
+                let max = this.config.query.max_rating ? this.config.query.max_rating : 0;
+                return `Reviewing random puzzle in rating range ${min}-${max}`;
+            }
+            else {
+                return "No puzzles found in category and rating range";
+            }
+        }
+        else if (this.config.query.mode == "Specific") {
+            if (this.config.puzzle) {
+                let puzzle_id = this.config.puzzle.id;
+                let review_count = this.config.card ? this.config.card.review_count : 0;
+                let unseen = review_count > 0 ? "" : " (unseen)";
+                return `Reviewing specific puzzle ${puzzle_id}${unseen}`;
+            }
+            else {
+                return 'No such puzzle';
+            }
+        }
+        else if (this.config.query.mode == "Review") {
+            if (this.config.puzzle) {
+                let reviews_left = this.config.stats.reviews_due_now;
+                return `Reviewing next puzzle (${reviews_left} reviews left)`;
+            }
+            else {
+                let due = this.config.stats.next_review_due;
+                let done_text = this.config.stats.reviews_due_today > 0
+                    ? `You are done with reviews for now, the next review is due in ${due}.`
+                    : 'You are done with reviews for today!';
+
+                return h('p', [
+                    done_text,
+                    h('br'),
+                    "Perhaps it's time to try some ",
+                    h('a', { props: { href: '/tactics/new' } }, 'new puzzles'),
+                    '? Or you can return to the ',
+                    h('a', { props: { href: '/' } }, 'main page'),
+                    ' to see your stats.'
+                ]);
+            }
+        }
     }
 
     promotion_ui() {
@@ -137,7 +197,7 @@ export class PuzzleUi {
     }
 
     puzzle_info() {
-        if (!this.config.puzzle_id) {
+        if (!this.config.puzzle) {
             return h('div#puzzle-info.bt-panel', 'No puzzle loaded');
         }
 
@@ -147,13 +207,13 @@ export class PuzzleUi {
                     h('tr', [
                         h('th', 'Lichess puzzle'),
                         h('td', [
-                            h('a', { props: { href: `/tactics/by_id/${this.config.puzzle_id}` } },
-                                this.config.puzzle_id),
+                            h('a', { props: { href: `/tactics/by_id/${this.config.puzzle.id}` } },
+                                this.config.puzzle.id),
                         ]),
                     ]),
                     h('tr', [
                         h('th', 'Puzzle rating'),
-                        h('td', this.config.puzzle_rating),
+                        h('td', this.config.puzzle ? this.config.puzzle.rating : null),
                     ]),
                     h('tr', [
                         h('th', 'User rating'),
@@ -167,8 +227,8 @@ export class PuzzleUi {
     }
 
     puzzle_themes() {
-        if (this.config.puzzle_themes) {
-            let themes = this.puzzle && this.puzzle.is_complete() ? this.config.puzzle_themes : "?";
+        if (this.config.puzzle && this.config.puzzle.themes) {
+            let themes = this.puzzle && this.puzzle.is_complete() ? this.config.puzzle.themes : "?";
             return h('div#puzzle-themes', [
                 h('p', [
                     h('b', 'Themes: '),
@@ -323,7 +383,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#again.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: '0' },
+                                dataset: { difficulty: 0 },
                             }, [
                                 h('p.main-text', 'Again'),
                                 h('p.sub-text', this.config.card ? this.config.card.again_time : null),
@@ -365,7 +425,7 @@ export class PuzzleUi {
     }
 
     on_review_button_clicked(button) {
-        let puzzle_id = this.config.puzzle_id ? this.config.puzzle_id : "puzzle_id";
+        let puzzle_id = this.config.puzzle ? this.config.puzzle.id : "puzzle_id";
 
         let difficulty = button.data.dataset.difficulty;
         console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);

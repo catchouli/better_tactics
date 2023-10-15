@@ -73,11 +73,6 @@ impl PuzzleTemplate {
     fn puzzle_themes_list(&self) -> Option<String> {
         self.puzzle.as_ref().map(|p| p.themes.join(", "))
     }
-
-    /// Get the puzzle id.
-    fn get_puzzle_id(&self) -> Option<&str> {
-        self.puzzle.as_ref().map(|p| p.puzzle_id.as_str())
-    }
 }
 
 /// GET /tactics/by_id/{puzzle_id}
