@@ -14,13 +14,15 @@ export class PuzzleBoard {
         this._awaiting_promotion = false;
         this._awaiting_promotion_move = null;
 
+        this._failed = false;
+
         this._moves = [];
 
         this._player_color = 'w';
         this._computer_color = 'b';
 
         this._config = {};
-        this.configure(config);
+        this.configure(config ? config : {});
     }
 
     configure(config) {
@@ -68,7 +70,12 @@ export class PuzzleBoard {
     }
 
     reset() {
-        console.log(this._config);
+        this._premove = null;
+        this._awaiting_promotion = false;
+        this._awaiting_promotion_move = null;
+
+        this._failed = false;
+
         this._game = this._config.fen ? new Chess(this._config.fen) : new Chess();
         this.sync_board();
 
@@ -81,7 +88,23 @@ export class PuzzleBoard {
             }
         });
 
-        setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
+        if (this._remaining_moves.length > 0) {
+            setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
+        }
+    }
+
+    is_complete() {
+        return this._remaining_moves.length == 0;
+    }
+
+    is_failed() {
+        return this._failed;
+    }
+
+    is_first_move() {
+        return this._remaining_moves.length == this._moves.length - 1
+            && !this.is_complete()
+            && !this.is_failed();
     }
 
     // Sync the board with the game state.
@@ -253,15 +276,13 @@ export class PuzzleBoard {
                 });
             }
             else {
-                if (this._config.right_move)
-                    this._config.right_move();
+                if (this._config.on_right_move)
+                    this._config.on_right_move();
 
                 setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
             }
         }
         else {
-            this._remaining_moves.length = 0;
-
             // Disable the move while showing the 'wrong move' interface.
             this._board.set({
                 movable: {
@@ -269,8 +290,9 @@ export class PuzzleBoard {
                 }
             });
 
-            if (this._config.wrong_move)
-                this._config.wrong_move();
+            this._failed = true;
+            if (this._config.on_wrong_move)
+                this._config.on_wrong_move();
         }
     }
 
@@ -303,8 +325,9 @@ export class PuzzleBoard {
         }
 
         // Use chess.js to check if the move was legal.
+        let result;
         try {
-            let result = this._game.move({
+            result = this._game.move({
                 from: orig,
                 to: dest,
                 // Just make all promotions queens for the purposes of checking for legal moves,
@@ -316,18 +339,18 @@ export class PuzzleBoard {
             // kick it back to the frontend to prompt the user for their desired promotion piece.
             // _make_player_move() actually applies the move later.
             this._game.undo();
-
-            // If the move was a promotion, call the promotion callback and kick it back to the user
-            // to decide the promotion piece.
-            if (result.promotion) {
-                console.log("Move is promotion, prompting for promotion piece");
-                this._await_promotion(orig, dest);
-                return;
-            }
         }
         catch (e) {
             console.log(`Rejecting invalid move attempt ${orig}${dest}`);
             this.sync_board();
+            return;
+        }
+
+        // If the move was a promotion, call the promotion callback and kick it back to the user
+        // to decide the promotion piece.
+        if (result.promotion) {
+            console.log("Move is promotion, prompting for promotion piece");
+            this._await_promotion(orig, dest);
             return;
         }
 

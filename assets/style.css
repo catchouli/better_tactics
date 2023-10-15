@@ -187,9 +187,6 @@ cg-board {
 }
 
 #promotion-ui {
-    /* Disabled by default until it needs showing */
-    visibility: hidden;
-
     /* The promotion ui should completely cover the board, but be disabled by default */
     position: absolute;
     top: 0;
@@ -208,12 +205,11 @@ cg-board {
 }
 
 .promotion-pieces {
+    display: flex;
+
     width: 12rem;
     height: 12rem;
     gap: 0.5rem;
-
-    /* Disabled by default until it needs showing (because there's one for white and one for black). */
-    display: none;
 
     /* This smaller box containing only the promotion pieces is also a flex box so the pieces can be
      * shown in rows */
@@ -229,10 +225,41 @@ cg-board {
 
     /* Make sure the buttons still always remain square */
     aspect-ratio: 1;
+
+    background-size: cover;
+    border-radius: 6px;
 }
 
-.promotion-piece img {
-    width: 100%;
+.promotion-piece[data-color="w"][data-piece="q"] {
+    background-image: url('./images/pieces/white-queen.svg');
+}
+
+.promotion-piece[data-color="w"][data-piece="r"] {
+    background-image: url('./images/pieces/white-rook.svg');
+}
+
+.promotion-piece[data-color="w"][data-piece="n"] {
+    background-image: url('./images/pieces/white-knight.svg');
+}
+
+.promotion-piece[data-color="w"][data-piece="b"] {
+    background-image: url('./images/pieces/white-bishop.svg');
+}
+
+.promotion-piece[data-color="b"][data-piece="q"] {
+    background-image: url('./images/pieces/black-queen.svg');
+}
+
+.promotion-piece[data-color="b"][data-piece="r"] {
+    background-image: url('./images/pieces/black-rook.svg');
+}
+
+.promotion-piece[data-color="b"][data-piece="n"] {
+    background-image: url('./images/pieces/black-knight.svg');
+}
+
+.promotion-piece[data-color="b"][data-piece="b"] {
+    background-image: url('./images/pieces/black-bishop.svg');
 }
 
 .columns {
@@ -253,11 +280,6 @@ cg-board {
     white-space: nowrap;
 }
 
-#puzzle-interface #themes-actual {
-    /* Hide themes by default */
-    display: none;
-}
-
 /* Sidebars (e.g. on the puzzle interface) */
 .sidebar {
     display: flex;
@@ -270,11 +292,26 @@ cg-board {
  * to the next row. */
 #puzzle-info, #card-details {
     flex-basis: 50%;
-    flex-grow: 1;
 }
 
-.move-indicator, .controls-subpanel, #wrong-move, #puzzle-failure, #puzzle-success {
-    flex-grow: 1;
+.to-move-piece {
+    width: 45px;
+    height: 45px;
+    margin: 0 auto;
+    background-size: cover;
+}
+
+.to-move-piece[data-color="w"] {
+    background-image: url('./images/pieces/white-queen.svg');
+}
+
+.to-move-piece[data-color="b"] {
+    background-image: url('./images/pieces/black-queen.svg');
+}
+
+/* The move indicator should take up its own row on mobile */
+.move-indicator {
+    flex-basis: 100%;
 }
 
 /* The sidebar panels that show up on success failure etc. They should all be hidden until needed. */
@@ -283,16 +320,6 @@ cg-board {
     margin-top: 1rem;
     /* If these are ever visible on mobile they should take up 100% of the width */
     flex-basis: 100%;
-}
-
-.move-indicator, .controls-subpanel
-{
-    display: none;
-}
-
-/* Always show reviewing ahead panel if it's there */
-.controls-subpanel#reviewing-ahead {
-    display: initial !important;
 }
 
 .sidebar .bt-panel {
@@ -321,6 +348,10 @@ cg-board {
 
 .button-container button > .sub-text {
     font-size: 0.8em;
+}
+
+#override-link {
+    user-select: none;
 }
 
 /* Never show these on mobile, it's a bit of a waste of space */
@@ -439,9 +470,16 @@ cg-board {
         justify-content: center;
     }
 
+    .sidebar .bt-panel {
+        flex-grow: 0;
+    }
+
+    .sidebar .bt-panel:last-child {
+        flex-grow: 1;
+    }
+
     .stats-panel {
         flex-basis: calc(50% - 1rem);
-        flex-grow: 0;
     }
 
     /* Puzzle interface */
@@ -454,13 +492,8 @@ cg-board {
         flex-wrap: nowrap;
     }
 
-    .to-move-piece {
-        width: 100px;
-    }
-
     #puzzle-info, #card-details {
         flex-basis: 0;
-        flex-grow: 0;
     }
 
     .move-indicator {
@@ -469,10 +502,14 @@ cg-board {
         flex-grow: 0;
     }
 
+    .to-move-piece {
+        width: 100px;
+        height: 100px;
+    }
+
     .controls-subpanel {
         /* The visible controls panel should take up the rest of the space instead */
         flex: initial;
-        flex-grow: 1;
     }
 
     .controls-subpanel .button-container {

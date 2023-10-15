@@ -5,10 +5,6 @@
 {% let card = card.as_ref() %}
 {% let puzzle = puzzle.as_ref() %}
 
-<div class="columns" id="topper-bar">
-    hello snabbdom
-</div>
-
 <!-- The bars at the top -->
 <div class="columns" id="top-bar">
     {% if mode == PuzzleMode::Random %}
@@ -69,419 +65,43 @@
 
 <!-- The main puzzle interface, with the puzzle and other panels in it -->
 <div class="columns" id="puzzle-interface">
-    <!-- The board column on the left -->
-    <div class="column is-two-thirds">
-        <div class="bt-panel" id="board-container">
-            <!-- The chessground board -->
-            <div class="chessground" id="board"></div>
-
-            <!-- The promotion ui, which covers the board -->
-            <div id="promotion-ui" oncontextmenu="return false;">
-                <div class="promotion-pieces" id="white">
-                    <button class="promotion-piece" data-piece="q">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg">
-                    </button>
-                    <button class="promotion-piece" data-piece="r">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/white-rook.svg">
-                    </button>
-                    <button class="promotion-piece" data-piece="n">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/white-knight.svg">
-                    </button>
-                    <button class="promotion-piece" data-piece="b">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/white-bishop.svg">
-                    </button>
-                </div>
-                <div class="promotion-pieces" id="black">
-                    <button class="promotion-piece" data-piece="q">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg">
-                    </button>
-                    <button class="promotion-piece" data-piece="r">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/black-rook.svg">
-                    </button>
-                    <button class="promotion-piece" data-piece="n">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/black-knight.svg">
-                    </button>
-                    <button class="promotion-piece" data-piece="b">
-                        <img src="/assets_{{base.assets_version}}/images/pieces/black-bishop.svg">
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- The sidebar -->
-    <div class="column sidebar">
-        <!-- The puzzle info - always visible -->
-        <div id="puzzle-info" class="bt-panel">
-            {% if let Some(puzzle) = puzzle %}
-                <table class="stats">
-                    <tbody>
-                        <tr>
-                            <th scope="row">Lichess puzzle</th>
-                            <td><a href="/tactics/by_id/{{ puzzle.puzzle_id }}">{{ puzzle.puzzle_id }}</a></td>
-                        </tr>
-                        <tr>
-                            <th scope="row">Puzzle rating</th>
-                            <td>{{ puzzle.rating }}</td>
-                        </tr>
-                        <tr>
-                            <th scope="row">User rating</th>
-                            <td>{{ user_rating.rating }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                {% if let Some(puzzle_themes) = self.puzzle_themes_list() %}
-                    <div id="themes-actual">
-                        <p><b>Themes:</b> {{ puzzle_themes }}</p>
-                    </div>
-                    <div id="themes-placeholder">
-                        <p><b>Themes:</b> ?</p>
-                    </div>
-                {% endif %}
-                <a id="analysis-link" target="_blank">Analyse</a>
-            {% else %}
-                No puzzle loaded
-            {% endif %}
-        </div>
-
-        <!-- The card details (e.g. when it's due, how many times it's been reviewed, etc) -->
-        {% if let Some(card) = card %}
-            {% if card.review_count != 0 %}
-                <div id="card-details" class="bt-panel">
-                    <table class="stats">
-                        <tbody>
-                            <tr>
-                                <th scope="row">Reviews</th>
-                                <td>{{ card.review_count }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Ease</th>
-                                <td>{{ format!("{:.2}", card.ease) }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row">Due</th>
-                                {% let due = Self::human_readable_due(card) %}
-                                <td {% if due != "now" %} title="reviewing ahead" {% endif %}>
-                                    {{ due }}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            {% endif %}
-        {% endif %}
-
-        <!-- The move indicators, visible when waiting for a move to be played -->
-        <div id="white-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg"><br>
-            White to move
-        </div>
-        <div id="black-to-move" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg"><br>
-            Black to move
-        </div>
-        <div id="white-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/white-queen.svg"><br>
-            Computer to move
-        </div>
-        <div id="black-to-move-computer" class="bt-panel move-indicator">
-            <img class="to-move-piece" src="/assets_{{base.assets_version}}/images/pieces/black-queen.svg"><br>
-            Computer to move
-        </div>
-
-        <!-- The puzzle controls panel, always visible but with various switchable sub-panels -->
-        <!-- The initial panel shown -->
-        <div class="bt-panel controls-subpanel" id="find-the-line">
-            <p>Find the line!</p>
-        </div>
-
-        <!-- Shown when the user makes the right move -->
-        <div class="bt-panel controls-subpanel" id="right-move">
-            <p>Right move!</p>
-        </div>
-
-        <!-- Shown when the user makes the wrong move -->
-        <div class="bt-panel controls-subpanel" id="wrong-move">
-            <p>Wrong move :(</p>
-            <!-- A button that lets them retry the puzzle -->
-            <div class="columns button-container">
-                <div class="column"></div>
-                <div class="column">
-                    <button class="button" id="try-again">
-                        <p class="main-text">Reset</p>
-                        <p class="sub-text"></p>
-                    </button>
-                </div>
-                <div class="column"></div>
-            </div>
-        </div>
-
-        <!-- Shown when the user completes the puzzle after making a mistake -->
-        <div class="bt-panel controls-subpanel" id="puzzle-failure">
-            <p>Puzzle complete (with mistakes)</p>
-
-            <div class="columns button-container">
-                <div class="column"></div>
-                <div class="column">
-                    <button class="button review-button" id="again" data-difficulty="0">
-                        <p class="main-text">Again</p>
-                        <p class="sub-text"></p>
-                    </button>
-                </div>
-                <div class="column"></div>
-            </div>
-
-            <a href="#" id="override-link">Submit positive answer anyway</a> (for example, because of a mouse slip)
-        </div>
-
-        <!-- Shown when the user completes the puzzle first try -->
-        <div class="bt-panel controls-subpanel" id="puzzle-success">
-            <p>Puzzle complete</p>
-
-            <div class="columns button-container">
-                <div class="column">
-                    <button class="button review-button" id="hard" data-difficulty="9">
-                        <p class="main-text">Hard</p>
-                        <p class="sub-text"></p>
-                    </button>
-                </div>
-                <div class="column">
-                    <button class="button review-button" id="good" data-difficulty="2">
-                        <p class="main-text">Good</p>
-                        <p class="sub-text"></p>
-                    </button>
-                </div>
-                <div class="column">
-                    <button class="button review-button" id="easy" data-difficulty="3">
-                        <p class="main-text">Easy</p>
-                        <p class="sub-text"></p>
-                    </button>
-                </div>
-            </div>
-
-            <p>
-                Select the difficulty of the puzzle. The next review will be queued after the
-                amount of time shown.
-            </p>
-        </div>
-
-        {% if let Some(card) = card %}
-            {% if !Self::card_due_now(card) %}
-            <div class="bt-panel controls-subpanel" id="reviewing-ahead">
-                    Warning: you are reviewing ahead, which is fine, but it will push this card further
-                    into the future each time you complete it.
-            </div>
-            {% endif %}
-        {% endif %}
-    </div>
 </div>
 
 {% if let Some(puzzle) = puzzle %}
     <script type="module">
-        import { PuzzleBoard } from '/assets_{{base.assets_version}}/scripts/puzzle-board.js';
-        import '/assets_{{base.assets_version}}/scripts/puzzle-ui.js';
+        import { PuzzleUi } from '/assets_{{base.assets_version}}/scripts/puzzle-ui.js';
 
-        const container = document.getElementById("board");
+        {% if let Some(card) = card %}
+        let card = {
+            review_count: {{ card.review_count }},
+            ease: {{ card.ease }},
+            due: "{{ Self::human_readable_due(card) }}",
+            due_now: {{ Self::card_due_now(card) }},
+            again_time: "{{ self.next_interval_human(Difficulty::Again) }}",
+            hard_time: "{{ self.next_interval_human(Difficulty::Hard) }}",
+            good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
+            easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
+        };
+        {% else %}
+        let card = {};
+        {% endif %}
 
-        const fen2 = "3r2k1/1br1qp1p/p3p1p1/5P2/2NP4/1P4Q1/6PP/3RR1K1 b - - 0 26";
-        const moves2 = "b7d5 f5f6 e7f6 g3c7";
+        let config = {
+            puzzle_id: "{{puzzle.puzzle_id}}",
+            puzzle_themes: "{{self.puzzle_themes_list().unwrap()}}",
+            fen: "{{ puzzle.fen }}",
+            moves: "{{ puzzle.moves }}",
+            user_rating: {{ user_rating.rating }},
+            puzzle_rating: {{ puzzle.rating }},
+            // TODO: remove duplicates.
+            again_time: "{{ self.next_interval_human(Difficulty::Again) }}",
+            hard_time: "{{ self.next_interval_human(Difficulty::Hard) }}",
+            good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
+            easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
+            card,
+        };
 
-        const puzzle_id = "{{ puzzle.puzzle_id }}";
-        const fen = "{{ puzzle.fen }}";
-        const moves = "{{ puzzle.moves }}";
-        const rating = {{ puzzle.rating }};
-
-        const again_time = "{{ self.next_interval_human(Difficulty::Again) }}";
-        const hard_time = "{{ self.next_interval_human(Difficulty::Hard) }}";
-        const good_time = "{{ self.next_interval_human(Difficulty::Good) }}";
-        const easy_time = "{{ self.next_interval_human(Difficulty::Easy) }}";
-
-        // Add review time to buttons.
-        $('button#again > .sub-text').text(again_time);
-        $('button#hard > .sub-text').text(hard_time);
-        $('button#good > .sub-text').text(good_time);
-        $('button#easy > .sub-text').text(easy_time);
-
-        // Hide move indicators.
-        function hide_move_indicators() {
-            $('.move-indicator').css('display', 'none');
-        }
-
-        // Hide all puzzle control subpanels.
-        function hide_puzzle_control_subpanels() {
-            $('.controls-subpanel').css('display', 'none');
-        }
-
-        // Update the side to move interface.
-        function update_side_to_move() {
-            let color_to_move = document.puzzle.color_to_move();
-            let computer_to_move = document.puzzle.computer_to_move();
-
-            hide_move_indicators();
-
-            if (!computer_to_move) {
-                if (color_to_move == 'w') {
-                    $('#white-to-move').css('display', 'initial');
-                }
-                else {
-                    $('#black-to-move').css('display', 'initial');
-                }
-            }
-            else {
-                if (color_to_move == 'w') {
-                    $('#white-to-move-computer').css('display', 'initial');
-                }
-                else {
-                    $('#black-to-move-computer').css('display', 'initial');
-                }
-            }
-        }
-
-        // Show the promotion ui for the given side.
-        function show_promotion_ui(color) {
-            $('#promotion-ui').css('visibility', 'inherit');
-
-            if (document.puzzle.player_color() == 'w') {
-                $('.promotion-pieces#white').css('display', 'inherit');
-            }
-            else {
-                $('.promotion-pieces#black').css('display', 'inherit');
-            }
-        }
-
-        // Hide the promotion ui.
-        function hide_promotion_ui() {
-            $('#promotion-ui').css('visibility', 'hidden');
-            $('.promotion-pieces').css('display', 'none');
-        }
-
-        // Callbacks for puzzle module.
-        function on_success() {
-            hide_puzzle_control_subpanels();
-            hide_move_indicators();
-
-            if (document.first_try) {
-                $('#puzzle-success').css('display', 'initial');
-            }
-            else {
-                $('#puzzle-failure').css('display', 'initial');
-            }
-
-            $('#puzzle-interface #themes-placeholder').css('display', 'none');
-            $('#puzzle-interface #themes-actual').css('display', 'initial');
-        }
-
-        function on_move(side_moved, move) {
-            if (!$('#analysis-link').attr('href')) {
-                // Set the analyze link to point to lichess's analysis board. Make sure to use the puzzle's
-                // fen after it's applied the computer's move, since right now there's no way to specify a
-                // fen + move for the lichess analysis board via a url.
-                let fen_url_safe = document.puzzle.fen().replace(' ', '_');
-                let analysis_link = `https://lichess.org/analysis/standard/${fen_url_safe}`;
-                $('#analysis-link').attr('href', analysis_link);
-            }
-
-            update_side_to_move();
-        }
-
-        function right_move() {
-            hide_puzzle_control_subpanels();
-            $('#right-move').css('display', 'initial');
-        }
-
-        function wrong_move() {
-            document.first_try = false;
-
-            hide_puzzle_control_subpanels();
-            hide_move_indicators();
-
-            $('#wrong-move').css('display', 'initial');
-        }
-
-        function await_promotion() {
-            console.log("Promotion requested, showing promotion ui");
-            show_promotion_ui(document.puzzle.player_color());
-        }
-
-        // Bind promotion buttons.
-        $('button.promotion-piece').click(function() {
-            if (document.puzzle.awaiting_promotion()) {
-                let piece = $(this).data('piece');
-                console.info(`Promoting to piece ${piece}`);
-
-                document.puzzle.promote(piece);
-            }
-            hide_promotion_ui();
-        });
-
-        $('#promotion-ui').click(function() {
-            // If the user clicks the background, cancel promotion.
-            if (document.puzzle.awaiting_promotion()) {
-                console.info("Cancelling promotion");
-                document.puzzle.cancel_promotion();
-            }
-            hide_promotion_ui();
-        });
-
-        // Bind 'try again' button.
-        $('button#try-again').click(function() {
-            hide_puzzle_control_subpanels();
-            hide_move_indicators();
-            $('#find-the-line').css('display', 'initial');
-            document.puzzle.reset();
-        });
-
-        // Bind review buttons.
-        $('button.review-button').click(function() {
-            let puzzle_id = "{{ puzzle.puzzle_id }}";
-            let difficulty = $(this).data('difficulty');
-            console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
-
-            $('button.review-button').prop('disabled', true);
-
-            $.ajax({
-                type: "POST",
-                url: "/api/tactics/review",
-                data: JSON.stringify({
-                    id: puzzle_id,
-                    difficulty: difficulty
-                }),
-                contentType: 'application/json; charset=utf-8',
-            })
-            .done(function() {
-                console.log("Done, reloading");
-                window.location.reload();
-            })
-            .fail(function() {
-                console.error("Failed to submit review");
-                $('button.review-button').prop('disabled', false);
-            });
-        });
-
-        // Bind the override link for puzzle failure to show the other review buttons.
-        $('#puzzle-failure #override-link').click(function () {
-            $('#puzzle-success').css('display', 'initial');
-            $('#puzzle-failure').css('display', 'none');
-        });
-
-        // Show the initial subpanel.
-        $("#find-the-line").css('display', 'initial');
-
-        // Store whether it's currently the first try or not, so we know if it's a successful solve or not.
-        document.first_try = true;
-
-        // Create puzzle.
-        document.puzzle = new PuzzleBoard(container, {
-            puzzle_id,
-            fen,
-            moves,
-            rating,
-            on_success,
-            on_move,
-            right_move,
-            wrong_move,
-            await_promotion
-        });
+        document.puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), config);
     </script>
 {% else %}
     <script type="module">
