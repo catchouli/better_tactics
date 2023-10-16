@@ -84,13 +84,15 @@ export class PuzzleUi {
         try {
             this._vnode = patch(this._vnode, this.view());
         }
-        catch (e) {
-            let error_view = h('div.error.fatal', [
-                'Error when building view: ',
-                e.message,
-            ]);
+        catch (err) {
+            let error_text = "";
+            if (err && err.message) {
+                error_text = err.message;
+                console.error(err);
+            }
+
+            let error_view = h('div.error.fatal', `Error when building view: ${error_text}`);
             this._vnode = patch(this._vnode, error_view);
-            console.error(e);
         }
     }
 
@@ -228,6 +230,9 @@ export class PuzzleUi {
     }
 
     puzzle_info() {
+        if (!this.config.puzzle)
+            return;
+
         return h('div#puzzle-info.bt-panel', [
             h('table.stats', [
                 h('tbody', [
@@ -240,7 +245,7 @@ export class PuzzleUi {
                     ]),
                     h('tr', [
                         h('th', 'Puzzle rating'),
-                        h('td', this.config.puzzle ? this.config.puzzle.rating : null),
+                        h('td', this.config.puzzle.rating),
                     ]),
                     h('tr', [
                         h('th', 'User rating'),
@@ -357,7 +362,7 @@ export class PuzzleUi {
     }
 
     reviewing_ahead() {
-        if (!this.config.due_today) {
+        if (this.config.puzzle && !this.config.due_today) {
             return h('div#reviewing-ahead.bt-panel.controls-subpanel',
                 "Warning: you are reviewing ahead, which is fine, but it will push this card " +
                 "further into the future each time you complete it.");

@@ -68,6 +68,9 @@
             .then(stats => {
                 request_stats().then(stats => puzzle_ui.configure({ stats }));
 
+                // Reset puzzle and card to null.
+                puzzle_ui.configure({ puzzle: null, card: null });
+
                 if (mode == "Review") {
                     return $.ajax("/api/tactics/review");
                 }
