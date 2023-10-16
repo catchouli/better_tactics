@@ -103,8 +103,12 @@ export class PuzzleBoard {
         }
     }
 
+    is_puzzle_loaded() {
+        return this._moves.length > 0;
+    }
+
     is_complete() {
-        return this._remaining_moves.length == 0;
+        return this._moves.length > 0 && this._remaining_moves.length == 0;
     }
 
     is_failed() {

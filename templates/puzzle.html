@@ -9,44 +9,88 @@
 <script type="module">
     import { PuzzleUi } from '/assets_{{base.assets_version}}/scripts/puzzle-ui.js';
 
-    {% if let Some(puzzle) = puzzle %}
-    let puzzle = {
-        id: "{{puzzle.puzzle_id}}",
-        themes: "{{self.puzzle_themes_list().unwrap()}}",
-        fen: "{{ puzzle.fen }}",
-        moves: "{{ puzzle.moves }}",
-        rating: {{ puzzle.rating }},
-    };
-    {% else %}
-    let puzzle = null;
-    {% endif %}
+    // The puzzle mode.
+    const mode = "{{ mode }}";
+    const requested_id = "{{ requested_id }}";
 
-    let card = {
-        review_count: {{ card.review_count }},
-        ease: {{ card.ease }},
-        due: "{{ Self::human_readable_due(card) }}",
-        due_now: {{ Self::card_due_now(card) }},
-        again_time: "{{ self.next_interval_human(Difficulty::Again) }}",
-        hard_time: "{{ self.next_interval_human(Difficulty::Hard) }}",
-        good_time: "{{ self.next_interval_human(Difficulty::Good) }}",
-        easy_time: "{{ self.next_interval_human(Difficulty::Easy) }}",
-    };
+    // The rating variation, i.e. 1.05 means that if the mode is "Random", the requested puzzles
+    // will be rated +-5% of the user's rating.
+    const PUZZLE_RATING_VARIATION = 1.05;
 
-    let config = {
-        puzzle,
-        card,
-        query: { mode: "{{ mode }}", min_rating: {{ min_rating }}, max_rating: {{ max_rating }} },
-    };
+    // Create puzzle ui.
+    let puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), {
+        mode,
+        requested_id,
+        on_review: submit_review,
+    });
+    document.puzzle_ui = puzzle_ui;
 
-    document.puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), config);
+    // Request the first puzzle.
+    request_next_puzzle();
 
-    // Get user stats.
-    $.ajax(`/api/user/stats`)
-        .done(function(data) {
-            document.puzzle_ui.configure({ stats: data });
+    // Request the user's stats from the api and return a promise.
+    function request_stats() {
+        return $.ajax(`/api/user/stats`)
+            .catch(function(err) {
+                let error_text = `Failed to get user stats: ${err.responseText}`;
+                console.error(error_text);
+                puzzle_ui.configure({error: error_text});
+            });
+    }
+
+    // Submit a review for the given puzzle and difficulty.
+    function submit_review(puzzle_id, difficulty) {
+        $('button.review-button').prop('disabled', true);
+
+        $.ajax({
+            type: "POST",
+            url: "/api/tactics/review",
+            data: JSON.stringify({
+                id: puzzle_id,
+                difficulty: difficulty
+            }),
+            contentType: 'application/json; charset=utf-8',
         })
-        .fail(function(err) {
-            console.error(`Failed to get user stats: ${err.responseText}`);
+        .done(function() {
+            console.log("Done, loading next puzzle");
+            puzzle_ui.configure({ loaded: false });
+            request_next_puzzle();
+        })
+        .fail(function() {
+            console.error("Failed to submit review");
+            $('button.review-button').prop('disabled', false);
         });
+    }
+
+    // Request the next puzzle.
+    function request_next_puzzle() {
+        request_stats()
+            .then(stats => {
+                request_stats().then(stats => puzzle_ui.configure({ stats }));
+
+                if (mode == "Review") {
+                    return $.ajax("/api/tactics/review");
+                }
+                else if (mode == "Specific") {
+                    return $.ajax(`/api/tactics/by_id/${requested_id}`);
+                }
+                else {
+                    // Random in range.
+                    let min_rating = Math.floor(stats.user_rating.rating / PUZZLE_RATING_VARIATION);
+                    let max_rating = Math.floor(stats.user_rating.rating * PUZZLE_RATING_VARIATION);
+                    puzzle_ui.configure({ rating_range: [min_rating, max_rating] });
+                    return $.ajax(`/api/tactics/random/${min_rating}/${max_rating}`);
+                }
+            })
+            .then(data => {
+                data.loaded = true;
+                puzzle_ui.configure(data);
+            })
+            .catch(err => {
+                let error_text = `Failed to get next puzzle: ${err.responseText}`;
+                console.error(error_text);
+                puzzle_ui.configure({error: error_text});
+            });
+    }
 </script>
 {% endblock %}

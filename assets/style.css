@@ -22,6 +22,10 @@ a {
     text-decoration: underline;
 }
 
+.fatal.error {
+    color: #e63131 !important;
+}
+
 .header a {
     text-decoration: none;
 }
@@ -140,34 +144,45 @@ cg-board {
 }
 
 /* Index page */
-#stats-panel {
+.stats-panel {
+    position: relative;
     text-align: center;
     padding-bottom: 1rem;
 }
 
-#stats-panel .stats {
+.stats-panel .stats {
     margin: 0 auto;
     margin-bottom: 2rem;
 }
 
-#stats-panel .stats > caption {
+.stats-panel .stats > caption {
     font-size: 24pt;
     margin-bottom: 1rem;
 }
 
-#stats-panel .stats > tbody > tr > th {
+.stats-panel .stats > tbody > tr > th {
     padding-right: 2rem;
     text-align: left;
 }
 
-#stats-panel .stats > tbody > tr > td {
+.stats-panel .stats > tbody > tr > td {
     text-align: center;
 }
 
-#stats-panel a.button {
+.stats-panel a.button {
     background: #416c86;
     text-decoration: none;
     width: 7rem;
+}
+
+.stats-panel .bt-loader {
+    position: absolute;
+    width: 10rem;
+    height: 10rem;
+    top: calc(50% - 5rem);
+    right: calc(50% - 5rem);
+    background-image: url('./images/loader.svg');
+    background-size: cover;
 }
 
 /* Puzzle page */
@@ -285,6 +300,7 @@ cg-board {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
+    justify-content: center;
 }
 
 /* These should take up 50% of the width in the collapsed mobile view,
@@ -307,11 +323,6 @@ cg-board {
 
 .to-move-piece[data-color="b"] {
     background-image: url('./images/pieces/black-queen.svg');
-}
-
-/* The move indicator should take up its own row on mobile */
-.move-indicator {
-    flex-basis: 100%;
 }
 
 /* The sidebar panels that show up on success failure etc. They should all be hidden until needed. */
@@ -470,11 +481,15 @@ cg-board {
         justify-content: center;
     }
 
+    .sidebar {
+        justify-content: initial;
+    }
+
     .sidebar .bt-panel {
         flex-grow: 0;
     }
 
-    .sidebar .bt-panel:last-child {
+    .grow {
         flex-grow: 1;
     }
 

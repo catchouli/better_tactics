@@ -1,5 +1,11 @@
 [1.7.0] - ????-??-??
 
+Changed:
+* The puzzle page now loads the next puzzle automatically without refreshing the page.
+* Cards leaving learning immediately due to reviewing them as 'Easy' now have their interval set
+  to 4 days instead of the previous 1 day. This should allow actually easy puzzles to be seen far
+  less frequently.
+
 [1.6.0] - 2023-10-13
 
 Added:

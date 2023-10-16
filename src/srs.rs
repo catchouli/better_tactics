@@ -9,10 +9,21 @@ lazy_static! {
         Duration::seconds(10 * 60),
         Duration::seconds(24 * 60 * 60),
     ];
+    
+    /// Max interval to stop our intervals getting insane if somebody chooses to just review the
+    /// same card with 'easy' over and over... (50k weeks = roughly 1000 years)
+    static ref MAX_INTERVAL: Duration = Duration::weeks(52179);
+
+    /// Minimum interval for 'easy' reviews. If a card is really easy it's allowed to leave
+    /// learning immediately, and also gets set to this interval. This gives it a bit of a boost
+    /// over just using the last learning interval, because otherwise cards marked easy might just
+    /// get the same interval as 'good' the first time which is a bit weird and seems like it's
+    /// generating an unnecessary number of reviews for those cards.
+    static ref MIN_EASY_INTERVAL: Duration = Duration::days(4);
 }
 
 /// Spaced repetition config.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, serde::Serialize)]
 pub struct SrsConfig {
     pub default_ease: f64,
     pub minimum_ease: f64,
@@ -95,11 +106,14 @@ impl Difficulty {
     }
 }
 
-// A single spaced repetition "card" (e.g. a puzzle).
+
+/// A single spaced repetition "card" (e.g. a puzzle).
 #[derive(Debug)]
 pub struct Card {
     pub id: String,
+    //#[serde(serialize_with = "serialize_datetime")]
     pub due: DateTime<FixedOffset>,
+    //#[serde(serialize_with = "serialize_duration")]
     pub interval: Duration,
     pub review_count: i64,
     pub ease: f64,
@@ -108,11 +122,11 @@ pub struct Card {
 }
 
 impl Card {
-    pub fn new<TP: TimeProvider>(id: &str, srs_config: SrsConfig) -> Self
+    pub fn new(id: &str, due: DateTime<FixedOffset>, srs_config: SrsConfig) -> Self
     {
         Self {
             id: id.to_string(),
-            due: TP::now(),
+            due,
             interval: INITIAL_INTERVALS[0],
             review_count: 0,
             ease: srs_config.default_ease,
@@ -157,7 +171,7 @@ impl Card {
         // learning should immediately leave learning.
         else if score == Difficulty::Easy {
             Self::mul_duration(self.interval, self.ease * self.srs_config.easy_bonus)
-                .max(*INITIAL_INTERVALS.last().unwrap())
+                .max(*MIN_EASY_INTERVAL)
                 .max(self.next_interval(Difficulty::Good))
         }
         else {
@@ -168,7 +182,7 @@ impl Card {
     /// Review a card and update the interval, ease and due date.
     pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) {
         // Update interval and due time.
-        self.interval = self.next_interval(score);
+        self.interval = Duration::min(self.next_interval(score), *MAX_INTERVAL);
         self.due = time_now + self.interval;
 
         // Update learning stage, it should increase by one each time it's reviewed until it's no

@@ -5,6 +5,7 @@ use axum::{Router, Json};
 use axum::body::Body;
 use axum::http::{StatusCode, Request};
 use axum::response::{Response, IntoResponse};
+use axum::routing::{get, post};
 
 use crate::app::AppState;
 use crate::services::ServiceError;
@@ -13,7 +14,10 @@ use crate::services::ServiceError;
 pub fn routes(app_state: AppState) -> Router {
     Router::new()
         // Tactics.
-        .route("/tactics/review", axum::routing::post(tactics::review))
+        .route("/tactics/random/:min_rating/:max_rating", get(tactics::random_puzzle))
+        .route("/tactics/by_id/:puzzle_id", get(tactics::puzzle_by_id))
+        .route("/tactics/review", get(tactics::next_review))
+        .route("/tactics/review", post(tactics::review))
 
         // User.
         .route("/user/stats", axum::routing::get(user::stats))
