@@ -210,12 +210,7 @@ export class PuzzleUi {
     }
 
     sidebar() {
-        if (!this.config.loaded) {
-            return h('div.column.sidebar', [
-                h('div#puzzle-info.bt-panel', 'No puzzle loaded')
-            ]);
-        }
-        else {
+        if (this.config.puzzle && this.config.loaded) {
             return h('div.column.sidebar', [
                 this.puzzle_info(),
                 this.card_stats(),
