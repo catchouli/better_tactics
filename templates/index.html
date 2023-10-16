@@ -58,11 +58,13 @@
 
     <!-- Review score histogram -->
     <div id="review-score-graph-container" class="column bt-panel chart-panel stats-panel">
-        <h2 class="title is-3">Review scores</h2>
+        <!--<h2 class="title is-3">Review scores</h2>
+        <a href="[total]"></a>
+        <a href="[fixed]"></a>
         <div class="chart-container">
             <canvas id="review-score-graph"></canvas>
         </div>
-        <div class="bt-loader"></div>
+        <div class="bt-loader"></div>-->
     </div>
 </div>
 
@@ -73,6 +75,19 @@
 </div>
 
 <script type="module">
-    import {} from '/assets_{{base.assets_version}}/scripts/stats.js';
+    import { ReviewScoreChart } from '/assets_{{base.assets_version}}/scripts/stats.js';
+
+    /// The rating range for the review score histogram.
+    const REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE = 50;
+
+    let review_score_chart = new ReviewScoreChart(document.getElementById("review-score-graph-container"));
+
+    $.ajax(`/api/user/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
+        .done((data) => {
+            review_score_chart.configure({ data });
+        })
+        .fail(function(err) {
+            console.error(`Failed to get review score histogram: ${err.responseText}`);
+        });
 </script>
 {% endblock %}

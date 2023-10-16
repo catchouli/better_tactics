@@ -1,8 +1,23 @@
+import {
+    init,
+    classModule,
+    propsModule,
+    styleModule,
+    datasetModule,
+    eventListenersModule,
+    h,
+} from '../deps/snabbdom.js';
+
+const patch = init([
+    classModule,
+    propsModule,
+    styleModule,
+    eventListenersModule,
+    datasetModule,
+]);
+
 /// The length in days of the review forecast.
 const REVIEW_FORECAST_LENGTH_DAYS = 10;
-
-/// The rating range for the review score histogram.
-const REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE = 50;
 
 /// The threshold for a user's rating deviation to count their rating as provisional.
 const RATING_DEVIATION_PROVISIONAL = 100;
@@ -143,9 +158,125 @@ function add_review_histogram_labels(dataset) {
     });
 }
 
-$.ajax(`/api/user/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
-    .done(function(data) {
-        data = add_review_histogram_labels(data);
+function add_percentages(dataset) {
+    let totals = {};
+
+    for (let i = 0; i < dataset.length; ++i) {
+        let v = dataset[i];
+        if (!totals[v.label])
+            totals[v.label] = v.review_count;
+        else
+            totals[v.label] += v.review_count;
+    }
+
+    for (let i = 0; i < dataset.length; ++i) {
+        let v = dataset[i];
+        v.review_percentage = 100 * v.review_count / totals[v.label];
+    }
+}
+
+export class ReviewScoreChart {
+    constructor(element, config) {
+        this._vnode = element;
+        this.config = {};
+        this.mode = 'total';
+
+        this.configure(config ? config : {});
+    }
+
+    configure(config) {
+        config = Object.assign(config, this.config);
+        this.config = config;
+
+        this.render();
+
+        if (config.data) {
+            config.data = add_review_histogram_labels(config.data);
+            add_percentages(config.data);
+            this.create_chart();
+        }
+    }
+
+    render() {
+        try {
+            this._vnode = patch(this._vnode, this.view());
+        }
+        catch (err) {
+            let error_text = "";
+            if (err && err.message) {
+                error_text = err.message;
+                console.error(err);
+            }
+
+            let error_view = h('div.error.fatal', `Error when building view: ${error_text}`);
+            this._vnode = patch(this._vnode, error_view);
+        }
+    }
+
+    view() {
+        return h('div#review-score-graph-container.column.bt-panel.chart-panel.stats-panel', [
+            h('h2.title.is-3', 'Review scores'),
+            h('div.chart-buttons', this.buttons()),
+            h('div.chart-container', [
+                h('canvas#review-score-graph'),
+            ]),
+            this.loader(),
+        ]);
+    }
+
+    buttons() {
+        let buttons = [];
+
+        buttons.push(h(
+            this.mode == 'total' ? 'b.chart-button' : 'a.chart-button',
+            { on: { click: () => this.set_mode('total') } },
+            'total'));
+        buttons.push(h(
+            this.mode == 'percentage' ? 'b.chart-button' : 'a.chart-button',
+            { on: { click: () => this.set_mode('percentage') } },
+            'percentage'));
+
+        return buttons;
+    }
+
+    loader() {
+        if (!this.config.data) {
+            return h('div.bt-loader');
+        }
+    }
+
+    set_mode(mode) {
+        this.mode = mode;
+        this.render();
+
+        if (mode == 'percentage') {
+            this.chart.options.parsing.yAxisKey = 'review_percentage';
+            this.chart.options.plugins.tooltip.callbacks.label = this.tooltip_percentage.bind(this);
+        }
+        else if (mode == 'total') {
+            this.chart.options.parsing.yAxisKey = 'review_count';
+            this.chart.options.plugins.tooltip.callbacks.label = this.tooltip_total.bind(this);
+        }
+        this.chart.update();
+    }
+
+    tooltip_total(item) {
+        return `${item.formattedValue}`;
+    }
+
+    tooltip_percentage(item) {
+        return `${item.parsed.y.toFixed(1)}`;
+    }
+
+    create_chart() {
+        let data = this.config.data;
+        if (!data) {
+            return;
+        }
+
+        if (this.chart) {
+            this.chart.destroy();
+        }
 
         let again_dataset = data.filter(v => v.difficulty == 0);
         let hard_dataset = data.filter(v => v.difficulty == 1);
@@ -184,7 +315,7 @@ $.ajax(`/api/user/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
             labels: [...review_histogram_labels],
         };
 
-        new Chart(document.getElementById("review-score-graph"), {
+        this.chart = new Chart(document.getElementById("review-score-graph"), {
             type: 'bar',
             data: review_histogram_data,
             options: {
@@ -205,7 +336,7 @@ $.ajax(`/api/user/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
                         suggestedMax: 10,
                         title: {
                             display: true,
-                            text: "Number of reviews",
+                            text: "Reviews",
                         },
                         ticks: {
                             precision: 0,
@@ -216,12 +347,14 @@ $.ajax(`/api/user/review_score_histogram/${REVIEW_SCORE_HISTOGRAM_BUCKET_SIZE}`)
                     xAxisKey: 'label',
                     yAxisKey: 'review_count',
                 },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: this.tooltip_total,
+                        },
+                    },
+                }
             }
         });
-    })
-    .fail(function(err) {
-        console.error(`Failed to get review score histogram: ${err.responseText}`);
-    })
-    .always(function() {
-        $("#review-score-graph-container .bt-loader").css("display", "none");
-    });
+    }
+}
