@@ -327,19 +327,16 @@ export class ReviewScoreChart extends StatsChart {
     }
 
     chart_options() {
-        let tooltip_label;
         let y_axis_key;
         let y_axis_max;
         let y_axis_label;
 
         if (this.chart_mode == "percentage") {
-            tooltip_label = (item) => `${item.parsed.y.toFixed(2)}%`;
             y_axis_key = "review_percentage";
             y_axis_label = "% of reviews";
             y_axis_max = 100;
         }
         else {
-            tooltip_label = (item) => `${item.formattedValue}`;
             y_axis_key = "review_count";
             y_axis_label = "Number of reviews";
             y_axis_max = null;
@@ -378,7 +375,7 @@ export class ReviewScoreChart extends StatsChart {
             plugins: {
                 tooltip: {
                     callbacks: {
-                        label: tooltip_label,
+                        label: item => `${item.raw.review_count} (${item.raw.review_percentage.toFixed(2)}%)`,
                     },
                 },
             }
