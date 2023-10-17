@@ -5,6 +5,9 @@ Changed:
 * Cards leaving learning immediately due to reviewing them as 'Easy' now have their interval set
   to 4 days instead of the previous 1 day. This should allow actually easy puzzles to be seen far
   less frequently.
+* The review forecast on the stats screen now allows you to change the number of days shown, and
+  review scores allows you to see the data by percentage as well as total value.
+* A link to the original lichess puzzle is now included on the puzzle interface.
 
 [1.6.0] - 2023-10-13
 
