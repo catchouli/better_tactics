@@ -154,7 +154,9 @@ impl Card {
         // Scores of 'hard' should stop the interval from growing, but shouldn't ever be any less
         // than a score of 'again' would result in.
         else if score == Difficulty::Hard {
-            self.interval.max(self.next_interval(Difficulty::Again))
+            self.interval
+                .min(*MAX_INTERVAL)
+                .max(self.next_interval(Difficulty::Again))
         }
         // Scores of 'good' should have the normal growth.
         else if score == Difficulty::Good {
@@ -164,6 +166,7 @@ impl Card {
             else {
                 Self::mul_duration(self.interval, self.ease)
                     .max(*INITIAL_INTERVALS.last().unwrap())
+                    .min(*MAX_INTERVAL)
                     .max(self.next_interval(Difficulty::Hard))
             }
         }
@@ -172,6 +175,7 @@ impl Card {
         else if score == Difficulty::Easy {
             Self::mul_duration(self.interval, self.ease * self.srs_config.easy_bonus)
                 .max(*MIN_EASY_INTERVAL)
+                .min(*MAX_INTERVAL)
                 .max(self.next_interval(Difficulty::Good))
         }
         else {
@@ -182,7 +186,7 @@ impl Card {
     /// Review a card and update the interval, ease and due date.
     pub fn review(&mut self, time_now: DateTime<FixedOffset>, score: Difficulty) {
         // Update interval and due time.
-        self.interval = Duration::min(self.next_interval(score), *MAX_INTERVAL);
+        self.interval = self.next_interval(score);
         self.due = time_now + self.interval;
 
         // Update learning stage, it should increase by one each time it's reviewed until it's no
