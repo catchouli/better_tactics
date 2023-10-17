@@ -333,7 +333,7 @@ export class ReviewScoreChart extends StatsChart {
         let y_axis_label;
 
         if (this.chart_mode == "percentage") {
-            tooltip_label = (item) => `${item.parsed.y}%`;
+            tooltip_label = (item) => `${item.parsed.y.toFixed(2)}%`;
             y_axis_key = "review_percentage";
             y_axis_label = "% of reviews";
             y_axis_max = 100;
