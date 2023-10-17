@@ -41,11 +41,13 @@ export class PuzzleUi {
     configure(config) {
         console.log(config);
 
-        // If there's a fen, use it to figure out the fen for analysis. Ideally we'd just pass the
-        // puzzle fen and first move to the analysis board, but lichess only supports pgn or fen,
-        // and not both.
-        this._analysis_fen = null;
         if (config.puzzle && config.puzzle.fen && config.puzzle.moves) {
+            let puzzle = config.puzzle;
+
+            // Use the fen figure out the fen for analysis. Ideally we'd just pass the puzzle fen
+            // and first move to the analysis board, but lichess only supports pgn or fen, and not
+            // both; so we use chess.js to figure out the fen after the first computer move and use
+            // that instead.
             try {
                 let game = new Chess(config.puzzle.fen);
                 let first_move = config.puzzle.moves.split(' ')[0];
@@ -250,32 +252,37 @@ export class PuzzleUi {
             ]),
             this.puzzle_themes(),
             this.analysis_link(),
+            this.source_url(),
         ]);
     }
 
     puzzle_themes() {
-        if (this.config.puzzle) {
-            let puzzle = this.config.puzzle;
-            if (puzzle.themes && puzzle.themes.length > 0) {
-                let themes = this.puzzle && this.puzzle.is_complete()
-                    ? this.config.puzzle.themes.join(', ') : "?";
-                return h('div#puzzle-themes', [
-                    h('p', [
-                        h('b', 'Themes: '),
-                        themes,
-                    ]),
-                ]);
-            }
+        if (this.config.puzzle.themes && this.config.puzzle.themes.length > 0) {
+            let themes = this.puzzle && this.puzzle.is_complete()
+                ? this.config.puzzle.themes.join(', ') : "?";
+            return h('div#puzzle-themes', [
+                h('p', [
+                    h('b', 'Themes: '),
+                    themes,
+                ]),
+            ]);
         }
     }
 
     analysis_link() {
         if (this._analysis_fen) {
-            return h('a', { props: {
+            return h('a.analysis-link', { props: {
                 target: "_blank",
                 href: `https://lichess.org/analysis/standard/${this._analysis_fen}`,
             } }, "Analyse");
         }
+    }
+
+    source_url() {
+        return h('a.analysis-link', { props: {
+            target: "_blank",
+            href: `https://lichess.org/training/${this.config.puzzle.puzzle_id}`,
+        } }, "Source");
     }
 
     card_stats() {

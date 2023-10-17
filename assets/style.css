@@ -196,6 +196,10 @@ cg-board {
     background-size: cover;
 }
 
+.analysis-link {
+    margin: 0 1rem;
+}
+
 /* Puzzle page */
 #main-container {
     margin: 0 auto;
