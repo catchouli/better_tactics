@@ -4,7 +4,7 @@ use sqlx::{Row, Sqlite, QueryBuilder, sqlite::SqliteRow};
 use crate::db::{PuzzleDatabase, DbResult};
 
 /// A puzzle record from the db.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Puzzle {
     pub puzzle_id: String,
     pub fen: String,
@@ -40,24 +40,6 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
 
 /// Puzzle related database implementations.
 impl PuzzleDatabase {
-    /// Get the rating of the highest rated puzzle in the database.
-    pub async fn get_max_puzzle_rating(&self) -> DbResult<i64> {
-        let query = sqlx::query("
-            SELECT rating
-            FROM puzzles
-            ORDER BY rating DESC
-            LIMIT 1
-        ");
-
-        query
-            .map(|row: SqliteRow| {
-                Ok(row.try_get("rating")?)
-            })
-            .fetch_optional(&self.pool)
-            .await?
-            .unwrap_or(Ok(0))
-    }
-
     /// Get the number of puzzles in the database.
     pub async fn get_puzzle_count(&self) -> DbResult<usize> {
         let query = sqlx::query("

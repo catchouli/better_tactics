@@ -53,3 +53,17 @@ pub fn review_timestamp_to_human(time: &DateTime<FixedOffset>) -> String {
 pub fn maybe_review_timestamp_to_human(time: &Option<DateTime<FixedOffset>>) -> String {
     time.as_ref().map(review_timestamp_to_human).unwrap_or("now".to_string())
 }
+
+/// Serialize a chrono::DateTime.
+pub fn _serialize_datetime<S: serde::Serializer>(dt: &DateTime<FixedOffset>, s: S)
+    -> Result<S::Ok, S::Error>
+{
+    s.serialize_str(&dt.to_rfc3339())
+}
+
+/// Serialize a chrono::Duration.
+pub fn _serialize_duration<S: serde::Serializer>(dt: &Duration, s: S)
+    -> Result<S::Ok, S::Error>
+{
+    s.serialize_i64(dt.num_milliseconds())
+}

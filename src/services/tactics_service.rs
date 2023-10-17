@@ -9,9 +9,6 @@ use crate::time::LocalTimeProvider;
 
 use super::ServiceResult;
 
-/// The rating variation for puzzles, in percent.
-const PUZZLE_RATING_VARIATION: f64 = 1.05;
-
 /// Encapsulates any kind of application logic to do with tactics.
 #[derive(Clone)]
 pub struct TacticsService {
@@ -23,21 +20,6 @@ impl TacticsService {
         Self {
             db,
         }
-    }
-
-    /// Returns the min and max rating for puzzles, deviating from the user's rating by up to
-    /// `PUZZLE_RATING_VARIATION`.
-    pub async fn get_rating_range(&self, user_rating: &Rating) -> ServiceResult<(i64, i64)> {
-        // Clamp the user's rating to the highest puzzle rating just in case there aren't any at
-        // the user's rating level.
-        let max_puzzle_rating = self.db.lock().await
-            .get_max_puzzle_rating().await?;
-        let base_rating = i64::min(user_rating.rating, max_puzzle_rating);
-
-        let min_rating = (base_rating as f64 / PUZZLE_RATING_VARIATION) as i64;
-        let max_rating = (base_rating as f64 * PUZZLE_RATING_VARIATION) as i64;
-
-        Ok((min_rating, max_rating))
     }
 
     pub async fn get_puzzle_by_id(&self, puzzle_id: &str)
@@ -55,7 +37,7 @@ impl TacticsService {
         Ok((puzzle, card))
     }
 
-    pub async fn get_next_review(&self) -> ServiceResult<(Option<Puzzle>, Option<Card>)>
+    pub async fn get_next_review(&self) -> ServiceResult<Option<(Puzzle, Card)>>
     {
         let db = self.db.lock().await;
 
@@ -73,12 +55,9 @@ impl TacticsService {
         let next_non_learning_review_due_today =
             db.get_next_review_due(review_cutoff_today, max_learning_interval).await?;
 
-        let next_review_due = next_review_due_now.or(next_non_learning_review_due_today);
-
-        match next_review_due {
-            Some((card, puzzle)) => Ok((Some(puzzle), Some(card))),
-            _ => Ok((None, None))
-        }
+        Ok(next_review_due_now
+            .or(next_non_learning_review_due_today)
+            .map(|(a, b)| (b, a)))
     }
 
     pub async fn get_random_puzzle(&self, min_rating: i64, max_rating: i64)

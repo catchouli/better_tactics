@@ -255,26 +255,6 @@ impl PuzzleDatabase {
             .unwrap_or(Ok(0))?)
     }
 
-    /// Get the reviews due in a given time window.
-    pub async fn reviews_due_between(&self, start: DateTime<FixedOffset>, end: DateTime<FixedOffset>)
-        -> DbResult<i64>
-    {
-        let query = sqlx::query("
-            SELECT count(ROWID) as card_count
-            FROM cards
-            WHERE due > ?
-            AND due <= ?
-        ");
-
-        Ok(query
-           .bind(start.to_rfc3339())
-           .bind(end.to_rfc3339())
-           .fetch_optional(&self.pool)
-           .await?
-           .map(|row| row.try_get("card_count"))
-           .unwrap_or(Ok(0))?)
-    }
-
     /// Get the review score history for a user, in buckets of `rating_bucket_span` rating span.
     /// e.g. rating_bucket_span = 50 means you'll get buckets every 50 puzzle rating, so 450-500,
     /// 500-550, etc.
@@ -313,5 +293,35 @@ impl PuzzleDatabase {
             })
             .try_collect::<Vec<ReviewScoreBucket>>()
             .await?)
+    }
+
+    /// Get the review forecast for a user.
+    pub async fn get_review_forecast(&self, day_end: DateTime<FixedOffset>, max_days: i64)
+        -> DbResult<Vec<(i64, i64)>>
+    {
+        let query = sqlx::query("
+            -- This bit of voodoo calculates the day the card is due as a fractional value,
+            -- (e.g. 0.5 is today, but 1.0 is at the day start time tommorow morning),
+            -- then floors it to get an integer value and groups by it to get the number of
+            -- cards due on each day.
+            SELECT max(0, cast(1 + (JULIANDAY(due) - JULIANDAY(?)) as integer)) as day_due,
+                count(ROWID) as reviews_due
+            FROM cards
+            WHERE day_due < ?
+            GROUP BY day_due
+        ");
+
+        query
+            .bind(day_end.to_rfc3339())
+            .bind(max_days)
+            .fetch(&self.pool)
+            .map(|row| {
+                let row = row?;
+                let day_due = row.try_get::<i64, _>("day_due")?;
+                let reviews_due = row.try_get::<i64, _>("reviews_due")?;
+                Ok((day_due, reviews_due)) as DbResult<(i64, i64)>
+            })
+        .try_collect::<Vec<(i64, i64)>>()
+        .await
     }
 }
