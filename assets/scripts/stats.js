@@ -114,6 +114,7 @@ export class StatsChart {
     }
 
     configure(config) {
+        console.log(config);
         this.config = Object.assign(config, this.config);
         this.render();
     }
@@ -235,7 +236,7 @@ export class ReviewForecastChart extends StatsChart {
         return [
             { label: '7d', x_max: 7 },
             { label: '14d', x_max: 14 },
-            { label: 'all', x_max: 365 },
+            { label: 'all', x_max: 1000 },
         ];
     }
 
@@ -251,7 +252,7 @@ export class ReviewForecastChart extends StatsChart {
                     title: {
                         display: true,
                         text: "Days from now"
-                    }
+                    },
                 },
                 y: {
                     min: 0,
@@ -262,8 +263,12 @@ export class ReviewForecastChart extends StatsChart {
                     },
                     ticks: {
                         precision: 0,
-                    }
+                    },
                 }
+            },
+            parsing: {
+                xAxisKey: 'day',
+                yAxisKey: 'reviews',
             }
         };
     }

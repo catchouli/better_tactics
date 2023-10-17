@@ -49,14 +49,12 @@
     $.ajax(`/api/user/review_forecast/365`)
         .done(function(data) {
             let chart_data = {
-                labels: data.map(v => `${v[0]}d`),
-                datasets: [
-                    {
+                datasets: [{
                         label: "Reviews due",
                         backgroundColor: "#416c86",
-                        data: data.map(v => v[1]),
-                    }
-                ]
+                        data: data.map(v => { return { day: v[0], reviews: v[1] }; }),
+                }],
+                labels: data.map(v => `${v[0]}d`),
             };
             review_forecast.configure({ data: chart_data });
         })

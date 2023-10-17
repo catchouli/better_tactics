@@ -304,7 +304,7 @@ impl PuzzleDatabase {
             -- (e.g. 0.5 is today, but 1.0 is at the day start time tommorow morning),
             -- then floors it to get an integer value and groups by it to get the number of
             -- cards due on each day.
-            SELECT CAST((JULIANDAY(due) - JULIANDAY(?)) as integer) as day_due,
+            SELECT max(0, cast(1 + (JULIANDAY(due) - JULIANDAY(?)) as integer)) as day_due,
                 count(ROWID) as reviews_due
             FROM cards
             WHERE day_due < ?
