@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use chrono::{DateTime, FixedOffset, Local, Duration};
+use chrono::{DateTime, FixedOffset, Local};
 use tokio::sync::Mutex;
 
 use crate::db::{PuzzleDatabase, ReviewScoreBucket};
@@ -101,25 +101,13 @@ impl UserService {
 
     /// Get the review forecast for a user.
     pub async fn get_review_forecast(&self, user_id: &str, length_days: i64)
-        -> ServiceResult<Vec<i64>>
+        -> ServiceResult<Vec<(i64, i64)>>
     {
         Self::validate_user_id(user_id)?;
         let db = self.db.lock().await;
 
-        let mut review_forecast = Vec::new();
-
-        // Get the reviews due today as the initial value.
         let day_end = srs::day_end_datetime::<LocalTimeProvider>();
-        review_forecast.push(db.reviews_due_by(day_end.clone(), day_end.clone()).await?);
-
-        // Start at the end of today and look up the reviews due for each day in the following week
-        // (or REVIEW_FORECAST_LENGTH days).
-        let mut start = day_end;
-        for _ in 0..length_days {
-            let end = start + Duration::days(1);
-            review_forecast.push(db.reviews_due_between(start, end).await?);
-            start = end;
-        }
+        let review_forecast = db.get_review_forecast(day_end, length_days).await?;
 
         Ok(review_forecast)
     }

@@ -74,11 +74,8 @@ export class PuzzleUi {
         // Store whether it's currently the first try or not, so we know if it's a successful solve or not.
         this.first_try = true;
 
-        // Update this.config.
-        config = Object.assign(this.config, config);
-        this.config = config;
-
         // Re-render the layout.
+        this.config = Object.assign(this.config, config);
         this.render();
     }
 

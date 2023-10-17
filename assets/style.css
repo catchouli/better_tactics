@@ -150,17 +150,6 @@ cg-board {
     padding-bottom: 1rem;
 }
 
-.chart-buttons {
-    text-align: right;
-}
-
-.chart-button {
-    display: inline;
-    margin-left: auto;
-    margin-right: 1rem;
-    text-decoration: none;
-}
-
 .stats-panel .stats {
     margin: 0 auto;
     margin-bottom: 2rem;
@@ -424,6 +413,24 @@ cg-board {
     flex-grow: 1;
     min-height: 15rem;
     padding: 0 0.5rem;
+}
+
+.chart-buttons {
+    text-align: right;
+}
+
+.chart-button {
+    display: inline;
+    margin-left: auto;
+    margin-right: 1rem;
+    text-decoration: none;
+    user-select: none;
+}
+
+.chart-button.inactive {
+    font-weight: bold;
+    cursor: unset;
+    pointer-events: none;
 }
 
 /* ==================== Desktop layout ==================== */

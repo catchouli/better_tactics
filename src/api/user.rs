@@ -60,16 +60,8 @@ pub async fn stats(State(state): State<AppState>)
 pub async fn review_forecast(
     State(state): State<AppState>,
     Path(length_days): Path<i64>,
-) -> Result<Json<Vec<i64>>, ApiError>
+) -> Result<Json<Vec<(i64, i64)>>, ApiError>
 {
-    const MIN_LENGTH_DAYS: i64 = 0;
-    const MAX_LENGTH_DAYS: i64 = 30;
-
-    if length_days < MIN_LENGTH_DAYS || length_days > MAX_LENGTH_DAYS {
-        Err(ApiError::InvalidParameter(format!("length_days must be between {} and {}",
-                                               MIN_LENGTH_DAYS, MAX_LENGTH_DAYS)))?;
-    }
-
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
