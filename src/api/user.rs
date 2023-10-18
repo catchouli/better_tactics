@@ -1,4 +1,5 @@
 use axum::extract::{State, Json, Path};
+use chrono::Local;
 use serde_json::Value;
 
 use crate::api::{ApiError, ApiResponse};
@@ -50,6 +51,12 @@ pub async fn stats(State(state): State<AppState>)
         map.insert("reviews_due_today".into(), stats.reviews_due_today.into());
         let next_review_due = util::maybe_review_timestamp_to_human(&stats.next_review_due);
         map.insert("next_review_due".into(), next_review_due.into());
+
+        if let Some(next_review_due) = stats.next_review_due {
+            let time_until_due = next_review_due - Local::now().fixed_offset();
+            map.insert("ms_until_due".into(), time_until_due.num_milliseconds().into());
+        }
+
         map
     });
 

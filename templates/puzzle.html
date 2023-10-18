@@ -22,11 +22,12 @@
         mode,
         requested_id,
         on_review: submit_review,
+        request_data: request_next_puzzle,
     });
     document.puzzle_ui = puzzle_ui;
 
     // Request the first puzzle.
-    request_next_puzzle();
+    //request_next_puzzle();
 
     // Request the user's stats from the api and return a promise.
     function request_stats() {
@@ -53,7 +54,7 @@
         })
         .done(function() {
             console.log("Done, loading next puzzle");
-            puzzle_ui.configure({ loaded: false });
+            puzzle_ui.configure({ loading: true });
             request_next_puzzle();
         })
         .fail(function() {
@@ -64,35 +65,31 @@
 
     // Request the next puzzle.
     function request_next_puzzle() {
-        request_stats()
+        return request_stats()
             .then(stats => {
-                request_stats().then(stats => puzzle_ui.configure({ stats }));
-
-                // Reset puzzle and card to null.
-                puzzle_ui.configure({ puzzle: null, card: null });
-
                 if (mode == "Review") {
-                    return $.ajax("/api/tactics/review");
+                    return $.ajax("/api/tactics/review")
+                        .then(data => {
+                            return Promise.resolve(Object.assign(data, { stats }));
+                        });
                 }
                 else if (mode == "Specific") {
-                    return $.ajax(`/api/tactics/by_id/${requested_id}`);
+                    return $.ajax(`/api/tactics/by_id/${requested_id}`)
+                        .then(data => {
+                            return Promise.resolve(Object.assign(data, { stats }));
+                        });
                 }
                 else {
                     // Random in range.
                     let min_rating = Math.floor(stats.user_rating.rating / PUZZLE_RATING_VARIATION);
                     let max_rating = Math.floor(stats.user_rating.rating * PUZZLE_RATING_VARIATION);
                     puzzle_ui.configure({ rating_range: [min_rating, max_rating] });
-                    return $.ajax(`/api/tactics/random/${min_rating}/${max_rating}`);
+
+                    return $.ajax(`/api/tactics/random/${min_rating}/${max_rating}`)
+                        .then(data => {
+                            return Promise.resolve(Object.assign(data, { stats }));
+                        });
                 }
-            })
-            .then(data => {
-                data.loaded = true;
-                puzzle_ui.configure(data);
-            })
-            .catch(err => {
-                let error_text = `Failed to get next puzzle: ${err.responseText}`;
-                console.error(error_text);
-                puzzle_ui.configure({error: error_text});
             });
     }
 </script>

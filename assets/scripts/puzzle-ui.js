@@ -25,6 +25,25 @@ export class PuzzleUi {
 
         this._analysis_fen = null;
 
+        this.topbar_vnode = h('div');
+
+        this.topbar_interval = setInterval(() => {
+            if (!this.config.puzzle && !this.config.error && this.config.stats &&
+                this.config.stats.reviews_due_now == 0 &&
+                this.config.stats.reviews_due_today > 0)
+            {
+                if (typeof this.config.stats.ms_until_due === "number") {
+                    this.config.stats.ms_until_due -= 1000;
+                    this.topbar_vnode = patch(this.topbar_vnode, this.topbar());
+
+                    if (!this.loading && this.config.stats.ms_until_due < 0) {
+                        this.config.stats.ms_until_due = 24 * 60 * 60 * 1000;
+                        this.request_data();
+                    }
+                }
+            }
+        }, 1000);
+
         // Render once and create the puzzle board.
         this.render();
         this.puzzle = new PuzzleBoard(document.getElementById("board"), {
@@ -36,6 +55,7 @@ export class PuzzleUi {
         });
 
         this.configure(config ? config : {});
+        this.request_data();
     }
 
     configure(config) {
@@ -95,9 +115,35 @@ export class PuzzleUi {
         }
     }
 
+    request_data() {
+        if (typeof this.config.request_data === "function") {
+            console.log("Puzzle ui: requesting data");
+            this.config.error = null;
+            this.config.loading = true;
+            this.render();
+
+            this.config.request_data()
+                .then(data => {
+                    this.configure(data);
+                    this.config.loading = false;
+                    this.render();
+                })
+                .catch(err => {
+                    let error_message = error_message_from_value(err);
+                    this.config.error = `Failed to get data: ${error_message}`;
+                    this.config.loading = false;
+                    this.render();
+
+                    console.error(this.config.error);
+                });
+        }
+    }
+
     view() {
+        this.topbar_vnode = this.topbar();
+
         return h('div#puzzle-interface', [
-            this.topbar(),
+            this.topbar_vnode,
 
             h('div.columns', [
                 // The board column on the left.
@@ -123,9 +169,9 @@ export class PuzzleUi {
 
     topbar_contents() {
         if (this.config.error) {
-            return h('div.error.fatal', [ 'Error: ', e.message, ]);
+            return h('div.error.fatal', [ 'Error: ', this.config.error ]);
         }
-        else if (!this.config.loaded) {
+        else if (this.config.loading) {
             return 'Loading next puzzle...';
         }
         else if (this.config.mode) {
@@ -156,7 +202,11 @@ export class PuzzleUi {
                     return `Reviewing next puzzle (${reviews_left} reviews left)`;
                 }
                 else {
-                    let due = this.config.stats.next_review_due;
+                    let due = 'unknown';
+                    if (this.config.stats.ms_until_due) {
+                        due = this.human_duration(this.config.stats.ms_until_due);
+                    }
+
                     let done_text = this.config.stats.reviews_due_today > 0
                         ? `You are done with reviews for now, the next review is due in ${due}.`
                         : 'You are done with reviews for today!';
@@ -174,7 +224,7 @@ export class PuzzleUi {
             }
         }
 
-        return 'Loading next puzzle...';
+        return 'error';
     }
 
     promotion_ui() {
@@ -209,7 +259,7 @@ export class PuzzleUi {
     }
 
     sidebar() {
-        if (this.config.puzzle && this.config.loaded) {
+        if (this.config.puzzle && !this.config.loading) {
             return h('div.column.sidebar', [
                 this.puzzle_info(),
                 this.card_stats(),
@@ -324,6 +374,15 @@ export class PuzzleUi {
 
     fuzzy_duration(ms) {
         return moment.duration(ms, 'ms').humanize();
+    }
+
+    human_duration(ms) {
+        if (ms < 0)
+            return "now";
+        else if (ms > 60 * 60 * 1000)
+            return moment.utc(ms).format("HH:mm:ss");
+        else 
+            return moment.utc(ms).format("mm:ss");
     }
 
     has_time_passed(dt) {

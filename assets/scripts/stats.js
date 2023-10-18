@@ -136,6 +136,7 @@ export class UserStats {
             this.data_request_error = null;
             this.config.data = null;
             this.config.loading = true;
+            this.render();
 
             this.config.request_data()
                 .then(data => {
@@ -151,7 +152,6 @@ export class UserStats {
 
                     console.error(this.data_request_error);
                 });
-            this.render();
         }
     }
 }
@@ -222,8 +222,11 @@ export class StatsChart {
     request_data() {
         if (typeof this.config.request_data === "function") {
             console.log(`${this.chart_title()}: Calling request_data`);
+
             this.data_request_error = null;
             this.config.data = null;
+            this.render();
+
             this.config.request_data()
                 .then(data => {
                     this.config.data = data;
@@ -234,7 +237,6 @@ export class StatsChart {
                     console.error(`${this.chart_title()}: ${this.data_request_error}`);
                     this.render();
                 });
-            this.render();
         }
     }
 
