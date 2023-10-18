@@ -19,12 +19,34 @@ const patch = init([
 // Set default text color for charts.js.
 Chart.defaults.color = "rgb(221, 211, 211)";
 
+// Get an error message from a value depending on the type.
+function error_message_from_value(err) {
+    if (typeof err === "string") {
+        return err;
+    }
+    else if (typeof err === "object") {
+        if (typeof err.message === "string") {
+            return err.message;
+        }
+        else if (typeof err.error == "string") {
+            return err.error;
+        }
+        else if (typeof err.responseJSON === "object" && typeof err.responseJSON.error === "string") {
+            return err.responseJSON.error;
+        }
+        else {
+            return "";
+        }
+    }
+}
+
 // User stats.
 export class UserStats {
     constructor(element, config) {
         this.vnode = element;
         this.config = {};
         this.container_tag = 'div#stats-panel.column.bt-panel.stats-panel';
+        this.data_request_error = null;
 
         this.configure(config ? config : {});
     }
@@ -33,6 +55,7 @@ export class UserStats {
         console.log(config);
         this.config = Object.assign(config, this.config);
         this.render();
+        this.request_data();
     }
 
     render() {
@@ -40,22 +63,16 @@ export class UserStats {
             this.vnode = patch(this.vnode, this.view());
         }
         catch (err) {
-            let error_text = "";
-            if (err && err.message) {
-                error_text = err.message;
-                console.error(err);
-            }
-
-            let error_view = h(this.container_tag + '.error.fatal', `Error when building view: ${error_text}`);
-            this.vnode = patch(this.vnode, error_view);
+            this.vnode = patch(this.vnode, this.error_view());
         }
     }
 
     view() {
-        let stats = this.config.stats ? this.config.stats : {};
+        let stats = this.config.data ? this.config.data : {};
 
         return h(this.container_tag, [
             h('h2.title.is-3', 'Stats'),
+            this.error(),
             h('table.stats', [
                 h('tbody', [
                     h('tr', [
@@ -67,7 +84,7 @@ export class UserStats {
                         h('td', stats.card_count),
                     ]),
                     h('tr', [
-                        h('th', 'Puzzle comlpetions'),
+                        h('th', 'Puzzle completions'),
                         h('td', stats.review_count),
                     ]),
                     h('tr', [
@@ -90,9 +107,51 @@ export class UserStats {
         ]);
     }
 
+    error_view() {
+        let error_text = "";
+        if (err && err.message) {
+            error_text = err.message;
+            console.error(err);
+        }
+
+        return h(this.container_tag + '.error.fatal', `Error when building view: ${error_text}`);
+    }
+
+    error() {
+        if (this.data_request_error) {
+            return h('div.error.fatal', this.data_request_error);
+        }
+    }
+
     loader() {
-        if (!this.config.stats) {
+        if (this.config.loading) {
             return h('div.bt-loader');
+        }
+    }
+
+    request_data() {
+        if (typeof this.config.request_data === "function") {
+            console.log(`Stats: Calling request_data`);
+
+            this.data_request_error = null;
+            this.config.data = null;
+            this.config.loading = true;
+
+            this.config.request_data()
+                .then(data => {
+                    this.config.data = data;
+                    this.config.loading = false;
+                    this.render();
+                })
+                .catch(err => {
+                    let error_message = error_message_from_value(err);
+                    this.data_request_error = `Failed to get data: ${error_message}`;
+                    this.config.loading = false;
+                    this.render();
+
+                    console.error(this.data_request_error);
+                });
+            this.render();
         }
     }
 }
@@ -106,17 +165,20 @@ export class StatsChart {
         this.container_tag = `div#${this.container_id}.column.bt-panel.chart-panel.stats-panel`;
         this.config = {};
         this.chart_data = {};
+        this.data_request_error = null;
 
         let chart_modes = this.chart_modes();
-        this.chart_mode = chart_modes && chart_modes.length > 0 ? chart_modes[0] : '';
+        this.chart_mode = this.default_mode();
 
         this.configure(config ? config : {});
     }
 
     configure(config) {
         console.log(config);
+
         this.config = Object.assign(config, this.config);
         this.render();
+        this.request_data();
     }
 
     render() {
@@ -125,18 +187,15 @@ export class StatsChart {
             this.create_chart();
         }
         catch (err) {
-            let error_text = "";
-            if (err && err.message) {
-                error_text = err.message;
-                console.error(err);
-            }
-
-            let error_view = h(this.container_tag + '.error.fatal', `Error when building view: ${error_text}`);
-            this.vnode = patch(this.vnode, error_view);
+            this.vnode = patch(this.vnode, this.error_view(err));
         }
     }
 
     view() {
+        if (this.data_request_error) {
+            return error_view(this.data_request_error);
+        }
+
         return h(this.container_tag, [
             h('h2.title.is-3', this.chart_title()),
             h('div.chart-buttons', this.buttons()),
@@ -145,6 +204,38 @@ export class StatsChart {
             ]),
             this.loader(),
         ]);
+    }
+
+    error_view(err) {
+        let error_message = error_message_from_value(err);
+        if (error_message != "") {
+            error_message = `Error when building view: ${error_message}`;
+        }
+        else {
+            error_message = `Error when building view`;
+        }
+
+        console.error(err);
+        return h(this.container_tag + '.error.fatal', error_message);
+    }
+
+    request_data() {
+        if (typeof this.config.request_data === "function") {
+            console.log(`${this.chart_title()}: Calling request_data`);
+            this.data_request_error = null;
+            this.config.data = null;
+            this.config.request_data()
+                .then(data => {
+                    this.config.data = data;
+                    this.render();
+                })
+                .catch(err => {
+                    this.data_request_error = `Failed to get data: ${err.responseText}`;
+                    console.error(`${this.chart_title()}: ${this.data_request_error}`);
+                    this.render();
+                });
+            this.render();
+        }
     }
 
     loader() {
@@ -182,6 +273,11 @@ export class StatsChart {
 
     chart_modes() {
         return [];
+    }
+
+    default_mode() {
+        let chart_modes = this.chart_modes();
+        return chart_modes && chart_modes.length > 0 ? chart_modes[0] : '';
     }
 
     create_chart() {
@@ -235,7 +331,7 @@ export class ReviewForecastChart extends StatsChart {
     chart_modes() {
         return [
             { label: '7d', x_max: 7 },
-            { label: '14d', x_max: 14 },
+            { label: '30d', x_max: 30 },
             { label: 'all', x_max: 1000 },
         ];
     }
@@ -283,7 +379,29 @@ export class RatingHistoryChart extends StatsChart {
         return 'line';
     }
 
+    chart_modes() {
+        return [
+            { label: '7d', days: 7 },
+            { label: '30d', days: 30 },
+            { label: 'all', days: 1000 },
+        ];
+    }
+
+    default_mode() {
+        return this.chart_modes()[2];
+    }
+
     chart_options() {
+        let min_date = moment().subtract(this.chart_mode.days, 'days');
+        console.log('min date: ' + min_date.format());
+
+        if (this.config.data) {
+            let data_start = moment(this.config.data.datasets[0].data[0].x);
+            if (min_date < data_start) {
+                min_date = data_start;
+            }
+        }
+
         return {
             maintainAspectRatio: false,
             plugins: {
@@ -292,6 +410,7 @@ export class RatingHistoryChart extends StatsChart {
             scales: {
                 x: {
                     type: 'time',
+                    min: min_date,
                     time: {
                         unit: 'day',
                         displayFormats: {

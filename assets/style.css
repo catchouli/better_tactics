@@ -74,6 +74,12 @@ cg-board {
 }
 
 /* ==================== Mobile layout ==================== */
+.title {
+    /* Override bulma's titles having a big margin on the bottom. It's more consistent if our
+     * paragraphs/other elements have a margin instead. */
+    margin-bottom: 0 !important;
+}
+
 .header {
     position: relative;
     display: flex;
@@ -145,13 +151,19 @@ cg-board {
 
 /* Index page */
 .stats-panel {
+    flex-grow: 0;
     position: relative;
     text-align: center;
     padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stats-panel .button {
+    margin-bottom: 1rem;
 }
 
 .stats-panel .stats {
-    margin: 0 auto;
+    margin: 2rem auto;
     margin-bottom: 2rem;
 }
 
