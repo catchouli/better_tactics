@@ -41,9 +41,7 @@
 
     // Submit a review for the given puzzle and difficulty.
     function submit_review(puzzle_id, difficulty) {
-        $('button.review-button').prop('disabled', true);
-
-        $.ajax({
+        return $.ajax({
             type: "POST",
             url: "/api/tactics/review",
             data: JSON.stringify({
@@ -51,15 +49,6 @@
                 difficulty: difficulty
             }),
             contentType: 'application/json; charset=utf-8',
-        })
-        .done(function() {
-            console.log("Done, loading next puzzle");
-            puzzle_ui.configure({ loading: true });
-            request_next_puzzle();
-        })
-        .fail(function() {
-            console.error("Failed to submit review");
-            $('button.review-button').prop('disabled', false);
         });
     }
 

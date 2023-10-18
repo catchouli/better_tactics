@@ -3,6 +3,7 @@ import {
     classModule,
     propsModule,
     styleModule,
+    attributesModule,
     datasetModule,
     eventListenersModule,
     h,
@@ -15,15 +16,17 @@ const patch = init([
     propsModule,
     styleModule,
     eventListenersModule,
+    attributesModule,
     datasetModule,
 ]);
 
 export class PuzzleUi {
     constructor(container, config) {
         this.config = {};
-        this._vnode = container;
+        this.vnode = container;
 
-        this._analysis_fen = null;
+        this.analysis_fen = null;
+        this.disable_review_buttons = true;
 
         this.topbar_vnode = h('div');
 
@@ -74,7 +77,7 @@ export class PuzzleUi {
                 let game = new Chess(config.puzzle.fen);
                 let first_move = config.puzzle.moves.split(' ')[0];
                 game.move(first_move);
-                this._analysis_fen = game.fen();
+                this.analysis_fen = game.fen();
             }
             catch (e) {
                 console.error("Error when using chess.js to get initial board state for analysis");
@@ -103,7 +106,7 @@ export class PuzzleUi {
 
     render() {
         try {
-            this._vnode = patch(this._vnode, this.view());
+            this.vnode = patch(this.vnode, this.view());
         }
         catch (err) {
             let error_text = "";
@@ -113,7 +116,7 @@ export class PuzzleUi {
             }
 
             let error_view = h('div.error.fatal', `Error when building view: ${error_text}`);
-            this._vnode = patch(this._vnode, error_view);
+            this.vnode = patch(this.vnode, error_view);
         }
     }
 
@@ -128,6 +131,7 @@ export class PuzzleUi {
                 .then(data => {
                     this.configure(data);
                     this.config.loading = false;
+                    this.disable_review_buttons = false;
                     this.render();
                 })
                 .catch(err => {
@@ -319,10 +323,10 @@ export class PuzzleUi {
     }
 
     analysis_link() {
-        if (this._analysis_fen) {
+        if (this.analysis_fen) {
             return h('a.analysis-link', { props: {
                 target: "_blank",
-                href: `https://lichess.org/analysis/standard/${this._analysis_fen}`,
+                href: `https://lichess.org/analysis/standard/${this.analysis_fen}`,
             } }, "Analyse");
         }
     }
@@ -469,6 +473,7 @@ export class PuzzleUi {
                             h('button#hard.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: 1 },
+                                attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Hard'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_hard) : null),
@@ -478,6 +483,7 @@ export class PuzzleUi {
                             h('button#good.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: 2 },
+                                attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Good'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_good) : null),
@@ -487,6 +493,7 @@ export class PuzzleUi {
                             h('button#easy.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: 3 },
+                                attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Easy'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_easy) : null),
@@ -507,6 +514,7 @@ export class PuzzleUi {
                             h('button#again.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: 0 },
+                                attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Again'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_again) : null),
@@ -553,7 +561,20 @@ export class PuzzleUi {
         console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
 
         if (this.config.on_review) {
-            this.config.on_review(puzzle_id, difficulty);
+            this.disable_review_buttons = true;
+            this.render();
+
+            this.config.on_review(puzzle_id, difficulty)
+                .then(() => {
+                    console.log("Done, loading next puzzle");
+                    this.request_data();
+                })
+                .catch((e) => {
+                    console.error("Failed to submit review");
+                    this.disable_review_buttons = false;
+                    this.render();
+                    $('button.review-button').prop('disabled', false);
+                });
         }
     }
 }
