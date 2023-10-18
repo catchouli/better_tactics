@@ -556,7 +556,13 @@ export class PuzzleUi {
     }
 
     on_review_button_clicked(button) {
-        let puzzle_id = this.config.puzzle ? this.config.puzzle.puzzle_id : "puzzle_id";
+        if (!this.config.card) {
+            console.error("Attempt to review when this.config.card does not exist");
+            return;
+        }
+
+        let card = this.config.card;
+        let puzzle_id = card.id;
         let difficulty = button.data.dataset.difficulty;
         console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
 
@@ -564,16 +570,16 @@ export class PuzzleUi {
             this.disable_review_buttons = true;
             this.render();
 
-            this.config.on_review(puzzle_id, difficulty)
+            this.config.on_review(card, difficulty)
                 .then(() => {
                     console.log("Done, loading next puzzle");
                     this.request_data();
                 })
                 .catch((e) => {
-                    console.error("Failed to submit review");
+                    this.config.error = `Failed to submit review: ${e.responseText}`;
+                    console.error(this.config.error);
                     this.disable_review_buttons = false;
                     this.render();
-                    $('button.review-button').prop('disabled', false);
                 });
         }
     }

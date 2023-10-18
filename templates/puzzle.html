@@ -40,13 +40,14 @@
     }
 
     // Submit a review for the given puzzle and difficulty.
-    function submit_review(puzzle_id, difficulty) {
+    function submit_review(card, difficulty) {
         return $.ajax({
             type: "POST",
             url: "/api/tactics/review",
             data: JSON.stringify({
-                id: puzzle_id,
-                difficulty: difficulty
+                id: card.id,
+                difficulty,
+                review_count: card.review_count,
             }),
             contentType: 'application/json; charset=utf-8',
         });

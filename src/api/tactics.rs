@@ -17,6 +17,10 @@ use crate::time::LocalTimeProvider;
 pub struct ReviewRequest {
     pub id: String,
     pub difficulty: i64,
+    // The current review count of the card, to prevent a card from being reviewed twice by
+    // accident, the client can submit this value to us and we can assume the request has already
+    // been fulfilled if it doesn't match.
+    pub review_count: i64,
 }
 
 /// Response JSON for endpoints returning a puzzle and a card.
@@ -65,6 +69,13 @@ pub async fn review(
     let (puzzle, card) = state.tactics_service.get_puzzle_by_id(&request.id).await?;
     let puzzle = puzzle.ok_or(ServiceError::from(format!("No such puzzle {}", request.id)))?;
     let card = card.unwrap_or(Card::new(&request.id, Local::now().fixed_offset(), state.app_config.srs));
+
+    if card.review_count != request.review_count {
+        log::warn!(concat!("Attempted to review card with incorrect review count ({} != {}), it's possible "
+            , "this request has accidentally been submitted twice so we're ignoring this attempt"),
+            request.review_count, card.review_count);
+        return Ok(());
+    }
 
     // Update the user's rating.
     let new_rating = state.user_service.update_rating(user_id, difficulty, GameResult {
