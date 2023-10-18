@@ -34,11 +34,13 @@ export class PuzzleUi {
             {
                 if (typeof this.config.stats.ms_until_due === "number") {
                     this.config.stats.ms_until_due -= 1000;
-                    this.topbar_vnode = patch(this.topbar_vnode, this.topbar());
 
                     if (!this.loading && this.config.stats.ms_until_due < 0) {
-                        this.config.stats.ms_until_due = 24 * 60 * 60 * 1000;
+                        this.config.stats.ms_until_due = null;
                         this.request_data();
+                    }
+                    else {
+                        this.topbar_vnode = patch(this.topbar_vnode, this.topbar());
                     }
                 }
             }
@@ -203,7 +205,7 @@ export class PuzzleUi {
                 }
                 else {
                     let due = 'unknown';
-                    if (this.config.stats.ms_until_due) {
+                    if (typeof this.config.stats.ms_until_due === "number") {
                         due = this.human_duration(this.config.stats.ms_until_due);
                     }
 
