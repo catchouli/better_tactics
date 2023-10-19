@@ -1,5 +1,12 @@
 [1.8.0] - ????-??-??
 
+Added:
+* A Puzzle History page, which shows the history of all puzzles reviewed.
+
+Changed:
+* On the 'next puzzle' screen, the puzzle to be reviewed is now saved, and a 'skip puzzle' button
+  has been added to any new puzzles in case you really don't want to do it.
+
 [1.7.0] - 2023-10-19
 
 Changed:
