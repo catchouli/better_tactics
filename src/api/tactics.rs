@@ -175,7 +175,8 @@ pub async fn random_puzzle(
         if puzzle.is_some() && card.is_none() {
             return Ok(Json(CardResponse {
                 puzzle,
-                card,
+                card: Some(Card::new(&saved_next_puzzle, Local::now().fixed_offset(),
+                    state.app_config.srs)),
                 due_today: true,
             }));
         }
