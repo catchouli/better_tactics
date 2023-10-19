@@ -1,4 +1,4 @@
-[1.7.0] - ????-??-??
+[1.7.0] - 2023-10-19
 
 Changed:
 * The puzzle page now loads the next puzzle automatically without refreshing the page.
