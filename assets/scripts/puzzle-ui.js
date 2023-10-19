@@ -280,6 +280,8 @@ export class PuzzleUi {
                 this.right_move(),
                 this.puzzle_complete(),
                 this.reviewing_ahead(),
+                this.skip_button(),
+                this.dont_repeat_button(),
             ]);
         }
     }
@@ -425,17 +427,25 @@ export class PuzzleUi {
     }
 
     find_the_line() {
-        let skip_button;
-        if (this.config.mode == 'Random') {
-            skip_button = h('a',
-                { on: { click: this.on_skip_clicked.bind(this) } },
-                'Skip this puzzle');
-        }
-
         if (this.puzzle && this.puzzle.is_first_move()) {
             return h('div#find-the-line.bt-panel.controls-subpanel', [
                 h('p', 'Find the line!'),
-                skip_button,
+            ]);
+        }
+    }
+
+    skip_button() {
+        if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_first_move()) {
+            return h('div#skip-button.bt-panel.controls-subpanel', [
+                h('a', { on: { click: this.on_skip_clicked.bind(this) } }, "Skip this puzzle"),
+            ]);
+        }
+    }
+
+    dont_repeat_button() {
+        if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_complete()) {
+            return h('div#dont-repeat.bt-panel.controls-subpanel', [
+                h('a', { on: { click: this.skip_puzzle.bind(this) } }, "Don't repeat this puzzle"),
             ]);
         }
     }
@@ -601,21 +611,25 @@ export class PuzzleUi {
 
     on_skip_clicked(button) {
         if (window.confirm("Are you sure you want to skip this puzzle?")) {
-            if (this.config.on_skip) {
-                this.disable_review_buttons = true;
+            this.skip_puzzle();
+        }
+    }
 
-                this.config.on_skip()
-                    .then(() => {
-                        console.log("Skipped, loading next puzzle");
-                        this.request_data();
-                    })
-                    .catch((e) => {
-                        this.config.error = `Failed to skip puzzle: ${e.responseText}`;
-                        console.error(this.config.error);
-                        this.disable_review_buttons = false;
-                        this.render();
-                    });
-            }
+    skip_puzzle() {
+        if (this.config.on_skip) {
+            this.disable_review_buttons = true;
+
+            this.config.on_skip()
+                .then(() => {
+                    console.log("Skipped, loading next puzzle");
+                    this.request_data();
+                })
+                .catch((e) => {
+                    this.config.error = `Failed to skip puzzle: ${e.responseText}`;
+                    console.error(this.config.error);
+                    this.disable_review_buttons = false;
+                    this.render();
+                });
         }
     }
 }
