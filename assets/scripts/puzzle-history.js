@@ -227,17 +227,5 @@ export class PuzzleHistory {
             console.log(index);
             console.log(this);
         });
-
-        //this.data.puzzles.map(item => {
-        //    let puzzle = item.puzzle;
-        //    if (!this.boards[puzzle.puzzle_id]) {
-        //        let container = $(`div.puzzle-history-board-container[data-id="${puzzle.puzzle_id}"]`);
-        //        if (container.length != 0) {
-        //            this.boards[puzzle.puzzle_id] = new PuzzleBoard(container[0], Object.assign({
-        //                locked: true,
-        //            }, puzzle));
-        //        }
-        //    }
-        //});
     }
 }
