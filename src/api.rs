@@ -10,6 +10,9 @@ use axum::routing::{get, post};
 use crate::app::AppState;
 use crate::services::ServiceError;
 
+/// Type for API results.
+pub type ApiResult<T> = Result<T, ApiError>;
+
 /// API routes.
 pub fn routes(app_state: AppState) -> Router {
     Router::new()
@@ -18,6 +21,7 @@ pub fn routes(app_state: AppState) -> Router {
         .route("/tactics/by_id/:puzzle_id", get(tactics::puzzle_by_id))
         .route("/tactics/review", get(tactics::next_review))
         .route("/tactics/review", post(tactics::review))
+        .route("/tactics/history/:page", get(tactics::puzzle_history))
 
         // User.
         .route("/user/stats", axum::routing::get(user::stats))

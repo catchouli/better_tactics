@@ -25,6 +25,10 @@ export class PuzzleBoard {
         this.configure(config ? config : {});
     }
 
+    destroy() {
+        this._board.destroy();
+    }
+
     configure(config) {
         config = Object.assign(this._config, config);
         this._config = config;
@@ -81,7 +85,15 @@ export class PuzzleBoard {
 
         this._remaining_moves = this._moves.slice();
 
-        if (this._remaining_moves.length > 0) {
+        if (this._config.locked) {
+            console.log('what');
+            this._board.set({
+                movable: {
+                    color: 'none',
+                }
+            });
+        }
+        else if (this._remaining_moves.length > 0) {
             // Make the player's pieces movable again, the 'wrong move' interface disables this.
             this._board.set({
                 movable: {
@@ -216,7 +228,8 @@ export class PuzzleBoard {
             this.sync_board();
 
             // Call the on_move callback.
-            this._config.on_move();
+            if (this._config.on_move)
+                this._config.on_move();
 
             // Add a timer to apply the next premove, if there is one.
             setTimeout(() => this._board.playPremove(), COMPUTER_MOVE_DELAY);
@@ -257,7 +270,8 @@ export class PuzzleBoard {
         this.sync_board();
 
         // Call on move callback now that we've validated it.
-        this._config.on_move();
+        if (this._config.on_move)
+            this._config.on_move();
 
         // Check if it was the right or wrong move. A special case we need to consider is that for
         // checkmate-in-ones there might be multiple legal moves. This is the only special case

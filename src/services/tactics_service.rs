@@ -100,4 +100,13 @@ impl TacticsService {
 
         Ok(())
     }
+
+    pub async fn get_puzzle_history(&self, user_id: &str, offset: i64, count: i64)
+        -> ServiceResult<(Vec<(Review, Puzzle)>, i64)>
+    {
+        Ok(self.db.lock()
+            .await
+            .get_distinct_reviews(user_id, offset, count)
+            .await?)
+    }
 }

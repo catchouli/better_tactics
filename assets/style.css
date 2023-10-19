@@ -445,6 +445,58 @@ cg-board {
     pointer-events: none;
 }
 
+/* History page */
+.puzzle-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    padding-bottom: 1rem;
+}
+
+.puzzle-history-item .info {
+    flex-basis: 40%;
+}
+
+.puzzle-history-item .info table {
+    flex-basis: 40%;
+    margin: 0 auto;
+}
+
+.puzzle-history-item th {
+    padding: 0 1rem;
+}
+
+.puzzle-history-board-container {
+    width: 250px;
+    height: 250px;
+}
+
+/* These get a bit weird at smaller sizes */
+.puzzle-history-board-container coords {
+    display: none;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: space-around;
+    padding: 0.5rem;
+}
+
+.pagination a {
+    font-weight: bold;
+    text-decoration: none;
+    user-select: none;
+}
+
+.pagination a[disabled] {
+    font-weight: unset;
+    cursor: unset;
+    color: grey !important;
+    pointer-events: none;
+}
+
 /* ==================== Desktop layout ==================== */
 @media only screen and (min-width: 768px) {
     /* On desktop the main background color and panel background color should be different */

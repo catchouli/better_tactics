@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="columns">
+    <div id="about" class="column bt-panel">
+        <h2 class="title is-2">
+            Puzzle History
+        </h2>
+        <div id="puzzle-history"></div>
+    </div>
+</div>
+
+<script type="module">
+    import {
+        PuzzleHistory
+    } from '/assets_{{base.assets_version}}/scripts/puzzle-history.js';
+
+    new PuzzleHistory(document.getElementById("puzzle-history"), {
+        page: {{ page }},
+        request_data: (config) => $.ajax(`/api/tactics/history/${config.page}`),
+    });
+</script>
+{% endblock %}

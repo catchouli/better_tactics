@@ -1,6 +1,6 @@
 use std::fmt::Display;
 use askama::Template;
-use axum::extract::Path;
+use axum::extract::{Path, Query};
 
 use super::{BaseTemplateData, ControllerError};
 
@@ -36,6 +36,20 @@ pub struct PuzzleTemplate {
     requested_id: String,
 }
 
+/// The puzzle history request.
+#[derive(serde::Deserialize)]
+pub struct PuzzleHistoryRequest {
+    page: Option<i64>,
+}
+
+/// The puzzle history page template.
+#[derive(Template, Default)]
+#[template(path = "puzzle-history.html")]
+pub struct PuzzleHistoryTemplate {
+    base: BaseTemplateData,
+    page: i64,
+}
+
 /// GET /tactics/by_id/{puzzle_id}
 pub async fn specific_puzzle(Path(puzzle_id): Path<String>)
     -> Result<PuzzleTemplate, ControllerError>
@@ -67,4 +81,15 @@ pub async fn next_review()
         mode: PuzzleMode::Review,
         requested_id: "".to_string(),
     })
+}
+
+/// GET /tactics/history
+pub async fn puzzle_history(
+    Query(request): Query<PuzzleHistoryRequest>,
+) -> PuzzleHistoryTemplate
+{
+    PuzzleHistoryTemplate {
+        page: request.page.unwrap_or(1).max(1),
+        ..Default::default()
+    }
 }
