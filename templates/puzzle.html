@@ -23,11 +23,9 @@
         requested_id,
         on_review: submit_review,
         request_data: request_next_puzzle,
+        on_skip: on_skip,
     });
     document.puzzle_ui = puzzle_ui;
-
-    // Request the first puzzle.
-    //request_next_puzzle();
 
     // Request the user's stats from the api and return a promise.
     function request_stats() {
@@ -81,6 +79,13 @@
                         });
                 }
             });
+    }
+
+    function on_skip() {
+        return $.ajax({
+            type: "POST",
+            url: "/api/tactics/random/skip",
+        });
     }
 </script>
 {% endblock %}

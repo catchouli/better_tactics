@@ -52,6 +52,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
 impl PuzzleDatabase {
     /// Build a card from a result row. The reason we have it defined here instead of as a FromRow
     /// instance is because we need access to self.srs_config.
+    /// TODO: if we ever want to support multi-user, cards need a user column too.
     fn card_from_row<'r>(&self, row: &'r SqliteRow) -> Result<Card, sqlx::Error> {
         Ok(Card {
             id: row.try_get("puzzle_id")?,

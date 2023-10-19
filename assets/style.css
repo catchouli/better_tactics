@@ -383,7 +383,7 @@ cg-board {
 
 /* Never show these on mobile, it's a bit of a waste of space */
 @media only screen and (max-width: 768px) {
-    .controls-subpanel#find-the-line, .controls-subpanel#right-move {
+    .controls-subpanel#right-move {
         display: none !important;
     }
 }

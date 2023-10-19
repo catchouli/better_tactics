@@ -38,6 +38,33 @@ impl UserService {
         "local"
     }
 
+    /// Get the user's "next puzzle" if it's set.
+    pub async fn get_user_next_puzzle(&self, user_id: &str) -> ServiceResult<Option<String>> {
+        Ok(self.db.lock().await
+           .get_user_by_id(user_id)
+           .await?
+           .map(|user| user.next_puzzle)
+           .flatten())
+    }
+
+    /// Set the user's "next puzzle".
+    pub async fn set_user_next_puzzle(&self, user_id: &str, next_puzzle: Option<&str>)
+        -> ServiceResult<()>
+    {
+        let mut user = self.db.lock().await
+            .get_user_by_id(user_id)
+            .await?
+            .ok_or_else(|| ServiceError::InternalError(format!("No such user {user_id}")))?;
+
+        user.next_puzzle = next_puzzle.map(ToString::to_string);
+        
+        self.db.lock().await
+            .update_user(&user)
+            .await?;
+
+        Ok(())
+    }
+
     /// Get the rating for a user.
     pub async fn get_user_rating(&self, user_id: &str) -> ServiceResult<Rating> {
         Ok(self.db.lock().await
