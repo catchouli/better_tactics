@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "better-tactics"
-version = "1.7.0-develop"
+version = "1.7.0"
 dependencies = [
  "askama",
  "askama_axum",

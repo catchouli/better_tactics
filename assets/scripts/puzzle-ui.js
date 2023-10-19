@@ -234,15 +234,20 @@ export class PuzzleUi {
     }
 
     promotion_ui() {
-        if (!this.puzzle || !this.puzzle.awaiting_promotion()) {
+        if (!this.puzzle) {
             return h('div');
         }
 
         return h('div#promotion-ui',
-            { on: {
-                click: this.on_promotion_background_clicked.bind(this),
-                contextmenu: e => e.preventDefault(),
-            } },
+            {
+                on: {
+                    click: this.on_promotion_background_clicked.bind(this),
+                    contextmenu: e => e.preventDefault(),
+                },
+                style: {
+                    visibility: this.puzzle.awaiting_promotion() ? "unset" : "hidden",
+                },
+            },
             [
                 h('div#white.promotion-pieces', [
                     this.promotion_button('q'),
