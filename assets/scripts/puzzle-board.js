@@ -86,7 +86,6 @@ export class PuzzleBoard {
         this._remaining_moves = this._moves.slice();
 
         if (this._config.locked) {
-            console.log('what');
             this._board.set({
                 movable: {
                     color: 'none',
