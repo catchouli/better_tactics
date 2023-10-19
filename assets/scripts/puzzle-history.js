@@ -78,10 +78,6 @@ export class PuzzleHistory {
             return;
         }
 
-        console.log('pagination');
-        console.log(this.data.current_page);
-        console.log(this.data.num_pages);
-
         if (!this.data.puzzles || this.data.puzzles.length == 0 || !this.data.num_pages || !this.config.page)
         {
             return;
@@ -213,19 +209,15 @@ export class PuzzleHistory {
             puzzles[item.puzzle.puzzle_id] = item.puzzle;
         });
 
-        console.log('creating boards');
         let boards = this.boards;
         $('div.puzzle-history-board-container').each(function(index) {
             let puzzle = puzzles[this.dataset.id];
             if (!boards[index]) {
                 boards[index] = new PuzzleBoard(this);
             }
-            console.log(boards[index]);
             boards[index].configure(Object.assign({
                 locked: true,
             }, puzzle));
-            console.log(index);
-            console.log(this);
         });
     }
 }
