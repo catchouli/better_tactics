@@ -3,7 +3,7 @@ use chrono::Local;
 use serde::Deserialize;
 use serde::ser::SerializeStruct;
 
-use crate::api::ApiError;
+use crate::api::{ApiError, ApiResult};
 use crate::db::Puzzle;
 use crate::rating::GameResult;
 use crate::app::AppState;
@@ -32,6 +32,20 @@ pub struct CardResponse {
     due_today: bool,
 }
 
+/// Response JSON for puzzle history.
+#[derive(Debug, serde::Serialize)]
+pub struct PuzzleHistoryResponse {
+    current_page: u64,
+    num_pages: u64,
+    puzzles: Vec<PuzzleHistoryEntry>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct PuzzleHistoryEntry {
+    puzzle: Puzzle,
+    difficulty: Option<Difficulty>,
+}
+
 fn serialize_card<S: serde::Serializer>(card: &Option<Card>, serializer: S) -> Result<S::Ok, S::Error> {
     if let Some(card) = card {
         let mut s = serializer.serialize_struct("Card", 10)?;
@@ -57,13 +71,20 @@ fn serialize_card<S: serde::Serializer>(card: &Option<Card>, serializer: S) -> R
 pub async fn review(
     State(state): State<AppState>,
     Json(request): Json<ReviewRequest>,
-) -> Result<(), ApiError>
+) -> ApiResult<()>
 {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
     let difficulty = Difficulty::from_i64(request.difficulty)
         .map_err(|_| ApiError::InvalidParameter("difficulty".into()))?;
+
+    // If this is for the user's saved next puzzle, clear it.
+    if let Some(next_saved_puzzle) = state.user_service.get_user_next_puzzle(user_id).await? {
+        if next_saved_puzzle == request.id {
+            state.user_service.set_user_next_puzzle(user_id, None).await?;
+        }
+    }
 
     // Get the puzzle for this puzzle id.
     let (puzzle, card) = state.tactics_service.get_puzzle_by_id(&request.id).await?;
@@ -93,7 +114,7 @@ pub async fn review(
 /// GET /api/tactics/review.
 pub async fn next_review(
     State(state): State<AppState>
-) -> Result<Json<CardResponse>, ApiError>
+) -> ApiResult<Json<CardResponse>>
 {
     // TODO: use a JWT to get the user_id.
     let _user_id = UserService::local_user_id();
@@ -113,7 +134,7 @@ pub async fn next_review(
 pub async fn puzzle_by_id(
     State(state): State<AppState>,
     Path(puzzle_id): Path<String>,
-) -> Result<Json<CardResponse>, ApiError>
+) -> ApiResult<Json<CardResponse>>
 {
     // TODO: use a JWT to get the user_id.
     let _user_id = UserService::local_user_id();
@@ -139,17 +160,37 @@ pub async fn puzzle_by_id(
 pub async fn random_puzzle(
     State(state): State<AppState>,
     Path((min_rating, max_rating)): Path<(i64, i64)>,
-) -> Result<Json<CardResponse>, ApiError>
+) -> ApiResult<Json<CardResponse>>
 {
     // TODO: use a JWT to get the user_id.
-    let _user_id = UserService::local_user_id();
+    let user_id = UserService::local_user_id();
 
+    // Get the user's stored next puzzle if there is one.
+    let saved_next_puzzle = state.user_service.get_user_next_puzzle(user_id).await?;
+
+    if let Some(saved_next_puzzle) = saved_next_puzzle {
+        // Check that it's not been done yet, if so we can just return the same one.
+        let (puzzle, card) = state.tactics_service.get_puzzle_by_id(&saved_next_puzzle).await?;
+
+        if puzzle.is_some() && card.is_none() {
+            return Ok(Json(CardResponse {
+                puzzle,
+                card,
+                due_today: true,
+            }));
+        }
+    }
+
+    // Get the next random puzzle for the user.
     let (puzzle, card) = state.tactics_service
         .get_random_puzzle(min_rating, max_rating)
         .await?;
 
     let response = match puzzle {
         Some(puzzle) => {
+            // Store it so it comes up again next time until it's skipped.
+            state.user_service.set_user_next_puzzle(user_id, Some(&puzzle.puzzle_id)).await?;
+
             let now = Local::now().fixed_offset();
             let card = card.unwrap_or(Card::new(&puzzle.puzzle_id, now, state.app_config.srs));
             let due_today = card.is_due::<LocalTimeProvider>();
@@ -159,4 +200,45 @@ pub async fn random_puzzle(
     };
 
     Ok(Json::from(response))
+}
+
+pub async fn skip_next(State(state): State<AppState>) -> ApiResult<()> {
+    // TODO: use a JWT to get the user_id.
+    let user_id = UserService::local_user_id();
+
+    state.user_service.set_user_next_puzzle(user_id, None).await?;
+
+    Ok(())
+}
+
+/// GET /api/tactics/history/:page.
+pub async fn puzzle_history(
+    State(state): State<AppState>,
+    Path(page): Path<u64>,
+) -> ApiResult<Json<PuzzleHistoryResponse>>
+{
+    // TODO: use a JWT to get the user_id.
+    let user_id = UserService::local_user_id();
+
+    // The length in puzzles for each page of the puzzle history.
+    const PUZZLE_HISTORY_PAGE_LENGTH: u64 = 5;
+
+    // Get history from reviews.
+    let count = PUZZLE_HISTORY_PAGE_LENGTH;
+    let offset = (page - 1) * count;
+
+    let (puzzles, total_count) = state.tactics_service
+        .get_puzzle_history(user_id, offset as i64, count as i64)
+        .await?;
+
+    Ok(Json(PuzzleHistoryResponse {
+        current_page: page,
+        num_pages: total_count as u64 / count + 1,
+        puzzles: puzzles.into_iter().map(|(review, puzzle)| {
+            PuzzleHistoryEntry {
+                puzzle,
+                difficulty: Some(review.difficulty),
+            }
+        }).collect(),
+    }))
 }

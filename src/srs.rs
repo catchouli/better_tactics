@@ -106,6 +106,12 @@ impl Difficulty {
     }
 }
 
+impl serde::Serialize for Difficulty {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    {
+        serializer.serialize_i64(self.to_i64())
+    }
+}
 
 /// A single spaced repetition "card" (e.g. a puzzle).
 #[derive(Debug)]

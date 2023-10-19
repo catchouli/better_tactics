@@ -65,13 +65,38 @@ impl TacticsService {
     {
         let db = self.db.lock().await;
 
-        let puzzle = db.get_puzzles_by_rating(min_rating, max_rating, 1).await?
-            .into_iter().next();
+        // The puzzles database is pretty big and we still use string ids to refer to the cards
+        // so it's quite slow in sqlite to join them to find out if there's already a card
+        // associated with the puzzle. Instead, we just retry a few times to make it unlikely to
+        // ever happen. If it does return a puzzle the user already has a card for, that just means
+        // they're reviewing ahead, and isn't the end of the world.
+        const NEW_RETRY_COUNT: usize = 5;
 
-        let card = match puzzle.as_ref() {
-            Some(puzzle) => db.get_card_by_id(&puzzle.puzzle_id).await?,
-            _ => None
-        };
+        let mut puzzle = None;
+        let mut card = None;
+
+        for retry in 0..NEW_RETRY_COUNT {
+            if retry > 0 {
+                log::warn!("Retry {retry} of trying to get a new random puzzle");
+            }
+
+            puzzle = db.get_puzzles_by_rating(min_rating, max_rating, 1).await?
+                .into_iter().next();
+
+            if let Some(puzzle) = puzzle.as_ref() {
+                card = db.get_card_by_id(&puzzle.puzzle_id).await?;
+                // If we got a new puzzle that doesn't already have a card associated, we can just
+                // return at this point. Otherwise we try again up to NEW_RETRY_COUNT times.
+                if card.is_none() {
+                    break;
+                }
+            }
+            else {
+                // If we didn't get a puzzle at all we can just break since we aren't going to get one
+                // next time.
+                break;
+            }
+        }
 
         Ok((puzzle, card))
     }
@@ -99,5 +124,14 @@ impl TacticsService {
         }).await?;
 
         Ok(())
+    }
+
+    pub async fn get_puzzle_history(&self, user_id: &str, offset: i64, count: i64)
+        -> ServiceResult<(Vec<(Review, Puzzle)>, i64)>
+    {
+        Ok(self.db.lock()
+            .await
+            .get_distinct_reviews(user_id, offset, count)
+            .await?)
     }
 }

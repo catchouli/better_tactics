@@ -1,7 +1,7 @@
 
 use chrono::{DateTime, FixedOffset, Duration};
 use futures::{TryStreamExt, StreamExt};
-use sqlx::Row;
+use sqlx::{Row, FromRow};
 use sqlx::sqlite::SqliteRow;
 
 use crate::srs::{Card, Difficulty};
@@ -52,6 +52,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
 impl PuzzleDatabase {
     /// Build a card from a result row. The reason we have it defined here instead of as a FromRow
     /// instance is because we need access to self.srs_config.
+    /// TODO: if we ever want to support multi-user, cards need a user column too.
     fn card_from_row<'r>(&self, row: &'r SqliteRow) -> Result<Card, sqlx::Error> {
         Ok(Card {
             id: row.try_get("puzzle_id")?,
@@ -321,7 +322,43 @@ impl PuzzleDatabase {
                 let reviews_due = row.try_get::<i64, _>("reviews_due")?;
                 Ok((day_due, reviews_due)) as DbResult<(i64, i64)>
             })
-        .try_collect::<Vec<(i64, i64)>>()
+        .try_collect()
         .await
+    }
+
+    /// Get a list of the most recent reviews for each puzzle, returning a vector of reviews, and the
+    /// total number of unique reviews.
+    pub async fn get_distinct_reviews(&self, user_id: &str, offset: i64, limit: i64)
+        -> DbResult<(Vec<(Review, Puzzle)>, i64)>
+    {
+        let reviews_query = sqlx::query("
+            SELECT *, count(reviews.ROWID) OVER () AS total_count
+            FROM reviews
+            JOIN puzzles
+            ON puzzles.puzzle_id = reviews.puzzle_id
+            WHERE reviews.user_id = ?
+            GROUP BY reviews.puzzle_id
+            ORDER BY max(datetime(reviews.date)) DESC
+            LIMIT ?
+            OFFSET ?
+        ");
+
+        let mut total_count = 0;
+        let reviews = reviews_query
+            .bind(user_id)
+            .bind(limit)
+            .bind(offset)
+            .fetch(&self.pool)
+            .map(|row| {
+                let row = row?;
+                let review = Review::from_row(&row)?;
+                let puzzle = Puzzle::from_row(&row)?;
+                total_count = row.try_get("total_count")?;
+                Ok((review, puzzle)) as DbResult<(Review, Puzzle)>
+            })
+            .try_collect()
+            .await?;
+
+        Ok((reviews, total_count))
     }
 }

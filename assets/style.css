@@ -383,7 +383,7 @@ cg-board {
 
 /* Never show these on mobile, it's a bit of a waste of space */
 @media only screen and (max-width: 768px) {
-    .controls-subpanel#find-the-line, .controls-subpanel#right-move {
+    .controls-subpanel#right-move {
         display: none !important;
     }
 }
@@ -442,6 +442,58 @@ cg-board {
 .chart-button.inactive {
     font-weight: bold;
     cursor: unset;
+    pointer-events: none;
+}
+
+/* History page */
+.puzzle-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+    padding-bottom: 1rem;
+}
+
+.puzzle-history-item .info {
+    flex-basis: 40%;
+}
+
+.puzzle-history-item .info table {
+    flex-basis: 40%;
+    margin: 0 auto;
+}
+
+.puzzle-history-item th {
+    padding: 0 1rem;
+}
+
+.puzzle-history-board-container {
+    width: 250px;
+    height: 250px;
+}
+
+/* These get a bit weird at smaller sizes */
+.puzzle-history-board-container coords {
+    display: none;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    justify-content: space-around;
+    padding: 0.5rem;
+}
+
+.pagination a {
+    font-weight: bold;
+    text-decoration: none;
+    user-select: none;
+}
+
+.pagination a[disabled] {
+    font-weight: unset;
+    cursor: unset;
+    color: grey !important;
     pointer-events: none;
 }
 

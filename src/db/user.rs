@@ -4,14 +4,12 @@ use sqlx::Row;
 use crate::rating::Rating;
 use crate::db::{PuzzleDatabase, DbResult};
 
-/// A stats record from the db (for the local user, for now).
-
-
 /// A user record from the db.
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: String,
     pub rating: Rating,
+    pub next_puzzle: Option<String>,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for User
@@ -24,6 +22,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for User
                 deviation: row.try_get("rating_deviation")?,
                 volatility: row.try_get("rating_volatility")?,
             },
+            next_puzzle: row.try_get("next_puzzle").ok(),
         })
     }
 }
@@ -47,12 +46,14 @@ impl PuzzleDatabase {
             UPDATE users
             SET rating = ?,
                 rating_deviation = ?,
-                rating_volatility = ?
+                rating_volatility = ?,
+                next_puzzle = ?
             WHERE id = ?
         ")
         .bind(user.rating.rating)
         .bind(user.rating.deviation)
         .bind(user.rating.volatility)
+        .bind(user.next_puzzle.as_ref())
         .bind(&user.id)
         .execute(&self.pool)
         .await.map(|_| ()).map_err(Into::into)

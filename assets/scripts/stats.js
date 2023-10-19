@@ -63,7 +63,7 @@ export class UserStats {
             this.vnode = patch(this.vnode, this.view());
         }
         catch (err) {
-            this.vnode = patch(this.vnode, this.error_view());
+            this.vnode = patch(this.vnode, this.error_view(err));
         }
     }
 
@@ -107,7 +107,7 @@ export class UserStats {
         ]);
     }
 
-    error_view() {
+    error_view(err) {
         let error_text = "";
         if (err && err.message) {
             error_text = err.message;

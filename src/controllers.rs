@@ -1,3 +1,7 @@
+mod index;
+mod puzzle;
+mod about;
+
 use askama::Template;
 use axum::Router;
 use axum::body::Body;
@@ -7,10 +11,6 @@ use axum::response::IntoResponse;
 
 use crate::app::AppState;
 use crate::services::ServiceError;
-
-pub mod index;
-pub mod puzzle;
-pub mod about;
 
 const ASSETS_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -25,6 +25,7 @@ pub fn routes(app_state: AppState) -> Router {
         .route("/tactics", axum::routing::get(puzzle::next_review))
         .route("/tactics/new", axum::routing::get(puzzle::random_puzzle))
         .route("/tactics/by_id/:puzzle_id", axum::routing::get(puzzle::specific_puzzle))
+        .route("/tactics/history", axum::routing::get(puzzle::puzzle_history))
 
         .fallback(not_found)
 

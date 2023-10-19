@@ -425,8 +425,18 @@ export class PuzzleUi {
     }
 
     find_the_line() {
+        let skip_button;
+        if (this.config.mode == 'Random') {
+            skip_button = h('a',
+                { on: { click: this.on_skip_clicked.bind(this) } },
+                'Skip this puzzle');
+        }
+
         if (this.puzzle && this.puzzle.is_first_move()) {
-            return h('div#find-the-line.bt-panel.controls-subpanel', 'Find the line!');
+            return h('div#find-the-line.bt-panel.controls-subpanel', [
+                h('p', 'Find the line!'),
+                skip_button,
+            ]);
         }
     }
 
@@ -586,6 +596,26 @@ export class PuzzleUi {
                     this.disable_review_buttons = false;
                     this.render();
                 });
+        }
+    }
+
+    on_skip_clicked(button) {
+        if (window.confirm("Are you sure you want to skip this puzzle?")) {
+            if (this.config.on_skip) {
+                this.disable_review_buttons = true;
+
+                this.config.on_skip()
+                    .then(() => {
+                        console.log("Skipped, loading next puzzle");
+                        this.request_data();
+                    })
+                    .catch((e) => {
+                        this.config.error = `Failed to skip puzzle: ${e.responseText}`;
+                        console.error(this.config.error);
+                        this.disable_review_buttons = false;
+                        this.render();
+                    });
+            }
         }
     }
 }
