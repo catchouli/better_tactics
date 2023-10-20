@@ -402,6 +402,11 @@ cg-board {
     flex-basis: 100%;
 }
 
+#dont-repeat a {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
 .sidebar .bt-panel {
     text-align: center;
 }

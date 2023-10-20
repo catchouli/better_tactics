@@ -20,6 +20,11 @@ const patch = init([
     datasetModule,
 ]);
 
+const DIFFICULTY_AGAIN = 0;
+const DIFFICULTY_HARD = 1;
+const DIFFICULTY_GOOD = 2;
+const DIFFICULTY_EASY = 3;
+
 export class PuzzleUi {
     constructor(container, config) {
         this.config = {};
@@ -270,7 +275,7 @@ export class PuzzleUi {
     }
 
     sidebar() {
-        if (this.config.puzzle && !this.config.loading) {
+        if (this.puzzle && this.config.puzzle && !this.config.loading) {
             return h('div.column.sidebar', [
                 this.puzzle_info(),
                 this.card_stats(),
@@ -404,8 +409,7 @@ export class PuzzleUi {
     }
 
     side_to_move() {
-        if (this.puzzle && this.puzzle.is_puzzle_loaded() && !this.puzzle.is_complete() &&
-            !this.puzzle.is_failed())
+        if (this.puzzle.is_puzzle_loaded() && !this.puzzle.is_complete() && !this.puzzle.is_failed())
         {
             let turn = this.puzzle.color_to_move();
 
@@ -428,7 +432,7 @@ export class PuzzleUi {
     }
 
     find_the_line() {
-        if (this.puzzle && this.puzzle.is_first_move()) {
+        if (this.puzzle.is_first_move()) {
             return h('div#find-the-line.bt-panel.controls-subpanel', [
                 h('p', 'Find the line!'),
             ]);
@@ -444,17 +448,21 @@ export class PuzzleUi {
     }
 
     too_hard_button() {
-        if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_failed()) {
+        let complete_with_mistakes = this.puzzle.is_complete() && !this.first_try;
+        let failed = this.puzzle.is_failed();
+        if (this.config.mode == 'Random' && (failed || complete_with_mistakes)) {
             return h('div#too-hard-button.bt-panel.controls-subpanel', [
-                h('a', { on: { click: this.on_too_hard_clicked.bind(this) } }, "Too hard (skip)"),
+                h('a', { on: { click: this.on_too_hard_clicked.bind(this) } }, "Too hard (see easier puzzles)"),
             ]);
         }
     }
 
     dont_repeat_button() {
-        if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_complete()) {
+        let is_success = this.puzzle.is_complete() && this.first_try;
+        if (this.config.mode == 'Random' && is_success) {
             return h('div#dont-repeat.bt-panel.controls-subpanel', [
-                h('a', { on: { click: this.skip_puzzle.bind(this) } }, "Don't repeat this puzzle"),
+                h('a', { on: { click: this.on_dont_repeat_clicked.bind(this) } }, "Don't repeat this puzzle"),
+                h('a', { on: { click: this.on_too_easy_clicked.bind(this) } }, "Too easy (see harder puzzles)"),
             ]);
         }
     }
@@ -468,7 +476,7 @@ export class PuzzleUi {
     }
 
     wrong_move() {
-        if (this.puzzle && this.puzzle.is_failed()) {
+        if (this.puzzle.is_failed()) {
             return h('div#wrong-move.bt-panel.controls-subpanel', [
                 h('p', 'Wrong move :('),
                 h('div.columns.button-container', [
@@ -486,7 +494,7 @@ export class PuzzleUi {
     }
 
     right_move() {
-        if (this.puzzle && this.puzzle.is_puzzle_loaded() && !this.puzzle.is_first_move() &&
+        if (this.puzzle.is_puzzle_loaded() && !this.puzzle.is_first_move() &&
             !this.puzzle.is_failed() && !this.puzzle.is_complete())
         {
             return h('div#right-move.bt-panel.controls-subpanel',
@@ -497,7 +505,7 @@ export class PuzzleUi {
     puzzle_complete() {
         let ui = this;
 
-        if (this.puzzle && this.puzzle.is_complete()) {
+        if (this.puzzle.is_complete()) {
             if (this.first_try) {
                 let card = this.config.card;
                 return h('div#reviewing-ahead.bt-panel.controls-subpanel', [
@@ -506,7 +514,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#hard.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: 1 },
+                                dataset: { difficulty: DIFFICULTY_HARD },
                                 attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Hard'),
@@ -516,7 +524,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#good.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: 2 },
+                                dataset: { difficulty: DIFFICULTY_GOOD },
                                 attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Good'),
@@ -526,7 +534,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#easy.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: 3 },
+                                dataset: { difficulty: DIFFICULTY_EASY },
                                 attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Easy'),
@@ -547,7 +555,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#again.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: 0 },
+                                dataset: { difficulty: DIFFICULTY_AGAIN },
                                 attrs: { disabled: this.disable_review_buttons },
                             }, [
                                 h('p.main-text', 'Again'),
@@ -620,21 +628,35 @@ export class PuzzleUi {
 
     on_skip_clicked(button) {
         if (window.confirm("Are you sure you want to skip this puzzle?")) {
-            this.skip_puzzle(false);
+            // Skip the puzzle and request a new one. We don't update the rating as the user
+            // hasn't solved it, or indicated that it was too hard.
+            this.skip_puzzle(DIFFICULTY_GOOD, false);
         }
     }
 
     on_too_hard_clicked(button) {
         if (window.confirm("Skip this puzzle and see an easier one?")) {
-            this.skip_puzzle(true);
+            // Update rating like the puzzle was failed, but don't add it to spaced repetition.
+            this.skip_puzzle(DIFFICULTY_AGAIN, true);
         }
     }
 
-    skip_puzzle(too_hard) {
-        if (this.config.on_skip) {
+    on_dont_repeat_clicked(button) {
+        // 'Don't repeat' is part of the success dialog, so we should update the rating as if
+        // they'd completed it.
+        this.skip_puzzle(DIFFICULTY_GOOD, true);
+    }
+
+    on_too_easy_clicked(button) {
+        // Update rating like the puzzle was passed, but don't add it to spaced repetition.
+        this.skip_puzzle(DIFFICULTY_EASY, true);
+    }
+
+    skip_puzzle(difficulty, update_rating) {
+        if (this.config.on_skip && this.config.card) {
             this.disable_review_buttons = true;
 
-            this.config.on_skip(too_hard ? true : false)
+            this.config.on_skip(this.config.card, difficulty, update_rating)
                 .then(() => {
                     console.log("Skipped, loading next puzzle");
                     this.request_data();

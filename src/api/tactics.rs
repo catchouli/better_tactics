@@ -23,6 +23,14 @@ pub struct ReviewRequest {
     pub review_count: i64,
 }
 
+/// Request JSON for /api/tactics/random/skip.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SkipRequest {
+    pub id: String,
+    pub difficulty: i64,
+    pub update_rating: bool,
+}
+
 /// Response JSON for endpoints returning a puzzle and a card.
 #[derive(Debug, serde::Serialize)]
 pub struct CardResponse {
@@ -199,31 +207,46 @@ pub async fn random_puzzle(
 
 pub async fn skip_next(
     State(state): State<AppState>,
-    Path(update_rating): Path<bool>,
-) -> ApiResult<()> {
+    Json(request): Json<SkipRequest>,
+) -> ApiResult<()>
+{
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    log::info!("Update rating: {update_rating}");
+    log::info!("Update rating: {}", request.update_rating);
 
-    if let Some(user_next_puzzle) = state.user_service.get_user_next_puzzle(user_id).await? {
-        // If the puzzle exists, add the puzzle as skipped, and update the user's rating if
-        // requested.
-        if let (Some(puzzle), _) = state.tactics_service.get_puzzle_by_id(&user_next_puzzle).await? {
-            state.tactics_service.skip_puzzle(user_id, &puzzle).await?;
+    let user_next_puzzle = state.user_service.get_user_next_puzzle(user_id).await?;
 
-            if update_rating {
-                state.user_service.update_rating(user_id, Difficulty::Again, GameResult {
-                    rating: puzzle.rating,
-                    deviation: puzzle.rating_deviation,
-                    score: 0.0,
-                }).await?;
-            }
-        }
-
-        // Clear the value regardless.
-        state.user_service.set_user_next_puzzle(user_id, None).await?;
+    if user_next_puzzle.is_none() {
+        log::warn!("Skip requested but user has no next puzzle set");
+        return Ok(());
     }
+    let user_next_puzzle = user_next_puzzle.unwrap();
+
+    if user_next_puzzle != request.id {
+        log::warn!("Skip requested but puzzle wasn't the user's saved next puzzle");
+        return Ok(());
+    }
+
+    // If the puzzle exists, add the puzzle as skipped, and update the user's rating if
+    // requested.
+    if let (Some(puzzle), _) = state.tactics_service.get_puzzle_by_id(&user_next_puzzle).await? {
+        state.tactics_service.skip_puzzle(user_id, &puzzle).await?;
+
+        if request.update_rating {
+            let difficulty = Difficulty::from_i64(request.difficulty)
+                .map_err(|_| ApiError::InvalidParameter("request.difficulty".into()))?;
+
+            state.user_service.update_rating(user_id, difficulty, GameResult {
+                rating: puzzle.rating,
+                deviation: puzzle.rating_deviation,
+                score: difficulty.score(),
+            }).await?;
+        }
+    }
+
+    // Clear the value regardless.
+    state.user_service.set_user_next_puzzle(user_id, None).await?;
 
     Ok(())
 }

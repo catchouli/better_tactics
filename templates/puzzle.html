@@ -81,10 +81,16 @@
             });
     }
 
-    function on_skip(too_hard) {
+    function on_skip(card, difficulty, update_rating) {
         return $.ajax({
             type: "POST",
-            url: "/api/tactics/random/skip/" + (too_hard ? "true" : "false"),
+            url: "/api/tactics/random/skip",
+            data: JSON.stringify({
+                id: card.id,
+                difficulty,
+                update_rating,
+            }),
+            contentType: 'application/json; charset=utf-8',
         });
     }
 </script>
