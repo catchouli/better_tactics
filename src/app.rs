@@ -1,3 +1,5 @@
+pub mod backup;
+
 use std::env::{self, VarError};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
@@ -22,6 +24,13 @@ pub struct AppConfig {
     // TODO: change it to use the DATABASE_URL env var.
     pub db_name: String,
     pub srs: SrsConfig,
+    pub backup: BackupConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct BackupConfig {
+    pub enabled: bool,
+    pub path: String,
 }
 
 impl Default for AppConfig {
@@ -35,6 +44,10 @@ impl Default for AppConfig {
                 minimum_ease: 1.3,
                 easy_bonus: 1.3,
             },
+            backup: BackupConfig {
+                enabled: false,
+                path: "./backups".to_string(),
+            }
         }
     }
 }
@@ -55,6 +68,10 @@ impl AppConfig {
                 minimum_ease: Self::env_var_or_default("SRS_MINIMUM_EASE", defaults.srs.minimum_ease)?,
                 easy_bonus: Self::env_var_or_default("SRS_EASY_BONUS", defaults.srs.easy_bonus)?,
             },
+            backup: BackupConfig {
+                enabled: Self::env_var_or_default("BACKUP_ENABLED", defaults.backup.enabled)?,
+                path: Self::env_var_or_default("BACKUP_PATH", defaults.backup.path)?,
+            }
         })
     }
 

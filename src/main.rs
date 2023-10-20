@@ -15,6 +15,7 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::db::PuzzleDatabase;
 use crate::app::{AppConfig, AppState};
@@ -47,6 +48,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
+    // Run backup straight away if necessary.
+    if app_config.backup.enabled {
+        try_run_backup(app_config.clone(), puzzle_db.clone()).await;
+    }
+
+    // Start job scheduler.
+    tokio::spawn(start_job_scheduler(app_config.clone(), puzzle_db.clone()));
+
     // Create application routes.
     let app_state = AppState::new(app_config.clone(), puzzle_db);
     let app = controllers::routes(app_state.clone())
@@ -63,3 +72,39 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+async fn start_job_scheduler(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+    -> Result<(), String>
+{
+    run_job_scheduler(app_config, db)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn run_job_scheduler(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+    -> Result<(), Box<dyn Error>>
+{
+    let scheduler = JobScheduler::new().await?;
+
+    if app_config.backup.enabled {
+        let backup_job = create_backup_job(app_config, db)?;
+        scheduler.add(backup_job).await?;
+    }
+
+    Ok(scheduler.start().await?)
+}
+
+fn create_backup_job(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+    -> Result<Job, Box<dyn Error>>
+{
+    // Run backup task at the first second and minute of every hour, the backup already checks if
+    // a backup is scheduled so it'll just happen the next time it's needed.
+    Ok(Job::new_async("0 0 * * * *", move |_, _| {
+        Box::pin(try_run_backup(app_config.clone(), db.clone()))
+    })?)
+}
+
+async fn try_run_backup(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) {
+    if let Err(e) = app::backup::run_backup(app_config, db).await {
+        log::error!("Error when backing up database: {e}");
+    }
+}
