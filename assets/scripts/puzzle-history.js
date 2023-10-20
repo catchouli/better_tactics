@@ -111,11 +111,13 @@ export class PuzzleHistory {
 
         let puzzles = this.data.puzzles.map(item => {
             let puzzle = item.puzzle;
-            return h('div.puzzle-history-item', [
-                h('div.puzzle-history-board-container', {
-                    dataset: { id: puzzle.puzzle_id },
-                }),
-                h('div.info', [
+            return [
+                h('div.puzzle-history-board-container', [
+                    h('div.puzzle-history-board', {
+                        dataset: { id: puzzle.puzzle_id },
+                    }),
+                ]),
+                h('div.puzzle-history-info', [
                     h('table.stats', [
                         h('tbody', [
                             h('tr', [
@@ -129,10 +131,10 @@ export class PuzzleHistory {
                         ]),
                     ]),
                 ]),
-            ]);
-        });
+            ];
+        }).flat();
 
-        return h('div', puzzles);
+        return h('div#puzzle-history-container', puzzles);
     }
 
     difficulty_row(difficulty) {
@@ -210,7 +212,7 @@ export class PuzzleHistory {
         });
 
         let boards = this.boards;
-        $('div.puzzle-history-board-container').each(function(index) {
+        $('div.puzzle-history-board').each(function(index) {
             let puzzle = puzzles[this.dataset.id];
             if (!boards[index]) {
                 boards[index] = new PuzzleBoard(this);

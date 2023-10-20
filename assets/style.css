@@ -446,30 +446,30 @@ cg-board {
 }
 
 /* History page */
-.puzzle-history-item {
+#puzzle-history-container {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0px, 300px));
+    grid-gap: 1rem;
+    justify-content: center;
+}
+
+.puzzle-history-board {
+    aspect-ratio: 1;
+}
+
+.puzzle-history-info {
+    /* Align table vertically within container */
     display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 0 0.5rem;
-    padding-bottom: 1rem;
 }
 
-.puzzle-history-item .info {
-    flex-basis: 40%;
+.puzzle-history-info th {
+    padding-right: 1rem;
 }
 
-.puzzle-history-item .info table {
-    flex-basis: 40%;
-    margin: 0 auto;
-}
-
-.puzzle-history-item th {
-    padding: 0 1rem;
-}
-
-.puzzle-history-board-container {
-    width: 250px;
-    height: 250px;
+.puzzle-history-info td {
+    padding-right: 1rem;
+    min-width: 4rem;
 }
 
 /* These get a bit weird at smaller sizes */
