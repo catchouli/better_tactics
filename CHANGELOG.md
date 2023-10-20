@@ -4,8 +4,13 @@ Added:
 * A Puzzle History page, which shows the history of all puzzles reviewed.
 
 Changed:
-* On the 'next puzzle' screen, the puzzle to be reviewed is now saved, and a 'skip puzzle' button
-  has been added to any new puzzles in case you really don't want to do it.
+* On the 'next puzzle' screen, the puzzle to be reviewed is now saved until it is skipped.
+* A 'Skip this puzzle' button has been added to any new puzzles in case you really don't want to
+  do it.
+* A 'Too hard' button has been added to the retry dialog in case the puzzle is too hard, which
+  skips the puzzle and corrects your rating downwards so you'll see easier puzzles.
+* A 'Don't repeat this puzzle' button has been added to the puzzle complete dialog to allow you to
+  skip to the next puzzle without adding the current one to spaced repetition.
 
 [1.7.0] - 2023-10-19
 

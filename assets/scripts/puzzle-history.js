@@ -127,7 +127,7 @@ export class PuzzleHistory {
                                         puzzle.puzzle_id),
                                 ]),
                             ]),
-                            this.difficulty_row(item.difficulty),
+                            this.difficulty_row(item),
                         ]),
                     ]),
                 ]),
@@ -137,8 +137,8 @@ export class PuzzleHistory {
         return h('div#puzzle-history-container', puzzles);
     }
 
-    difficulty_row(difficulty) {
-        let difficulty_text = this.difficulty_to_string(difficulty);
+    difficulty_row(item) {
+        let difficulty_text = item.skipped ? 'Skipped' : this.difficulty_to_string(item.difficulty);
         if (difficulty_text) {
             return h('tr', [
                 h('th', 'Difficulty'),

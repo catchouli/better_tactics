@@ -282,6 +282,7 @@ export class PuzzleUi {
                 this.reviewing_ahead(),
                 this.skip_button(),
                 this.dont_repeat_button(),
+                this.too_hard_button(),
             ]);
         }
     }
@@ -438,6 +439,14 @@ export class PuzzleUi {
         if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_first_move()) {
             return h('div#skip-button.bt-panel.controls-subpanel', [
                 h('a', { on: { click: this.on_skip_clicked.bind(this) } }, "Skip this puzzle"),
+            ]);
+        }
+    }
+
+    too_hard_button() {
+        if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_failed()) {
+            return h('div#too-hard-button.bt-panel.controls-subpanel', [
+                h('a', { on: { click: this.on_too_hard_clicked.bind(this) } }, "Too hard (skip)"),
             ]);
         }
     }
@@ -611,15 +620,21 @@ export class PuzzleUi {
 
     on_skip_clicked(button) {
         if (window.confirm("Are you sure you want to skip this puzzle?")) {
-            this.skip_puzzle();
+            this.skip_puzzle(false);
         }
     }
 
-    skip_puzzle() {
+    on_too_hard_clicked(button) {
+        if (window.confirm("Skip this puzzle and see an easier one?")) {
+            this.skip_puzzle(true);
+        }
+    }
+
+    skip_puzzle(too_hard) {
         if (this.config.on_skip) {
             this.disable_review_buttons = true;
 
-            this.config.on_skip()
+            this.config.on_skip(too_hard ? true : false)
                 .then(() => {
                     console.log("Skipped, loading next puzzle");
                     this.request_data();

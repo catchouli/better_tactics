@@ -81,10 +81,10 @@
             });
     }
 
-    function on_skip() {
+    function on_skip(too_hard) {
         return $.ajax({
             type: "POST",
-            url: "/api/tactics/random/skip",
+            url: "/api/tactics/random/skip/" + (too_hard ? "true" : "false"),
         });
     }
 </script>

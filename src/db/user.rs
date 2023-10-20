@@ -1,3 +1,5 @@
+use chrono::DateTime;
+use chrono::FixedOffset;
 use sqlx::sqlite::*;
 use sqlx::Row;
 
@@ -57,5 +59,19 @@ impl PuzzleDatabase {
         .bind(&user.id)
         .execute(&self.pool)
         .await.map(|_| ()).map_err(Into::into)
+    }
+
+    /// Add a puzzle to the skipped puzzles list for a user.
+    pub async fn add_skipped_puzzle(&mut self, user_id: &str, puzzle_id: &str,
+                                    dt: DateTime<FixedOffset>) -> DbResult<()>
+    {
+        sqlx::query("INSERT INTO skipped_puzzles (user_id, puzzle_id, date) VALUES (?, ?, ?)")
+            .bind(user_id)
+            .bind(puzzle_id)
+            .bind(&dt.to_rfc3339())
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }

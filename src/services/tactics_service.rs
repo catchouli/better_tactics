@@ -2,7 +2,7 @@ use std::sync::Arc;
 use chrono::Local;
 use tokio::sync::Mutex;
 
-use crate::db::{PuzzleDatabase, Puzzle, Review};
+use crate::db::{PuzzleDatabase, Puzzle, Review, PuzzleHistoryEntry};
 use crate::rating::Rating;
 use crate::srs::{Card, Difficulty, self};
 use crate::time::LocalTimeProvider;
@@ -64,6 +64,13 @@ impl TacticsService {
         -> ServiceResult<(Option<Puzzle>, Option<Card>)>
     {
         let db = self.db.lock().await;
+
+        // Clamp min and max rating to those of the puzzle database, or the request may come back
+        // with nothing.
+        let min_puzzle_rating = db.get_min_puzzle_rating().await?;
+        let max_puzzle_rating = db.get_max_puzzle_rating().await?;
+        let min_rating = i64::clamp(min_rating, min_puzzle_rating, max_puzzle_rating);
+        let max_rating = i64::clamp(max_rating, min_puzzle_rating, max_puzzle_rating);
 
         // The puzzles database is pretty big and we still use string ids to refer to the cards
         // so it's quite slow in sqlite to join them to find out if there's already a card
@@ -127,11 +134,24 @@ impl TacticsService {
     }
 
     pub async fn get_puzzle_history(&self, user_id: &str, offset: i64, count: i64)
-        -> ServiceResult<(Vec<(Review, Puzzle)>, i64)>
+        -> ServiceResult<(Vec<PuzzleHistoryEntry>, i64)>
     {
         Ok(self.db.lock()
             .await
-            .get_distinct_reviews(user_id, offset, count)
+            .get_distinct_puzzle_history(user_id, offset, count)
             .await?)
+    }
+
+    pub async fn skip_puzzle(&self, user_id: &str, puzzle: &Puzzle)
+        -> ServiceResult<()>
+    {
+        let mut db = self.db.lock().await;
+
+        if db.get_puzzle_by_id(&puzzle.puzzle_id).await?.is_some() {
+            let time_now = Local::now().fixed_offset();
+            db.add_skipped_puzzle(user_id, &puzzle.puzzle_id, time_now).await?;
+        }
+
+        Ok(())
     }
 }

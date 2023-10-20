@@ -28,6 +28,19 @@ pub struct ReviewScoreBucket {
     pub review_count: i64,
 }
 
+/// A single puzzle history entry.
+#[derive(Debug, serde::Serialize)]
+pub struct PuzzleHistoryEntry {
+    /// The puzzle details.
+    pub puzzle: Puzzle,
+
+    /// The difficulty, if the puzzle wasn't skipped.
+    pub difficulty: Option<Difficulty>,
+
+    /// Whether the puzzle was skipped or not.
+    pub skipped: bool,
+}
+
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
 {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
@@ -328,17 +341,23 @@ impl PuzzleDatabase {
 
     /// Get a list of the most recent reviews for each puzzle, returning a vector of reviews, and the
     /// total number of unique reviews.
-    pub async fn get_distinct_reviews(&self, user_id: &str, offset: i64, limit: i64)
-        -> DbResult<(Vec<(Review, Puzzle)>, i64)>
+    pub async fn get_distinct_puzzle_history(&self, user_id: &str, offset: i64, limit: i64)
+        -> DbResult<(Vec<PuzzleHistoryEntry>, i64)>
     {
         let reviews_query = sqlx::query("
-            SELECT *, count(reviews.ROWID) OVER () AS total_count
-            FROM reviews
+            SELECT *,
+                   count(*) OVER () AS total_count
+            FROM (
+                SELECT user_id, puzzle_id, date, difficulty, 0 AS skipped
+                FROM reviews
+                UNION SELECT user_id, puzzle_id, date, NULL as difficulty, 1 AS skipped
+                FROM skipped_puzzles
+            ) AS row
             JOIN puzzles
-            ON puzzles.puzzle_id = reviews.puzzle_id
-            WHERE reviews.user_id = ?
-            GROUP BY reviews.puzzle_id
-            ORDER BY max(datetime(reviews.date)) DESC
+            ON row.puzzle_id = puzzles.puzzle_id
+            WHERE row.user_id = ?
+            GROUP BY row.puzzle_id
+            ORDER BY max(datetime(date)) DESC
             LIMIT ?
             OFFSET ?
         ");
@@ -349,12 +368,21 @@ impl PuzzleDatabase {
             .bind(limit)
             .bind(offset)
             .fetch(&self.pool)
-            .map(|row| {
+            .map(|row| -> DbResult<PuzzleHistoryEntry> {
                 let row = row?;
-                let review = Review::from_row(&row)?;
-                let puzzle = Puzzle::from_row(&row)?;
                 total_count = row.try_get("total_count")?;
-                Ok((review, puzzle)) as DbResult<(Review, Puzzle)>
+
+                Ok(PuzzleHistoryEntry {
+                    puzzle: Puzzle::from_row(&row)?,
+                    difficulty: row.try_get("difficulty").ok()
+                        .map(Difficulty::from_i64).transpose()
+                        .map_err(|e| DatabaseError::ParsingError(ErrorDetails {
+                            backend: "srs".to_string(),
+                            description: e.to_string(),
+                            source: Some(e),
+                        }))?,
+                    skipped: row.try_get("skipped")?,
+                })
             })
             .try_collect()
             .await?;

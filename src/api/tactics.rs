@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde::ser::SerializeStruct;
 
 use crate::api::{ApiError, ApiResult};
-use crate::db::Puzzle;
+use crate::db::{Puzzle, PuzzleHistoryEntry};
 use crate::rating::GameResult;
 use crate::app::AppState;
 use crate::services::ServiceError;
@@ -38,12 +38,6 @@ pub struct PuzzleHistoryResponse {
     current_page: u64,
     num_pages: u64,
     puzzles: Vec<PuzzleHistoryEntry>,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct PuzzleHistoryEntry {
-    puzzle: Puzzle,
-    difficulty: Option<Difficulty>,
 }
 
 fn serialize_card<S: serde::Serializer>(card: &Option<Card>, serializer: S) -> Result<S::Ok, S::Error> {
@@ -203,11 +197,33 @@ pub async fn random_puzzle(
     Ok(Json::from(response))
 }
 
-pub async fn skip_next(State(state): State<AppState>) -> ApiResult<()> {
+pub async fn skip_next(
+    State(state): State<AppState>,
+    Path(update_rating): Path<bool>,
+) -> ApiResult<()> {
     // TODO: use a JWT to get the user_id.
     let user_id = UserService::local_user_id();
 
-    state.user_service.set_user_next_puzzle(user_id, None).await?;
+    log::info!("Update rating: {update_rating}");
+
+    if let Some(user_next_puzzle) = state.user_service.get_user_next_puzzle(user_id).await? {
+        // If the puzzle exists, add the puzzle as skipped, and update the user's rating if
+        // requested.
+        if let (Some(puzzle), _) = state.tactics_service.get_puzzle_by_id(&user_next_puzzle).await? {
+            state.tactics_service.skip_puzzle(user_id, &puzzle).await?;
+
+            if update_rating {
+                state.user_service.update_rating(user_id, Difficulty::Again, GameResult {
+                    rating: puzzle.rating,
+                    deviation: puzzle.rating_deviation,
+                    score: 0.0,
+                }).await?;
+            }
+        }
+
+        // Clear the value regardless.
+        state.user_service.set_user_next_puzzle(user_id, None).await?;
+    }
 
     Ok(())
 }
@@ -235,11 +251,6 @@ pub async fn puzzle_history(
     Ok(Json(PuzzleHistoryResponse {
         current_page: page,
         num_pages: total_count as u64 / count + 1,
-        puzzles: puzzles.into_iter().map(|(review, puzzle)| {
-            PuzzleHistoryEntry {
-                puzzle,
-                difficulty: Some(review.difficulty),
-            }
-        }).collect(),
+        puzzles,
     }))
 }

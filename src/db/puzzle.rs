@@ -55,6 +55,28 @@ impl PuzzleDatabase {
             .unwrap_or(Ok(0))
     }
 
+    /// Get the lowest puzzle rating.
+    pub async fn get_min_puzzle_rating(&self) -> DbResult<i64> {
+        // https://stackoverflow.com/questions/11515165/sqlite3-select-min-max-together-is-much-slower-than-select-them-separately
+        Ok(sqlx::query("SELECT min(rating) AS rating FROM puzzles")
+            .map(|row: SqliteRow| row.try_get::<i64, _>("rating"))
+            .fetch_optional(&self.pool)
+            .await?
+            .transpose()?
+            .unwrap_or(0))
+    }
+
+    /// Get the highest puzzle rating.
+    pub async fn get_max_puzzle_rating(&self) -> DbResult<i64> {
+        // https://stackoverflow.com/questions/11515165/sqlite3-select-min-max-together-is-much-slower-than-select-them-separately
+        Ok(sqlx::query("SELECT max(rating) AS rating FROM puzzles")
+            .map(|row: SqliteRow| row.try_get::<i64, _>("rating"))
+            .fetch_optional(&self.pool)
+            .await?
+            .transpose()?
+            .unwrap_or(0))
+    }
+
     /// Add a batch of puzzles to the database.
     pub async fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
         // Unfortunately we can only do about 2500 per query or we run out of sql variables due to
@@ -126,8 +148,8 @@ impl PuzzleDatabase {
         let query = sqlx::query_as("
             SELECT *
             FROM puzzles
-            WHERE rating > ?
-            AND rating < ?
+            WHERE rating >= ?
+            AND rating <= ?
             ORDER BY random()
             LIMIT ?");
 
