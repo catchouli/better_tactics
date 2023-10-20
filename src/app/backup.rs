@@ -42,7 +42,8 @@ pub async fn run_backup(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
 
     // Run backup.
     let cur_time_str = cur_time.format("%Y-%m-%d_%H-%M-%S").to_string();
-    let backup_db_path = Path::new(&app_config.backup.path).join(&cur_time_str);
+    let backup_db_path = Path::new(&app_config.backup.path)
+        .join(format!("backup_{cur_time_str}.sqlite"));
     db.backup_database(&backup_db_path.to_string_lossy()).await?;
 
     // Store last backup time.
