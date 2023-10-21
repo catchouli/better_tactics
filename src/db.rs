@@ -70,8 +70,11 @@ impl PuzzleDatabase {
         log::info!("Running database migrations...");
         sqlx::migrate!().run(&pool).await?;
 
-        // Enable write-ahead-logging (single writer multiple readers).
+        // Enable write-ahead-logging (single writer multiple readers), and set the busy timeout to
+        // 30 seconds so that requests don't fail just because something is already trying to write
+        // to the database;
         sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await?;
+        sqlx::query("PRAGMA busy_timeout=30000").execute(&pool).await?;
 
         Ok(Self {
             pool,
