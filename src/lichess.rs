@@ -102,7 +102,7 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
     /// can just update it.
     const TOTAL_PUZZLES: usize = 3_500_000;
 
-    const PUZZLES_PER_IMPORT_BATCH: usize = 100000;
+    const PUZZLES_PER_IMPORT_BATCH: usize = 10000;
     const PUZZLES_PER_PROGRESS_UPDATE: usize = 100000;
 
     // We expect 10 rows per puzzle entry.

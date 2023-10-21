@@ -1,5 +1,4 @@
 use futures::TryStreamExt;
-use sqlx::Acquire;
 use sqlx::{Row, Sqlite, QueryBuilder, sqlite::SqliteRow};
 
 use crate::db::{PuzzleDatabase, DbResult};
