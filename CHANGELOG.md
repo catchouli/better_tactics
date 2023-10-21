@@ -1,4 +1,4 @@
-[1.8.0] - ????-??-??
+[1.8.0] - 2023-10-21
 
 Added:
 * A Puzzle History page, which shows the history of all puzzles reviewed.
