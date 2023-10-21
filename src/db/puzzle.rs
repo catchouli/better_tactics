@@ -1,4 +1,5 @@
 use futures::TryStreamExt;
+use sqlx::Acquire;
 use sqlx::{Row, Sqlite, QueryBuilder, sqlite::SqliteRow};
 
 use crate::db::{PuzzleDatabase, DbResult};
@@ -79,32 +80,62 @@ impl PuzzleDatabase {
 
     /// Add a batch of puzzles to the database.
     pub async fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
+        const BATCH_SIZE: usize = 100;
+
+        let mut conn = self.pool.acquire().await?;
+
+        sqlx::query("
+            CREATE TEMPORARY TABLE IF NOT EXISTS lichess_puzzles (
+                puzzle_id TEXT,
+                fen TEXT,
+                moves TEXT,
+                rating INTEGER,
+                rating_deviation INTEGER,
+                popularity INTEGER,
+                number_of_plays INTEGER,
+                themes TEXT,
+                game_url TEXT,
+                opening_tags TEXT
+            );
+        ").execute(&mut *conn).await?;
+
         // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
         // batch insert api that lets you supply an iterator but I'm not sure how to do that with
         // the sqlite crate. Reusing the prepared statement was about the same overhead as just
         // creating it every time, but building the query is much faster.
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
+            "INSERT OR REPLACE INTO lichess_puzzles (puzzle_id, fen, moves, rating, rating_deviation,
             popularity, number_of_plays, themes, game_url, opening_tags) "
             );
 
-        query_builder.push_values(puzzles, |mut b, puzzle| {
-            b.push_bind(&puzzle.puzzle_id)
-                .push_bind(&puzzle.fen)
-                .push_bind(&puzzle.moves)
-                .push_bind(puzzle.rating)
-                .push_bind(puzzle.rating_deviation)
-                .push_bind(puzzle.popularity)
-                .push_bind(puzzle.number_of_plays)
-                .push_bind(puzzle.themes.join(" "))
-                .push_bind(&puzzle.game_url)
-                .push_bind(puzzle.opening_tags.join(" "));
-        });
+        for batch in puzzles.chunks(BATCH_SIZE) {
+            query_builder.reset();
 
-        query_builder
-            .build()
-            .execute(&self.pool)
-            .await?;
+            query_builder.push_values(batch, |mut b, puzzle| {
+                b.push_bind(&puzzle.puzzle_id)
+                    .push_bind(&puzzle.fen)
+                    .push_bind(&puzzle.moves)
+                    .push_bind(puzzle.rating)
+                    .push_bind(puzzle.rating_deviation)
+                    .push_bind(puzzle.popularity)
+                    .push_bind(puzzle.number_of_plays)
+                    .push_bind(puzzle.themes.join(" "))
+                    .push_bind(&puzzle.game_url)
+                    .push_bind(puzzle.opening_tags.join(" "));
+            });
+
+            query_builder
+                .build()
+                .execute(&mut *conn)
+                .await?;
+        }
+
+        sqlx::query("
+            INSERT OR REPLACE INTO puzzles
+            SELECT * FROM lichess_puzzles;
+
+            DELETE FROM lichess_puzzles;
+        ").execute(&mut *conn).await?;
 
         Ok(())
     }
