@@ -11,7 +11,10 @@ Added:
   * "Don't repeat this puzzle", which marks the puzzle as complete, but without adding it to spaced
     repetition.
 * Automated daily backups are now supported, and can be configured with the BACKUP_ENABLED,
-  BACKUP_PATH, and BACKUP_HOUR configuration variables. See CONFIG.md for more details.
+  BACKUP_PATH, and BACKUP_HOUR configuration variables. See CONFIG.md for more details. The backup
+  files are functional .sqlite databases that can be loaded back in as the application database,
+  but do not include the puzzles, so if they are loaded the puzzles will be reinitialised when the
+  application starts.
 
 Removed:
 * The configuration variable SQLITE_DB_NAME is now deprecated in favor of DATABASE_URL. If you
