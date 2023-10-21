@@ -2,7 +2,11 @@ use chrono::{DateTime, FixedOffset, Local};
 
 /// A trait for providing the current time to components.
 pub trait TimeProvider {
-    fn now() -> DateTime<FixedOffset>;
+    type DT;
+
+    fn now() -> Self::DT;
+    fn now_fixed() -> DateTime<FixedOffset>;
+    fn now_local() -> DateTime<Local>;
 }
 
 /// A simple time provider that provides the current local time.
@@ -10,8 +14,18 @@ pub trait TimeProvider {
 pub struct LocalTimeProvider {}
 
 impl TimeProvider for LocalTimeProvider {
-    fn now() -> DateTime<FixedOffset> {
-        Local::now().fixed_offset()
+    type DT = DateTime<Local>;
+
+    fn now() -> Self::DT {
+        Local::now()
+    }
+
+    fn now_fixed() -> DateTime<FixedOffset> {
+        Self::now().fixed_offset()
+    }
+
+    fn now_local() -> DateTime<Local> {
+        Self::now()
     }
 }
 
@@ -24,6 +38,8 @@ impl<const YEAR: i32, const MONTH: i32, const DAY: i32, const HOUR: i32, const M
      const OFFSET_HOUR: i32, const OFFSET_MIN: i32> TimeProvider
 for TestTimeProvider<YEAR, MONTH, DAY, HOUR, MIN, SEC, OFFSET_HOUR, OFFSET_MIN>
 {
+    type DT = DateTime<FixedOffset>;
+
     fn now() -> DateTime<FixedOffset> {
         // If the OFFSET_HOUR is negative we need to prefix the tz offset with a -, otherwise a +.
         let (tz_prefix, offset_hour) = if OFFSET_HOUR < 0 {
@@ -40,6 +56,14 @@ for TestTimeProvider<YEAR, MONTH, DAY, HOUR, MIN, SEC, OFFSET_HOUR, OFFSET_MIN>
             Ok(datetime) => datetime,
             _ => panic!("TestTimeProvider failed to parse rfc3339 datetime {rfc3339_time}"),
         }
+    }
+
+    fn now_fixed() -> DateTime<FixedOffset> {
+        Self::now().fixed_offset()
+    }
+
+    fn now_local() -> DateTime<Local> {
+        DateTime::from(Self::now())
     }
 }
 

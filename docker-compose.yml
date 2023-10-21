@@ -5,6 +5,8 @@ services:
     environment:
       BIND_INTERFACE: "0.0.0.0"
       SQLITE_DB_NAME: "/data/puzzles.sqlite"
+      BACKUP_ENABLED: "true"
+      BACKUP_PATH: "/data/backups"
     ports:
       - 3030:3030
     volumes:

@@ -2,9 +2,10 @@ use std::sync::Arc;
 use chrono::{DateTime, FixedOffset, Local};
 use tokio::sync::Mutex;
 
+use crate::app::AppConfig;
 use crate::db::{PuzzleDatabase, ReviewScoreBucket};
 use crate::rating::{Rating, GameResult};
-use crate::srs::{self, Difficulty};
+use crate::srs::Difficulty;
 use crate::time::LocalTimeProvider;
 
 use super::{ServiceResult, ServiceError};
@@ -22,12 +23,14 @@ pub struct Stats {
 /// Encapsulates any kind of application logic to do with users.
 #[derive(Clone)]
 pub struct UserService {
+    app_config: AppConfig,
     db: Arc<Mutex<PuzzleDatabase>>,
 }
 
 impl UserService {
-    pub fn new(db: Arc<Mutex<PuzzleDatabase>>) -> Self {
+    pub fn new(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) -> Self {
         Self {
+            app_config,
             db,
         }
     }
@@ -101,7 +104,7 @@ impl UserService {
 
         // Get the current time and day end.
         let now = Local::now().fixed_offset();
-        let day_end = srs::day_end_datetime::<LocalTimeProvider>();
+        let day_end = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
 
         // Get the user's card count and review count.
         let card_count = db.get_card_count().await?;
@@ -133,7 +136,7 @@ impl UserService {
         Self::validate_user_id(user_id)?;
         let db = self.db.lock().await;
 
-        let day_end = srs::day_end_datetime::<LocalTimeProvider>();
+        let day_end = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
         let review_forecast = db.get_review_forecast(day_end, length_days).await?;
 
         Ok(review_forecast)

@@ -25,7 +25,7 @@ There are three options to get it up and running:
 
 Once it says it's serving the site go to e.g. http://localhost:3030 to use the app. The lichess puzzles database will be automatically downloaded and imported in the background the first time you run the application. If you don't let it finish, it'll start over again the next time you run it.
 
-Configuration variables can be set using environment variables or a .env file. See the included <a href="https://github.com/catchouli/better_tactics/blob/main/.env">.env file</a> for an example with all the available configuration variables.
+Configuration variables can be set using environment variables or a .env file. See the included <a href="https://github.com/catchouli/better_tactics/blob/main/.env">.env file</a> for an example, and <a href="https://github.com/catchouli/better_tactics/blob/develop/CONFIG.md">CONFIG.md</a> for information about all available config variables.
 
 # How to use
 

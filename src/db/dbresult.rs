@@ -21,6 +21,7 @@ pub enum DatabaseError {
     QueryError(ErrorDetails),
     ParsingError(ErrorDetails),
     MigrationError(ErrorDetails),
+    BackupError(ErrorDetails),
 }
 
 unsafe impl Send for DatabaseError {}
@@ -32,6 +33,7 @@ impl DatabaseError {
             DatabaseError::QueryError(details) => details,
             DatabaseError::ParsingError(details) => details,
             DatabaseError::MigrationError(details) => details,
+            DatabaseError::BackupError(details) => details,
         }
     }
 }
@@ -47,6 +49,8 @@ impl Display for DatabaseError {
                 => write!(f, "{} parsing error: {}", details.backend, details.description),
             DatabaseError::MigrationError(details)
                 => write!(f, "{} migration error: {}", details.backend, details.description),
+            DatabaseError::BackupError(details)
+                => write!(f, "{} backup error: {}", details.backend, details.description),
         }
     }
 }
