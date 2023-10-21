@@ -70,6 +70,9 @@ impl PuzzleDatabase {
         log::info!("Running database migrations...");
         sqlx::migrate!().run(&pool).await?;
 
+        // Enable write-ahead-logging (single writer multiple readers).
+        sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await?;
+
         Ok(Self {
             pool,
             srs_config,
