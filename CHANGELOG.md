@@ -21,8 +21,17 @@ Removed:
   have a SQLITE_DB_NAME set but not a DATABASE_URL, for compatibility DATABASE_URL will be set
   to "sqlite://{SQLITE_DB_NAME}". See CONFIG.md for more details.
 
-Fixed:
+Changed:
 * Puzzles on the 'next puzzle' page will never be ones you've seen before anymore.
+* Changes the .sqlite database to use WAL journaling (write-ahead-logging) so that multiple readers
+  can use the database while something is writing to it. Overall the application should be a little
+  faster.
+* Tweaks the initial puzzle import to be a bit faster, and not lock the database as much. This is
+  especially useful in docker, where the initial import was quite slow for me previously, and the
+  web app was very slow to load while it was importing. The database import is now a lot faster,
+  and page loads are generally instant while it is in progress. API calls that need to write (such
+  as reviewing and skipping puzzles) might still need a couple of seconds while puzzles are being
+  written to a database but it's much faster overall.
 
 [1.7.0] - 2023-10-19
 
