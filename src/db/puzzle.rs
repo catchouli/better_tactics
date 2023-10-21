@@ -81,7 +81,6 @@ impl PuzzleDatabase {
     pub async fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
         const BATCH_SIZE: usize = 500;
 
-        //let mut conn = self.pool.acquire().await?;
         let mut conn = self.pool.begin().await?;
 
         sqlx::query("
