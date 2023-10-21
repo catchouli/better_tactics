@@ -10,6 +10,13 @@ Added:
     accordingly so you'll see easier or harder puzzles in the future.
   * "Don't repeat this puzzle", which marks the puzzle as complete, but without adding it to spaced
     repetition.
+* Automated daily backups are now supported, and can be configured with the BACKUP_ENABLED,
+  BACKUP_PATH, and BACKUP_HOUR configuration variables. See CONFIG.md for more details.
+
+Removed:
+* The configuration variable SQLITE_DB_NAME is now deprecated in favor of DATABASE_URL. If you
+  have a SQLITE_DB_NAME set but not a DATABASE_URL, for compatibility DATABASE_URL will be set
+  to "sqlite://{SQLITE_DB_NAME}". See CONFIG.md for more details.
 
 Fixed:
 * Puzzles on the 'next puzzle' page will never be ones you've seen before anymore.

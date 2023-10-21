@@ -2,9 +2,10 @@ use std::sync::Arc;
 use chrono::Local;
 use tokio::sync::Mutex;
 
+use crate::app::AppConfig;
 use crate::db::{PuzzleDatabase, Puzzle, Review, PuzzleHistoryEntry};
 use crate::rating::Rating;
-use crate::srs::{Card, Difficulty, self};
+use crate::srs::{Card, Difficulty};
 use crate::time::LocalTimeProvider;
 
 use super::ServiceResult;
@@ -12,12 +13,14 @@ use super::ServiceResult;
 /// Encapsulates any kind of application logic to do with tactics.
 #[derive(Clone)]
 pub struct TacticsService {
+    pub app_config: AppConfig,
     pub db: Arc<Mutex<PuzzleDatabase>>,
 }
 
 impl TacticsService {
-    pub fn new(db: Arc<Mutex<PuzzleDatabase>>) -> Self {
+    pub fn new(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) -> Self {
         Self {
+            app_config,
             db,
         }
     }
@@ -51,7 +54,7 @@ impl TacticsService {
         let next_review_due_now = db.get_next_review_due(time_now, None).await?;
 
         let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d);
-        let review_cutoff_today = srs::day_end_datetime::<LocalTimeProvider>();
+        let review_cutoff_today = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
         let next_non_learning_review_due_today =
             db.get_next_review_due(review_cutoff_today, max_learning_interval).await?;
 

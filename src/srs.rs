@@ -1,6 +1,6 @@
 use std::error::Error;
 use lazy_static::lazy_static;
-use chrono::{DateTime, FixedOffset, Duration, NaiveTime, Timelike};
+use chrono::{DateTime, FixedOffset, Duration, NaiveTime};
 use crate::time::TimeProvider;
 
 lazy_static! {
@@ -23,42 +23,24 @@ lazy_static! {
 }
 
 /// Spaced repetition config.
-#[derive(Debug, Copy, Clone, serde::Serialize)]
+#[derive(Debug, Copy, Clone)]
 pub struct SrsConfig {
     pub default_ease: f64,
     pub minimum_ease: f64,
     pub easy_bonus: f64,
+
+    /// The day end time. The user will be able to review-ahead cards before this time (as long as they
+    /// aren't in learning, in which case the interval is less than 24h, usually around 10 minutes, and
+    /// we want them to wait until it comes up again naturally.)
+    pub day_end_hour: NaiveTime,
 }
 
-/// The day end time. The user will be able to review-ahead cards before this time (as long as they
-/// aren't in learning, in which case the interval is less than 24h, usually around 10 minutes, and
-/// we want them to wait until it comes up again naturally.)
-/// TODO: make this configurable.
-fn day_end_time() -> NaiveTime {
-    // 4am by default, like in anki.
-    NaiveTime::from_hms_opt(4, 0, 0).unwrap()
-}
-
-/// Get day_end_time() as a datetime.
-pub fn day_end_datetime<TP: TimeProvider>() -> DateTime<FixedOffset> {
-    let day_end = day_end_time();
-
-    // If the current time is before the DAY_END time, (e.g. because it's after midnight but
-    // before 4am), we just need to get the current date and set the time to the DAY_END time.
-    let now = TP::now();
-    let day_end_date = if now.time() < day_end {
-        now.date_naive()
+impl SrsConfig {
+    /// Get next `day_end_hour` as a datetime.
+    pub fn day_end_datetime<TP: TimeProvider>(&self) -> DateTime<FixedOffset> {
+        crate::util::next_time_after(TP::now_local(), self.day_end_hour)
+            .fixed_offset()
     }
-    // If it's after that time, we need to add one day to get to the next DAY_END time.
-    else {
-        (now + Duration::seconds(60 * 60 * 24)).date_naive()
-    };
-
-    day_end_date
-        .and_hms_opt(day_end.hour(), day_end.minute(), day_end.second())
-        .unwrap()
-        .and_utc()
-        .fixed_offset()
 }
 
 /// Review difficulties.
@@ -117,9 +99,7 @@ impl serde::Serialize for Difficulty {
 #[derive(Debug)]
 pub struct Card {
     pub id: String,
-    //#[serde(serialize_with = "serialize_datetime")]
     pub due: DateTime<FixedOffset>,
-    //#[serde(serialize_with = "serialize_duration")]
     pub interval: Duration,
     pub review_count: i64,
     pub ease: f64,
@@ -234,21 +214,26 @@ impl Card {
 
     /// Get whether the card is due.
     pub fn is_due<TP: TimeProvider>(&self) -> bool {
-        let due_time = day_end_datetime::<TP>();
+        let due_time = self.srs_config.day_end_datetime::<TP>();
         (self.due - due_time).num_seconds() <= 0
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::srs::day_end_time;
+    use crate::app::AppConfig;
+    use crate::srs::SrsConfig;
     use crate::time::TestTimeProvider;
-    use super::day_end_datetime;
-    use chrono::{DateTime, Timelike};
+    use chrono::{DateTime, Timelike, NaiveTime};
 
     #[test]
     fn test_day_end_datetime() {
-        let day_end = day_end_time();
+        let srs = SrsConfig {
+            day_end_hour: NaiveTime::from_hms_opt(4, 0, 0).expect("Failed to create day_end_hour"),
+            ..AppConfig::default().srs
+        };
+
+        let day_end = srs.day_end_hour;
         let expected = DateTime::parse_from_rfc3339(
             &format!("2023-10-07T{:02}:{:02}:{:02}+00:00",
                      day_end.hour(), day_end.minute(), day_end.second())
@@ -256,22 +241,27 @@ mod tests {
 
         // Check that a regular-ish time in the middle of the day results in a day_end_datetime the
         // the following day.
-        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 06, 09, 26, 00, 00, 00>>(), expected);
+        assert_eq!(srs.day_end_datetime::<TestTimeProvider<2023, 10, 06, 09, 26, 00, 00, 00>>(),
+            expected);
 
         // Check that a time just before midnight works properly.
-        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 06, 23, 59, 59, 00, 00>>(), expected);
+        assert_eq!(srs.day_end_datetime::<TestTimeProvider<2023, 10, 06, 23, 59, 59, 00, 00>>(),
+            expected);
 
         // Check that a time at midnight doesn't skip to the next day or anything.
-        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 00, 00, 00, 00, 00>>(), expected);
+        assert_eq!(srs.day_end_datetime::<TestTimeProvider<2023, 10, 07, 00, 00, 00, 00, 00>>(),
+            expected);
 
         // Just after midnight.
-        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 00, 00, 01, 00, 00>>(), expected);
+        assert_eq!(srs.day_end_datetime::<TestTimeProvider<2023, 10, 07, 00, 00, 01, 00, 00>>(),
+            expected);
 
         // Just before the day_end time.
-        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 03, 59, 59, 00, 00>>(), expected);
+        assert_eq!(srs.day_end_datetime::<TestTimeProvider<2023, 10, 07, 03, 59, 59, 00, 00>>(),
+            expected);
 
         // Just after/at the day_end time should go to the next day.
-        assert_eq!(day_end_datetime::<TestTimeProvider<2023, 10, 07, 04, 00, 00, 00, 00>>(),
+        assert_eq!(srs.day_end_datetime::<TestTimeProvider<2023, 10, 07, 04, 00, 00, 00, 00>>(),
             DateTime::parse_from_rfc3339("2023-10-08T04:00:00+00:00").unwrap());
     }
 }

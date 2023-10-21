@@ -11,9 +11,9 @@ pub use puzzle::*;
 pub use user::*;
 pub use card::*;
 
-use std::str::FromStr;
 use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions, SqliteRow};
 use sqlx::{SqlitePool, ConnectOptions, Row};
+use url::Url;
 
 use crate::srs::SrsConfig;
 
@@ -48,13 +48,13 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for AppData
 
 impl PuzzleDatabase {
     /// Open the given sqlite database, initialising it with schema if necessary.
-    pub async fn open(path: &str, srs_config: SrsConfig) -> DbResult<Self> {
+    pub async fn open(url: &Url, srs_config: SrsConfig) -> DbResult<Self> {
         // Open sqlite database.
         // TODO: we aren't really making use of the database pools right now because we have a
         // single PuzzleDatabase instance behind a mutex.
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
-            .connect_with(SqliteConnectOptions::from_str(path)?
+            .connect_with(SqliteConnectOptions::from_url(url)?
               .disable_statement_logging()
               .create_if_missing(true)
             )

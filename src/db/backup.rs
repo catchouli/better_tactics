@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::path::Path;
 
 use sqlx::{Sqlite, Executor};
+use url::Url;
 
 use crate::db::{PuzzleDatabase, DbResult, DatabaseError, ErrorDetails};
 
@@ -20,7 +21,14 @@ impl PuzzleDatabase {
         }
 
         // Create database file.
-        self.create_backup_db(path).await
+        let url = Url::parse(&format!("sqlite://{path}"))
+            .map_err(|err| DatabaseError::BackupError(ErrorDetails {
+                backend: "url".to_string(),
+                description: format!("Failed to parse path {path} as sqlite URL: {err}"),
+                source: None,
+            }))?;
+
+        self.create_backup_db(&url).await
             .map_err(Self::backup_error)?;
 
         // Use the same connection from the pool or we might get one the backup database isn't
@@ -40,9 +48,9 @@ impl PuzzleDatabase {
         backup_result.and(detach_result)
     }
 
-    async fn create_backup_db(&self, path: &str) -> DbResult<()> {
+    async fn create_backup_db(&self, url: &Url) -> DbResult<()> {
         log::info!("Creating backup database");
-        PuzzleDatabase::open(path, self.srs_config).await?;
+        PuzzleDatabase::open(url, self.srs_config).await?;
         Ok(())
     }
 

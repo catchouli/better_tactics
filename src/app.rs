@@ -6,7 +6,9 @@ use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use chrono::{NaiveTime, DateTime, Local, Duration};
 use tokio::sync::Mutex;
+use url::Url;
 
 use crate::db::PuzzleDatabase;
 use crate::services::tactics_service::TacticsService;
@@ -21,8 +23,7 @@ pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CAR
 pub struct AppConfig {
     pub bind_interface: IpAddr,
     pub bind_port: u16,
-    // TODO: change it to use the DATABASE_URL env var.
-    pub db_name: String,
+    pub database_url: Url,
     pub srs: SrsConfig,
     pub backup: BackupConfig,
 }
@@ -31,6 +32,7 @@ pub struct AppConfig {
 pub struct BackupConfig {
     pub enabled: bool,
     pub path: String,
+    pub hour: NaiveTime,
 }
 
 impl Default for AppConfig {
@@ -38,15 +40,20 @@ impl Default for AppConfig {
         Self {
             bind_interface: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             bind_port: 3030,
-            db_name: "puzzles.sqlite".to_string(),
+            database_url: Url::parse("sqlite://puzzles.sqlite")
+                .expect("Failed to parse default database_url"),
             srs: SrsConfig {
                 default_ease: 2.5,
                 minimum_ease: 1.3,
                 easy_bonus: 1.3,
+                day_end_hour: NaiveTime::from_hms_opt(4, 0, 0)
+                    .expect("Failed to parse default day_end time"),
             },
             backup: BackupConfig {
                 enabled: false,
                 path: "./backups".to_string(),
+                hour: NaiveTime::from_hms_opt(4, 0, 0)
+                    .expect("Failed to parse default backup hour"),
             }
         }
     }
@@ -60,33 +67,65 @@ impl AppConfig {
         let defaults: AppConfig = Default::default();
 
         Ok(Self {
-            bind_interface: Self::env_var_or_default("BIND_INTERFACE", defaults.bind_interface)?,
-            bind_port: Self::env_var_or_default("BIND_PORT", defaults.bind_port)?,
-            db_name: Self::env_var_or_default("SQLITE_DB_NAME", defaults.db_name)?,
+            bind_interface: Self::env_var("BIND_INTERFACE")?.unwrap_or(defaults.bind_interface),
+            bind_port: Self::env_var("BIND_PORT")?.unwrap_or(defaults.bind_port),
+            database_url: Self::get_database_url()?.unwrap_or(defaults.database_url),
             srs: SrsConfig {
-                default_ease: Self::env_var_or_default("SRS_DEFAULT_EASE", defaults.srs.default_ease)?,
-                minimum_ease: Self::env_var_or_default("SRS_MINIMUM_EASE", defaults.srs.minimum_ease)?,
-                easy_bonus: Self::env_var_or_default("SRS_EASY_BONUS", defaults.srs.easy_bonus)?,
+                default_ease: Self::env_var("SRS_DEFAULT_EASE")?.unwrap_or(defaults.srs.default_ease),
+                minimum_ease: Self::env_var("SRS_MINIMUM_EASE")?.unwrap_or(defaults.srs.minimum_ease),
+                easy_bonus: Self::env_var("SRS_EASY_BONUS")?.unwrap_or(defaults.srs.easy_bonus),
+                day_end_hour: Self::env_var::<u32>("SRS_DAY_END_HOUR")?
+                    .map(|day_end_hour| NaiveTime::from_hms_opt(day_end_hour, 0, 0)
+                            .ok_or_else(|| format!("Invalid srs day_end_hour {}", day_end_hour)))
+                    .transpose()?
+                    .unwrap_or(defaults.srs.day_end_hour),
             },
             backup: BackupConfig {
-                enabled: Self::env_var_or_default("BACKUP_ENABLED", defaults.backup.enabled)?,
-                path: Self::env_var_or_default("BACKUP_PATH", defaults.backup.path)?,
+                enabled: Self::env_var("BACKUP_ENABLED")?.unwrap_or(defaults.backup.enabled),
+                path: Self::env_var("BACKUP_PATH")?.unwrap_or(defaults.backup.path),
+                hour: Self::env_var::<u32>("BACKUP_HOUR")?
+                    .map(|day_end_hour| NaiveTime::from_hms_opt(day_end_hour, 0, 0)
+                            .ok_or_else(|| format!("Invalid backup hour {}", day_end_hour)))
+                    .transpose()?
+                    .unwrap_or(defaults.backup.hour),
             }
         })
     }
 
+    /// Get the database address from environment variables.
+    pub fn get_database_url() -> Result<Option<Url>, Box<dyn Error>> {
+        let db_url = Self::env_var("DATABASE_URL")?
+            // Support old DB_NAME variable.
+            .or(Self::env_var("SQLITE_DB_NAME")?
+                .map(|db_name: String| format!("sqlite://{db_name}")))
+            // Parse to URL.
+            .map(|s| Url::parse(&s))
+            .transpose()?;
+
+        Ok(db_url)
+    }
+
     /// Read an env var and get a value, attempting to parse it to the specified type. If the
     /// variable is not set, returns the specified default.
-    fn env_var_or_default<T>(key: &str, default: T) -> Result<T, Box<dyn Error>>
+    fn env_var<T>(key: &str) -> Result<Option<T>, Box<dyn Error>>
     where
         T: FromStr,
         <T as FromStr>::Err: Error + 'static,
     {
         match env::var(key) {
-            Ok(value) => Ok(value.parse()?),
-            Err(VarError::NotPresent) => Ok(default),
-            Err(err) => Err(err.into())
+            Ok(value) => {
+                let parsed = value.parse()
+                    .map_err(|err| format!("Error parsing {key}: {err}"))?;
+                Ok(Some(parsed))
+            },
+            Err(VarError::NotPresent) => Ok(None),
+            Err(err) => Err(format!("Var error {key}: {err}").into())
         }
+    }
+
+    /// Get the last backup time.
+    pub fn last_backup_datetime(&self) -> DateTime<Local> {
+        crate::util::next_time_after(Local::now(), self.backup.hour) - Duration::days(1)
     }
 }
 
@@ -101,9 +140,9 @@ pub struct AppState {
 impl AppState {
     pub fn new(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) -> AppState {
         Self {
+            user_service: UserService::new(app_config.clone(), db.clone()),
+            tactics_service: TacticsService::new(app_config.clone(), db.clone()),
             app_config,
-            user_service: UserService::new(db.clone()),
-            tactics_service: TacticsService::new(db.clone())
         }
     }
 }

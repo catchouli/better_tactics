@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("{app_config:?}");
 
     // Open puzzle database.
-    let puzzle_db = PuzzleDatabase::open(&app_config.db_name, app_config.srs).await?;
+    let puzzle_db = PuzzleDatabase::open(&app_config.database_url, app_config.srs).await?;
     let puzzle_db = Arc::new(Mutex::new(puzzle_db));
 
     // Initialise puzzle database.
