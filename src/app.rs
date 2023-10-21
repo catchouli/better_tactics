@@ -4,10 +4,8 @@ use std::env::{self, VarError};
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
-use std::sync::Arc;
 
 use chrono::{NaiveTime, DateTime, Local, Duration};
-use tokio::sync::Mutex;
 use url::Url;
 
 use crate::db::PuzzleDatabase;
@@ -138,7 +136,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) -> AppState {
+    pub fn new(app_config: AppConfig, db: PuzzleDatabase) -> AppState {
         Self {
             user_service: UserService::new(app_config.clone(), db.clone()),
             tactics_service: TacticsService::new(app_config.clone(), db.clone()),

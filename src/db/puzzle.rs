@@ -79,25 +79,38 @@ impl PuzzleDatabase {
 
     /// Add a batch of puzzles to the database.
     pub async fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
-        // Unfortunately we can only do about 2500 per query or we run out of sql variables due to
-        // the way sqlx builds the query.
-        const MAX_PER_QUERY: usize = 2500;
+        const BATCH_SIZE: usize = 500;
 
-        // Create transaction.
-        let tx = self.pool.begin().await?;
+        let mut conn = self.pool.begin().await?;
 
-        // Import chunks of up to MAX_PER_QUERY.
-        for chunk in puzzles.chunks(MAX_PER_QUERY) {
-            // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
-            // batch insert api that lets you supply an iterator but I'm not sure how to do that with
-            // the sqlite crate. Reusing the prepared statement was about the same overhead as just
-            // creating it every time, but building the query is much faster.
-            let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-                "INSERT OR REPLACE INTO puzzles (puzzle_id, fen, moves, rating, rating_deviation,
-                popularity, number_of_plays, themes, game_url, opening_tags) "
-                );
+        sqlx::query("
+            CREATE TEMPORARY TABLE IF NOT EXISTS lichess_puzzles (
+                puzzle_id TEXT,
+                fen TEXT,
+                moves TEXT,
+                rating INTEGER,
+                rating_deviation INTEGER,
+                popularity INTEGER,
+                number_of_plays INTEGER,
+                themes TEXT,
+                game_url TEXT,
+                opening_tags TEXT
+            );
+        ").execute(&mut *conn).await?;
 
-            query_builder.push_values(chunk, |mut b, puzzle| {
+        // We have to build the query ourselves to do bulk insert. I'd rather use some sort of
+        // batch insert api that lets you supply an iterator but I'm not sure how to do that with
+        // the sqlite crate. Reusing the prepared statement was about the same overhead as just
+        // creating it every time, but building the query is much faster.
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "INSERT OR REPLACE INTO lichess_puzzles (puzzle_id, fen, moves, rating, rating_deviation,
+            popularity, number_of_plays, themes, game_url, opening_tags) "
+            );
+
+        for batch in puzzles.chunks(BATCH_SIZE) {
+            query_builder.reset();
+
+            query_builder.push_values(batch, |mut b, puzzle| {
                 b.push_bind(&puzzle.puzzle_id)
                     .push_bind(&puzzle.fen)
                     .push_bind(&puzzle.moves)
@@ -112,12 +125,18 @@ impl PuzzleDatabase {
 
             query_builder
                 .build()
-                .execute(&self.pool)
+                .execute(&mut *conn)
                 .await?;
         }
 
-        // Commit the transaction.
-        tx.commit().await?;
+        sqlx::query("
+            INSERT OR REPLACE INTO puzzles
+            SELECT * FROM lichess_puzzles;
+
+            DELETE FROM lichess_puzzles;
+        ").execute(&mut *conn).await?;
+
+        conn.commit().await?;
 
         Ok(())
     }

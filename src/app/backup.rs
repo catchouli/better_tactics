@@ -1,6 +1,4 @@
-use tokio::sync::Mutex;
 use std::path::Path;
-use std::sync::Arc;
 use std::error::Error;
 
 use crate::app::AppConfig;
@@ -8,7 +6,7 @@ use crate::db::PuzzleDatabase;
 use crate::time::{LocalTimeProvider, TimeProvider};
 
 /// Run the backup if a daily backup hasn't been created yet today.
-pub async fn run_backup(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+pub async fn run_backup(app_config: AppConfig, db: PuzzleDatabase)
     -> Result<(), Box<dyn Error>>
 {
     type TP = LocalTimeProvider;
@@ -18,7 +16,6 @@ pub async fn run_backup(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
         return Ok(());
     }
 
-    let db = db.lock().await;
     let mut app_data = db.get_app_data("").await?
         .ok_or_else(|| "Failed to get app_data when trying to run backup")?;
 

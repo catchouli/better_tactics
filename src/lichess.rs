@@ -1,15 +1,13 @@
 use std::fs::File;
 use std::io::{Write, SeekFrom, Seek};
-use std::sync::Arc;
 use csv::StringRecord;
 use futures::StreamExt;
-use tokio::sync::Mutex;
 
 use crate::db::{PuzzleDatabase, Puzzle};
 
 /// Initialise the puzzle db if necessary.
-pub async fn init_db(db: Arc<Mutex<PuzzleDatabase>>) -> Result<(), String> {
-    let app_data = db.lock().await.get_app_data("").await
+pub async fn init_db(db: PuzzleDatabase) -> Result<(), String> {
+    let app_data = db.get_app_data("").await
         .map_err(|e| format!("Failed to get app data: {e}"))?
         .ok_or_else(|| format!("Internal error: no app_data row in database"))?;
 
@@ -29,7 +27,7 @@ pub async fn init_db(db: Arc<Mutex<PuzzleDatabase>>) -> Result<(), String> {
             .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
     }
     else {
-        let puzzle_count = db.lock().await.get_puzzle_count().await
+        let puzzle_count = db.get_puzzle_count().await
             .map_err(|e| format!("Failed to get puzzle count: {e}"))?;
         log::info!("Loaded puzzle database with {puzzle_count} puzzles");
     }
@@ -95,7 +93,7 @@ async fn download_puzzle_db() -> Result<File, String> {
 }
 
 /// Import lichess database from file.
-async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw: File)
+async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
     -> Result<(), String>
 {
     /// The total number of puzzles in the database. It's a shame to have to have this hardcoded
@@ -104,7 +102,7 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
     /// can just update it.
     const TOTAL_PUZZLES: usize = 3_500_000;
 
-    const PUZZLES_PER_IMPORT_BATCH: usize = 2500;
+    const PUZZLES_PER_IMPORT_BATCH: usize = 10000;
     const PUZZLES_PER_PROGRESS_UPDATE: usize = 100000;
 
     // We expect 10 rows per puzzle entry.
@@ -168,31 +166,40 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
 
             // Bulk insert if we have enough.
             if puzzles.len() >= PUZZLES_PER_IMPORT_BATCH {
-                db.lock().await.add_puzzles(&puzzles).await
+                if puzzles_imported == PUZZLES_PER_IMPORT_BATCH {
+                    log::info!("Importing first puzzle batch...");
+                }
+
+                db.add_puzzles(&puzzles).await
                     .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
                 puzzles.clear();
             }
 
             if puzzles_imported - last_report >= PUZZLES_PER_PROGRESS_UPDATE {
                 last_report = puzzles_imported;
-                let percent = 100 * puzzles_imported / TOTAL_PUZZLES;
-                log::info!("Puzzle database: {puzzles_imported} puzzles (~{percent}%) imported...");
+
+                // Calculate imported percent.
+                let percent = 100.0 * puzzles_imported as f64 / TOTAL_PUZZLES as f64;
+                // Round it to the nearest .5.
+                let percent = f64::floor(2.0 * percent) / 2.0;
+
+                log::info!("Puzzle database: {puzzles_imported} puzzles ({percent:.1}%) imported...");
             }
         }
 
         // Add last batch (should be less than the batch size or it'll be empty).
         if !puzzles.is_empty() {
-            db.lock().await.add_puzzles(&puzzles).await
+            db.add_puzzles(&puzzles).await
                 .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
             puzzles.clear();
         }
 
         // Update flag in db to say the puzzles table is initialised.
-        let mut app_data = db.lock().await.get_app_data("").await
+        let mut app_data = db.get_app_data("").await
             .map_err(|e| format!("Failed to get app data: {e}"))?
             .ok_or_else(|| format!("No app_data row in database"))?;
         app_data.lichess_db_imported = true;
-        db.lock().await.set_app_data(&app_data).await
+        db.set_app_data(&app_data).await
             .map_err(|e| format!("Failed to update app data: {e}"))?;
 
         log::info!("Finished importing {puzzles_imported} puzzles");
