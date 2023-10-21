@@ -203,7 +203,13 @@ cg-board {
 }
 
 /* Index page */
+#stats-panel {
+    gap: 1.5rem;
+}
+
 .stats-panel {
+    display: flex;
+    flex-direction: column;
     flex-grow: 0;
     position: relative;
     text-align: center;
@@ -211,13 +217,15 @@ cg-board {
     margin-bottom: 1rem;
 }
 
-.stats-panel .button {
-    margin-bottom: 1rem;
+.stats-panel .button-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 1rem;
 }
 
 .stats-panel .stats {
-    margin: 2rem auto;
-    margin-bottom: 2rem;
+    margin: auto;
 }
 
 .stats-panel .stats > caption {
@@ -226,12 +234,12 @@ cg-board {
 }
 
 .stats-panel .stats > tbody > tr > th {
-    padding-right: 2rem;
     text-align: left;
 }
 
 .stats-panel .stats > tbody > tr > td {
-    text-align: center;
+    text-align: right;
+    min-width: 4rem;
 }
 
 .stats-panel a.button {

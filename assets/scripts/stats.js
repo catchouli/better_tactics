@@ -48,6 +48,13 @@ export class UserStats {
         this.container_tag = 'div#stats-panel.column.bt-panel.stats-panel';
         this.data_request_error = null;
 
+        this.countdown_interval = setInterval(() => {
+            if (this.config.data.ms_until_due > 0) {
+                this.config.data.ms_until_due = Math.max(0, this.config.data.ms_until_due - 1000);
+                this.render();
+            }
+        }, 1000);
+
         this.configure(config ? config : {});
     }
 
@@ -73,36 +80,40 @@ export class UserStats {
         return h(this.container_tag, [
             h('h2.title.is-3', 'Stats'),
             this.error(),
-            h('table.stats', [
-                h('tbody', [
-                    h('tr', [
-                        h('th', 'User rating'),
-                        h('td', stats.user_rating ? stats.user_rating.rating : null),
-                    ]),
-                    h('tr', [
-                        h('th', 'Unique puzzles done'),
-                        h('td', stats.card_count),
-                    ]),
-                    h('tr', [
-                        h('th', 'Puzzle completions'),
-                        h('td', stats.review_count),
-                    ]),
-                    h('tr', [
-                        h('th', 'Reviews due'),
-                        h('td', stats.reviews_due_now),
-                    ]),
-                    h('tr', [
-                        h('th', 'Reviews left today'),
-                        h('td', stats.reviews_due_today),
-                    ]),
-                    h('tr', [
-                        h('th', 'Next review due'),
-                        h('td', stats.next_review_due),
+            h('div.stats-container', [
+                h('table.stats', [
+                    h('tbody', [
+                        h('tr', [
+                            h('th', 'User rating'),
+                            h('td', stats.user_rating ? stats.user_rating.rating : null),
+                        ]),
+                        h('tr', [
+                            h('th', 'Unique puzzles done'),
+                            h('td', stats.card_count),
+                        ]),
+                        h('tr', [
+                            h('th', 'Puzzle completions'),
+                            h('td', stats.review_count),
+                        ]),
+                        h('tr', [
+                            h('th', 'Reviews due'),
+                            h('td', stats.reviews_due_now),
+                        ]),
+                        h('tr', [
+                            h('th', 'Reviews left today'),
+                            h('td', stats.reviews_due_today),
+                        ]),
+                        h('tr', [
+                            h('th', 'Next review due'),
+                            h('td', this.format_duration_ms(stats.ms_until_due)),
+                        ]),
                     ]),
                 ]),
             ]),
-            h('a.button', { props: { href: '/tactics', style: 'margin: 0 0.5rem' } }, 'Review'),
-            h('a.button', { props: { href: '/tactics/new' } }, 'Next Puzzle'),
+            h('div.button-container', [
+                h('a.button', { props: { href: '/tactics' } }, 'Review'),
+                h('a.button', { props: { href: '/tactics/new' } }, 'Next Puzzle'),
+            ]),
             this.loader(),
         ]);
     }
@@ -127,6 +138,21 @@ export class UserStats {
         if (this.config.loading) {
             return h('div.bt-loader');
         }
+    }
+
+    format_duration_ms(ms) {
+        // If the duration is undefined or null, empty string.
+        if (!ms)
+            return '';
+        // If the duration is less than or equal to 0ms, the duration is now. 
+        else if (ms <= 0)
+            return "now";
+        // If the duration is under an hour, use mm:ss.
+        else if (ms < 60 * 60 * 1000)
+            return moment.utc(ms).format("mm:ss");
+        // If the duration is over an hour, use a fuzzy duration.
+        else 
+            return moment.duration(ms, 'ms').humanize();
     }
 
     request_data() {
@@ -395,7 +421,6 @@ export class RatingHistoryChart extends StatsChart {
 
     chart_options() {
         let min_date = moment().subtract(this.chart_mode.days, 'days');
-        console.log('min date: ' + min_date.format());
 
         if (this.config.data) {
             let data_start = moment(this.config.data.datasets[0].data[0].x);
