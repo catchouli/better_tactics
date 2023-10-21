@@ -79,9 +79,10 @@ impl PuzzleDatabase {
 
     /// Add a batch of puzzles to the database.
     pub async fn add_puzzles(&mut self, puzzles: &Vec<Puzzle>) -> DbResult<()> {
-        const BATCH_SIZE: usize = 100;
+        const BATCH_SIZE: usize = 500;
 
-        let mut conn = self.pool.acquire().await?;
+        //let mut conn = self.pool.acquire().await?;
+        let mut conn = self.pool.begin().await?;
 
         sqlx::query("
             CREATE TEMPORARY TABLE IF NOT EXISTS lichess_puzzles (
@@ -135,6 +136,8 @@ impl PuzzleDatabase {
 
             DELETE FROM lichess_puzzles;
         ").execute(&mut *conn).await?;
+
+        conn.commit().await?;
 
         Ok(())
     }
