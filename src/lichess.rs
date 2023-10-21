@@ -104,7 +104,7 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
     /// can just update it.
     const TOTAL_PUZZLES: usize = 3_500_000;
 
-    const PUZZLES_PER_IMPORT_BATCH: usize = 2500;
+    const PUZZLES_PER_IMPORT_BATCH: usize = 1000;
     const PUZZLES_PER_PROGRESS_UPDATE: usize = 100000;
 
     // We expect 10 rows per puzzle entry.
@@ -168,6 +168,10 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
 
             // Bulk insert if we have enough.
             if puzzles.len() >= PUZZLES_PER_IMPORT_BATCH {
+                if puzzles_imported == PUZZLES_PER_IMPORT_BATCH {
+                    log::info!("Importing first puzzle batch...");
+                }
+
                 db.lock().await.add_puzzles(&puzzles).await
                     .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
                 puzzles.clear();
@@ -175,8 +179,13 @@ async fn import_lichess_database(db: Arc<Mutex<PuzzleDatabase>>, lichess_db_raw:
 
             if puzzles_imported - last_report >= PUZZLES_PER_PROGRESS_UPDATE {
                 last_report = puzzles_imported;
-                let percent = 100 * puzzles_imported / TOTAL_PUZZLES;
-                log::info!("Puzzle database: {puzzles_imported} puzzles (~{percent}%) imported...");
+
+                // Calculate imported percent.
+                let percent = 100.0 * puzzles_imported as f64 / TOTAL_PUZZLES as f64;
+                // Round it to the nearest .5.
+                let percent = f64::floor(2.0 * percent) / 2.0;
+
+                log::info!("Puzzle database: {puzzles_imported} puzzles ({percent:.1}%) imported...");
             }
         }
 
