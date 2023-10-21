@@ -10,7 +10,7 @@ use crate::util;
 /// Reset the user's rating to the specified value.
 /// TODO: add this into the settings page.
 pub async fn reset_rating(
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Path(new_rating): Path<i64>,
 ) -> Result<ApiResponse, ApiError>
 {

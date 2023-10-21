@@ -13,8 +13,6 @@ mod util;
 use std::env;
 use std::error::Error;
 use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::db::PuzzleDatabase;
@@ -36,7 +34,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Open puzzle database.
     let puzzle_db = PuzzleDatabase::open(&app_config.database_url, app_config.srs).await?;
-    let puzzle_db = Arc::new(Mutex::new(puzzle_db));
 
     // Initialise puzzle database.
     tokio::spawn({
@@ -72,7 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn start_job_scheduler(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+async fn start_job_scheduler(app_config: AppConfig, db: PuzzleDatabase)
     -> Result<(), String>
 {
     run_job_scheduler(app_config, db)
@@ -80,7 +77,7 @@ async fn start_job_scheduler(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase
         .map_err(|e| e.to_string())
 }
 
-async fn run_job_scheduler(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+async fn run_job_scheduler(app_config: AppConfig, db: PuzzleDatabase)
     -> Result<(), Box<dyn Error>>
 {
     let scheduler = JobScheduler::new().await?;
@@ -93,7 +90,7 @@ async fn run_job_scheduler(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>
     Ok(scheduler.start().await?)
 }
 
-fn create_backup_job(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
+fn create_backup_job(app_config: AppConfig, db: PuzzleDatabase)
     -> Result<Job, Box<dyn Error>>
 {
     // Run backup task at the first second and minute of every hour, the backup already checks if
@@ -103,7 +100,7 @@ fn create_backup_job(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>)
     })?)
 }
 
-async fn try_run_backup(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) {
+async fn try_run_backup(app_config: AppConfig, db: PuzzleDatabase) {
     if let Err(e) = app::backup::run_backup(app_config, db).await {
         log::error!("Error when backing up database: {e}");
     }

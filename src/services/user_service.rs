@@ -1,6 +1,4 @@
-use std::sync::Arc;
 use chrono::{DateTime, FixedOffset, Local};
-use tokio::sync::Mutex;
 
 use crate::app::AppConfig;
 use crate::db::{PuzzleDatabase, ReviewScoreBucket};
@@ -24,11 +22,11 @@ pub struct Stats {
 #[derive(Clone)]
 pub struct UserService {
     app_config: AppConfig,
-    db: Arc<Mutex<PuzzleDatabase>>,
+    db: PuzzleDatabase,
 }
 
 impl UserService {
-    pub fn new(app_config: AppConfig, db: Arc<Mutex<PuzzleDatabase>>) -> Self {
+    pub fn new(app_config: AppConfig, db: PuzzleDatabase) -> Self {
         Self {
             app_config,
             db,
@@ -43,7 +41,7 @@ impl UserService {
 
     /// Get the user's "next puzzle" if it's set.
     pub async fn get_user_next_puzzle(&self, user_id: &str) -> ServiceResult<Option<String>> {
-        Ok(self.db.lock().await
+        Ok(self.db
            .get_user_by_id(user_id)
            .await?
            .map(|user| user.next_puzzle)
@@ -51,17 +49,17 @@ impl UserService {
     }
 
     /// Set the user's "next puzzle".
-    pub async fn set_user_next_puzzle(&self, user_id: &str, next_puzzle: Option<&str>)
+    pub async fn set_user_next_puzzle(&mut self, user_id: &str, next_puzzle: Option<&str>)
         -> ServiceResult<()>
     {
-        let mut user = self.db.lock().await
+        let mut user = self.db
             .get_user_by_id(user_id)
             .await?
             .ok_or_else(|| ServiceError::InternalError(format!("No such user {user_id}")))?;
 
         user.next_puzzle = next_puzzle.map(ToString::to_string);
         
-        self.db.lock().await
+        self.db
             .update_user(&user)
             .await?;
 
@@ -70,19 +68,17 @@ impl UserService {
 
     /// Get the rating for a user.
     pub async fn get_user_rating(&self, user_id: &str) -> ServiceResult<Rating> {
-        Ok(self.db.lock().await
+        Ok(self.db
             .get_user_by_id(user_id).await?
             .ok_or_else(|| format!("No such user with id {user_id}"))?
             .rating)
     }
 
     /// Reset a user's rating to the given value and rating deviation.
-    pub async fn reset_user_rating(&self, user_id: &str, rating: i64, deviation: i64, volatility: f64)
+    pub async fn reset_user_rating(&mut self, user_id: &str, rating: i64, deviation: i64, volatility: f64)
         -> ServiceResult<()>
     {
-        let mut db = self.db.lock().await;
-
-        let mut user = db.get_user_by_id(user_id).await?
+        let mut user = self.db.get_user_by_id(user_id).await?
             .ok_or_else(|| format!("No such user with id {user_id}"))?;
 
         user.rating = Rating {
@@ -91,7 +87,7 @@ impl UserService {
             volatility
         };
 
-        db.update_user(&user).await?;
+        self.db.update_user(&user).await?;
 
         Ok(())
     }
@@ -100,23 +96,21 @@ impl UserService {
     pub async fn get_user_stats(&self, user_id: &str) -> ServiceResult<Stats> {
         Self::validate_user_id(user_id)?;
 
-        let db = self.db.lock().await;
-
         // Get the current time and day end.
         let now = Local::now().fixed_offset();
         let day_end = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
 
         // Get the user's card count and review count.
-        let card_count = db.get_card_count().await?;
-        let review_count = db.get_review_count().await?;
+        let card_count = self.db.get_card_count().await?;
+        let review_count = self.db.get_review_count().await?;
 
         // Get the reviews due now and reviews due today.
-        let reviews_due_now = db.reviews_due_by(now.clone(), day_end.clone()).await?;
-        let reviews_due_today = db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
+        let reviews_due_now = self.db.reviews_due_by(now.clone(), day_end.clone()).await?;
+        let reviews_due_today = self.db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
 
         // Get when the next review is due if there aren't any due now.
         let next_review_due = match reviews_due_now {
-            0 => db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due),
+            0 => self.db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due),
             _ => Some(now),
         };
 
@@ -134,10 +128,9 @@ impl UserService {
         -> ServiceResult<Vec<(i64, i64)>>
     {
         Self::validate_user_id(user_id)?;
-        let db = self.db.lock().await;
 
         let day_end = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
-        let review_forecast = db.get_review_forecast(day_end, length_days).await?;
+        let review_forecast = self.db.get_review_forecast(day_end, length_days).await?;
 
         Ok(review_forecast)
     }
@@ -146,7 +139,7 @@ impl UserService {
     pub async fn get_rating_history(&self, user_id: &str)
         -> ServiceResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
-        Ok(self.db.lock().await
+        Ok(self.db
             .get_user_rating_history(user_id)
             .await?)
     }
@@ -155,20 +148,19 @@ impl UserService {
     pub async fn get_review_score_histogram(&self, user_id: &str, bucket_size: i64)
         -> ServiceResult<Vec<ReviewScoreBucket>>
     {
-        Ok(self.db.lock().await
+        Ok(self.db
            .get_review_score_history(user_id, bucket_size)
            .await?)
     }
 
     /// Update the rating for a user.
-    pub async fn update_rating(&self, user_id: &str, difficulty: Difficulty, result: GameResult<i64>)
+    pub async fn update_rating(&mut self, user_id: &str, difficulty: Difficulty, result: GameResult<i64>)
         -> ServiceResult<Rating>
     {
         Self::validate_user_id(user_id)?;
-        let mut db = self.db.lock().await;
         
         // Get the user.
-        let mut user = db.get_user_by_id(user_id).await?
+        let mut user = self.db.get_user_by_id(user_id).await?
             .ok_or(ServiceError::from(format!("No such user {user_id}")))?;
 
         // Update the user's rating every time a puzzle is solved, old puzzles don't give much
@@ -182,7 +174,7 @@ impl UserService {
         // an arbitrary fix, we just prevent 'Good' ratings from lowering the user's rating.
         if difficulty != Difficulty::Good || user.rating.rating > old_rating.rating {
             log::info!("Updating user's rating from {} to {}", old_rating.rating, user.rating.rating);
-            db.update_user(&user).await?;
+            self.db.update_user(&user).await?;
 
             Ok(user.rating)
         }

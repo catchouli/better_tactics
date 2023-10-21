@@ -71,7 +71,7 @@ fn serialize_card<S: serde::Serializer>(card: &Option<Card>, serializer: S) -> R
 
 /// POST /api/tactics/review.
 pub async fn review(
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Json(request): Json<ReviewRequest>,
 ) -> ApiResult<()>
 {
@@ -160,7 +160,7 @@ pub async fn puzzle_by_id(
 
 /// GET /api/tactics/random/:min_rating/:max_rating.
 pub async fn random_puzzle(
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Path((min_rating, max_rating)): Path<(i64, i64)>,
 ) -> ApiResult<Json<CardResponse>>
 {
@@ -206,7 +206,7 @@ pub async fn random_puzzle(
 }
 
 pub async fn skip_next(
-    State(state): State<AppState>,
+    State(mut state): State<AppState>,
     Json(request): Json<SkipRequest>,
 ) -> ApiResult<()>
 {

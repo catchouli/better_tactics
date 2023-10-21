@@ -18,6 +18,7 @@ use url::Url;
 use crate::srs::SrsConfig;
 
 /// The puzzle database interface type.
+#[derive(Clone)]
 pub struct PuzzleDatabase {
     pool: SqlitePool,
     srs_config: SrsConfig,
