@@ -14,7 +14,7 @@ The application can be configured by setting the values in <a href="https://gith
 | Environment Variable | Default | Description |
 | --- | --- | --- |
 | UI_INITIAL_MOVE_DELAY | 500 | The delay before the first computer move in ms when showing a puzzle |
-| UI_SUBSEQUENT_MOVE_DELAY | 500 | The delay before the subsequent computer moves when in ms |
+| UI_SUBSEQUENT_MOVE_DELAY | 250 | The delay before the subsequent computer moves when in ms |
 
 # Backups
 Once enabled, backups will run once a day. If a backup is due to be run today and hasn't already, it will be attempted when the application starts. Automated backups are stored as .sqlite files with only the user data and no puzzles, but can be loaded back in as the main application database, at which point the puzzles will be automatically re-initialised from the lichess database.
