@@ -387,6 +387,48 @@ cg-board {
     flex-basis: 50%;
 }
 
+/* Put the themes at the end and 100% width on mobile */
+#puzzle-themes {
+    order: 999;
+    flex-basis: 100%;
+}
+
+#move-controls {
+    padding: 0;
+    display: flex;
+    flex-basis: 100%;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* Move controls */
+#move-controls a {
+    fill: white;
+    display: flex;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+}
+
+#move-controls a:active {
+    fill: grey;
+}
+
+#move-controls a[disabled] {
+    pointer-events: none;
+    font-weight: unset;
+    cursor: unset;
+    fill: grey;
+}
+
+#move-controls a svg {
+    pointer-events: none;
+    width: 20px;
+    height: 20px;
+}
+
+/* Move indicators */
 .to-move-piece {
     width: 45px;
     height: 45px;
@@ -432,7 +474,8 @@ cg-board {
     display: block;
     min-height: 4rem;
     width: 90%;
-    padding: 0.5em;
+    padding: 0 !important;
+    overflow: hidden;
 }
 
 .button-container button > .main-text {
@@ -659,7 +702,12 @@ cg-board {
         flex-wrap: nowrap;
     }
 
-    #puzzle-info, #card-details {
+    #puzzle-info, #card-details, #move-controls {
+        flex-basis: 0;
+    }
+
+    #puzzle-themes {
+        order: unset;
         flex-basis: 0;
     }
 

@@ -5,6 +5,7 @@ export class PuzzleBoard {
     constructor(container, config)
     {
         this._container = container;
+        this._config = {};
 
         this._board = Chessground(this._container);
 
@@ -16,11 +17,48 @@ export class PuzzleBoard {
 
         this._moves = [];
 
+        this._board_states = [this.initial_board_state()];
+        this._seek_position = 0;
+
         this._player_color = 'w';
         this._computer_color = 'b';
 
-        this._config = {};
         this.configure(Object.assign(this.default_config(), config ? config : {}));
+    }
+
+    initial_board_state() {
+        return {
+            fen: this._config.fen ? this._config.fen
+                : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+            side_to_move: this.get_color_to_move(this._config.fen),
+            highlight_move: null,
+        };
+    }
+
+    push_board_state(last_move, side_to_move) {
+        this.truncate_board_states();
+        this._board_states.push({
+            fen: this._game.fen(),
+            highlight_move: last_move,
+            side_to_move: side_to_move,
+        });
+        this._seek_position = this._board_states.length - 1;
+    }
+
+    // Truncate board states after the current one.
+    truncate_board_states() {
+        if (this._board_states.length > this._seek_position + 1) {
+            this._board_states.length = this._seek_position + 1;
+            this._seek_position = this.seek_max();
+
+            if (this._config.on_seek) {
+                this._config.on_seek();
+            }
+        }
+    }
+
+    get_color_to_move(fen) {
+        return fen ? new Chess(fen).turn() : 'w';
     }
 
     default_config() {
@@ -53,11 +91,8 @@ export class PuzzleBoard {
 
         // Set board settings.
         this._board.set({
-            movable: {
-                showDests: true,
-                color: this._player_color == 'w' ? 'white' : 'black',
-            },
             premovable: {
+                enabled: true,
                 events: {
                     set: this._set_premove.bind(this),
                     unset: this._unset_premove.bind(this)
@@ -74,8 +109,9 @@ export class PuzzleBoard {
     }
     
     get_dests(square) {
-        return this._game.moves({ square })
+        let res = this._game.moves({ square })
             .map(move => move.replace("+", "").replace("#", "").slice(-2));
+        return res;
     }
 
     reset() {
@@ -86,36 +122,21 @@ export class PuzzleBoard {
         this._failed = false;
 
         this._game = this._config.fen ? new Chess(this._config.fen) : new Chess();
+        this._board_states = [this.initial_board_state()];
         this.sync_board();
 
         this._remaining_moves = this._moves.slice();
 
-        if (this._config.locked) {
+        if (this._config.locked || this._remaining_moves.length == 0) {
             this._board.set({
                 movable: {
                     color: 'none',
                 }
             });
         }
-        else if (this._remaining_moves.length > 0) {
-            // Make the player's pieces movable again, the 'wrong move' interface disables this.
-            this._board.set({
-                movable: {
-                    color: this._player_color == 'w' ? 'white' : 'black'
-                }
-            });
-        }
-        else {
-            // Disable moving if there are no moves to begin with.
-            this._board.set({
-                movable: {
-                    color: 'none'
-                }
-            });
-        }
 
         if (this._remaining_moves.length > 0) {
-            setTimeout(this._make_computer_move.bind(this), this._config.initial_move_delay);
+            setTimeout(this._make_computer_move.bind(this), this._config.first_move_delay);
         }
     }
 
@@ -137,17 +158,52 @@ export class PuzzleBoard {
             && !this.is_failed();
     }
 
+    // Allow pieces to be moved if we're seeked to the latest move, or if the puzzle is over.
+    can_move() {
+        return this.is_complete() || this.is_failed() || this._seek_position == this.seek_max();
+    }
+
+    // Allow premoves as long as the puzzle isn't complete or failed, otherwise it doesn't make
+    // sense because you're playing both sides anyway.
+    can_premove() {
+        return !this.is_complete() && !this.is_failed() && this._seek_position == this.seek_max();
+    }
+
     // Sync the board with the game state.
     sync_board() {
-        this._board.set({
-            fen: this._game.fen(),
-            lastMove: this._last_move ? this._last_move : null,
-            turnColor: this._game.turn() == 'w' ? 'white' : 'black',
-            check: this._game.isCheck(),
-            movable: {
-                dests: { get: this.get_dests.bind(this) }
-            },
-        });
+        if (this._seek_position < this._board_states.length) {
+            let board_state = this._board_states[this._seek_position];
+
+            // Let the player make moves for both sides if the puzzle is over.
+            let movable_color;
+            if (this.is_complete() || this.is_failed()) {
+                movable_color = board_state.side_to_move == 'b' ? 'black' : 'white';
+            }
+            // Otherwise only allow them to move their own color.
+            else {
+                movable_color = this._player_color == 'b' ? 'black' : 'white';
+            }
+
+            this._board.set({
+                selected: null,
+                fen: board_state.fen,
+                lastMove: board_state.highlight_move,
+                turnColor: this._game.turn() == 'w' ? 'white' : 'black',
+                check: this._game.isCheck(),
+                movable: {
+                    showDests: this.can_move(),
+                    dests: { get: (square) => { if (this.can_move()) return this.get_dests(square); } },
+                    color: movable_color,
+                },
+                premovable: {
+                    enabled: this.can_premove(),
+                    events: {
+                        set: (orig, dest) => { if (this.can_premove()) this._set_premove(orig, dest); },
+                        unset: (orig, dest) => { if (this.can_premove()) this._unset_premove(orig, dest); },
+                    }
+                },
+            });
+        }
     }
 
     color_to_move() {
@@ -224,11 +280,13 @@ export class PuzzleBoard {
             let orig = next_move.slice(0, 2);
             let dest = next_move.slice(2);
 
-            // Store the last move for highlighting purposes.
-            this._last_move = [orig, dest];
-
-            // Update the game and board.
+            // Update the game.
             this._game.move(next_move);
+
+            // Store board state.
+            this.push_board_state([orig, dest], this._player_color);
+
+            // Sync chess board.
             this.sync_board();
 
             // Call the on_move callback.
@@ -265,13 +323,8 @@ export class PuzzleBoard {
             return;
         }
 
-        // Store the last move for highlighting purposes.
-        this._last_move = [orig, dest];
-
-        // Sync the board to apply any promotions etc. We do this now, after checking if a
-        // promotion piece has been specified, as otherwise it defaults to Knight promotion
-        // and looks a bit wonky.
-        this.sync_board();
+        // Store board state.
+        this.push_board_state([orig, dest], this._computer_color);
 
         // Call on move callback now that we've validated it.
         if (this._config.on_move)
@@ -298,14 +351,6 @@ export class PuzzleBoard {
             if (this._remaining_moves.length == 0) {
                 if (this._config.on_success)
                     this._config.on_success();
-
-                // As an extra thing, let the player move the opponent's pieces so they can keep
-                // playing out the game if they like.
-                this._board.set({
-                    movable: {
-                        color: this._game.turn() == 'w' ? 'white' : 'black'
-                    }
-                });
             }
             else {
                 if (this._config.on_right_move)
@@ -315,40 +360,33 @@ export class PuzzleBoard {
             }
         }
         else {
-            // Disable the move while showing the 'wrong move' interface.
-            this._board.set({
-                movable: {
-                    color: 'none'
-                }
-            });
-
             this._failed = true;
             if (this._config.on_wrong_move)
                 this._config.on_wrong_move();
         }
+
+        this.sync_board();
     }
 
     // The callback for a player making a move in chessground. If the selected move was a promotion,
     // we call the promotion callback so the player can be prompted for their selected promotion,
     // otherwise we just apply the move immediately to the game and board.
     _move(orig, dest, _) {
+        if (!this.can_move()) {
+            this.sync_board();
+            return;
+        }
+
         // If the puzzle is over, just allow free movement of pieces as long as they're legal moves.
-        if (this._remaining_moves.length == 0) {
+        if (this.is_complete() || this.is_failed()) {
             try {
                 this._game.move({
                     from: orig,
                     to: dest,
-                    promotion: 'q'
+                    promotion: 'q',
                 });
-                this._last_move = [orig, dest];
+                this.push_board_state([orig, dest], this._game.turn());
                 this.sync_board();
-
-                // Set the next color as movable.
-                this._board.set({
-                    movable: {
-                        color: this._game.turn() == 'w' ? 'white' : 'black'
-                    }
-                });
             }
             catch (_) {
                 this.sync_board();
@@ -364,7 +402,7 @@ export class PuzzleBoard {
                 to: dest,
                 // Just make all promotions queens for the purposes of checking for legal moves,
                 // later if it was legal we'll prompt for the type of promotion.
-                promotion: 'q'
+                promotion: 'q',
             });
 
             // For now we undo the move if it succeeded, because if it was a promotion, we need to
@@ -397,5 +435,54 @@ export class PuzzleBoard {
 
     _unset_premove(orig, dest) {
         this._premove = null;
+    }
+
+    _seek_game() {
+        let board_state = this._board_states[this._seek_position];
+        this._game = new Chess(board_state.fen);
+    }
+
+    seek_position() {
+        return this._seek_position;
+    }
+
+    seek_max() {
+        return this._board_states.length - 1;
+    }
+
+    seek_start() {
+        this._seek_position = 0;
+        this._seek_game();
+        this.sync_board();
+
+        if (this._config.on_seek)
+            this._config.on_seek();
+    }
+
+    seek_prev() {
+        this._seek_position = Math.max(0, this._seek_position - 1);
+        this._seek_game();
+        this.sync_board();
+
+        if (this._config.on_seek)
+            this._config.on_seek();
+    }
+
+    seek_next() {
+        this._seek_position = Math.min(this.seek_max(), this._seek_position + 1);
+        this._seek_game();
+        this.sync_board();
+
+        if (this._config.on_seek)
+            this._config.on_seek();
+    }
+
+    seek_end() {
+        this._seek_position = this.seek_max();
+        this._seek_game();
+        this.sync_board();
+
+        if (this._config.on_seek)
+            this._config.on_seek();
     }
 }

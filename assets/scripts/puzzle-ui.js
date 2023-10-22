@@ -10,6 +10,7 @@ import {
 } from '../deps/snabbdom.js';
 import { Chess } from '../deps/chess.js';
 import { PuzzleBoard } from './puzzle-board.js';
+import { asset_path } from './util.js';
 
 const patch = init([
     classModule,
@@ -41,6 +42,7 @@ export class PuzzleUi {
             on_right_move: this.render.bind(this),
             on_wrong_move: () => { this.first_try = false; this.render(); },
             on_promote: this.render.bind(this),
+            on_seek: this.render.bind(this),
         });
 
         this.configure(config ? config : {});
@@ -259,6 +261,7 @@ export class PuzzleUi {
     sidebar() {
         if (this.puzzle && this.config.puzzle && !this.config.loading) {
             return h('div.column.sidebar', [
+                this.move_controls(),
                 this.puzzle_info(),
                 this.card_stats(),
                 this.side_to_move(),
@@ -266,6 +269,7 @@ export class PuzzleUi {
                 this.wrong_move(),
                 this.right_move(),
                 this.puzzle_complete(),
+                this.puzzle_themes(),
                 this.reviewing_ahead(),
                 this.skip_button(),
                 this.dont_repeat_button(),
@@ -298,20 +302,63 @@ export class PuzzleUi {
                     ]),
                 ]),
             ]),
-            this.puzzle_themes(),
             this.analysis_link(),
             this.source_url(),
         ]);
     }
 
+    move_controls() {
+        let at_start = this.puzzle.seek_position() == 0;
+        let at_end = this.puzzle.seek_position() == this.puzzle.seek_max();
+
+        return h('div#move-controls.bt-panel', [
+            h('a', {
+                dataset: { action: "start" },
+                on: { click: this.seek.bind(this) },
+                attrs: { disabled: at_start },
+            }, [
+                h('svg',
+                    h('use', { attrs: { href: asset_path("images/icons/play-backwards.svg#icon") } }),
+                ),
+            ]),
+            h('a', {
+                dataset: { action: "backwards" },
+                on: { click: this.seek.bind(this) },
+                attrs: { disabled: at_start },
+            }, [
+                h('svg',
+                    h('use', { attrs: { href: asset_path("images/icons/play-track-prev.svg#icon") } }),
+                ),
+            ]),
+            h('a', {
+                dataset: { action: "forwards" },
+                on: { click: this.seek.bind(this) },
+                attrs: { disabled: at_end },
+            }, [
+                h('svg',
+                    h('use', { attrs: { href: asset_path("images/icons/play-track-next.svg#icon") } }),
+                ),
+            ]),
+            h('a', {
+                dataset: { action: "end" },
+                on: { click: this.seek.bind(this) },
+                attrs: { disabled: at_end },
+            }, [
+                h('svg',
+                    h('use', { attrs: { href: asset_path("images/icons/play-forwards.svg#icon") } }),
+                ),
+            ]),
+        ]);
+    }
+
     puzzle_themes() {
-        if (this.config.puzzle.themes && this.config.puzzle.themes.length > 0) {
-            let themes = this.puzzle && this.puzzle.is_complete()
-                ? this.config.puzzle.themes.join(', ') : "?";
-            return h('div#puzzle-themes', [
+        if (this.config.puzzle.themes && this.config.puzzle.themes.length > 0 &&
+            this.puzzle && this.puzzle.is_complete())
+        {
+            return h('div#puzzle-themes.bt-panel', [
                 h('p', [
                     h('b', 'Themes: '),
-                    themes,
+                    this.config.puzzle.themes.join(', '),
                 ]),
             ]);
         }
@@ -665,6 +712,24 @@ export class PuzzleUi {
                     this.request_data();
                 }
             }, 1000);
+        }
+    }
+
+    seek(button) {
+        let action = button.target.dataset.action;
+        console.log(button);
+
+        if (action == "start") {
+            this.puzzle.seek_start();
+        }
+        else if (action == "backwards") {
+            this.puzzle.seek_prev();
+        }
+        else if (action == "forwards") {
+            this.puzzle.seek_next();
+        }
+        else if (action == "end") {
+            this.puzzle.seek_end();
         }
     }
 }
