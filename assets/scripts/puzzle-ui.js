@@ -33,27 +33,6 @@ export class PuzzleUi {
         this.analysis_fen = null;
         this.disable_review_buttons = true;
 
-        this.topbar_vnode = h('div');
-
-        this.topbar_interval = setInterval(() => {
-            if (!this.config.puzzle && !this.config.error && this.config.stats &&
-                this.config.stats.reviews_due_now == 0 &&
-                this.config.stats.reviews_due_today > 0)
-            {
-                if (typeof this.config.stats.ms_until_due === "number") {
-                    this.config.stats.ms_until_due -= 1000;
-
-                    if (!this.loading && this.config.stats.ms_until_due < 0) {
-                        this.config.stats.ms_until_due = null;
-                        this.request_data();
-                    }
-                    else {
-                        this.topbar_vnode = patch(this.topbar_vnode, this.topbar());
-                    }
-                }
-            }
-        }, 1000);
-
         // Render once and create the puzzle board.
         this.render();
         this.puzzle = new PuzzleBoard(document.getElementById("board"), {
@@ -151,10 +130,8 @@ export class PuzzleUi {
     }
 
     view() {
-        this.topbar_vnode = this.topbar();
-
         return h('div#puzzle-interface', [
-            this.topbar_vnode,
+            this.topbar(),
 
             h('div.columns', [
                 // The board column on the left.
@@ -216,6 +193,7 @@ export class PuzzleUi {
                     let due = 'unknown';
                     if (typeof this.config.stats.ms_until_due === "number") {
                         due = this.human_duration(this.config.stats.ms_until_due);
+                        this.start_review_countdown();
                     }
 
                     let done_text = this.config.stats.reviews_due_today > 0
@@ -667,6 +645,22 @@ export class PuzzleUi {
                     this.disable_review_buttons = false;
                     this.render();
                 });
+        }
+    }
+
+    start_review_countdown() {
+        if (!this.countdown_interval && this.config.stats && this.config.stats.ms_until_due > 0) {
+            console.log('Starting countdown');
+            this.countdown_interval = setInterval(() => {
+                this.config.stats.ms_until_due = Math.max(0, this.config.stats.ms_until_due - 1000);
+                this.render();
+
+                if (this.config.stats.ms_until_due <= 0) {
+                    console.log('Countdown done');
+                    clearInterval(this.countdown_interval);
+                    this.request_data();
+                }
+            }, 1000);
         }
     }
 }

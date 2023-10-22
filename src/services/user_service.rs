@@ -108,11 +108,8 @@ impl UserService {
         let reviews_due_now = self.db.reviews_due_by(now.clone(), day_end.clone()).await?;
         let reviews_due_today = self.db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
 
-        // Get when the next review is due if there aren't any due now.
-        let next_review_due = match reviews_due_now {
-            0 => self.db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due),
-            _ => Some(now),
-        };
+        // Get when the next review is due.
+        let next_review_due = self.db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due);
 
         Ok(Stats {
             card_count,

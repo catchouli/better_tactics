@@ -113,9 +113,14 @@ export class PuzzleHistory {
             let puzzle = item.puzzle;
             return [
                 h('div.puzzle-history-board-container', [
-                    h('div.puzzle-history-board', {
-                        dataset: { id: puzzle.puzzle_id },
-                    }),
+                    h('a', {
+                        attrs: { href: `/tactics/by_id/${puzzle.puzzle_id}` }
+                    },
+                    [
+                        h('div.puzzle-history-board', {
+                            dataset: { id: puzzle.puzzle_id },
+                        })
+                    ]),
                 ]),
                 h('div.puzzle-history-info', [
                     h('table.stats', [

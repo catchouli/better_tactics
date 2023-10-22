@@ -48,13 +48,6 @@ export class UserStats {
         this.container_tag = 'div#stats-panel.column.bt-panel.stats-panel';
         this.data_request_error = null;
 
-        this.countdown_interval = setInterval(() => {
-            if (this.config.data.ms_until_due > 0) {
-                this.config.data.ms_until_due = Math.max(0, this.config.data.ms_until_due - 1000);
-                this.render();
-            }
-        }, 1000);
-
         this.configure(config ? config : {});
     }
 
@@ -103,10 +96,7 @@ export class UserStats {
                             h('th', 'Reviews left today'),
                             h('td', stats.reviews_due_today),
                         ]),
-                        h('tr', [
-                            h('th', 'Next review due'),
-                            h('td', this.format_duration_ms(stats.ms_until_due)),
-                        ]),
+                        this.next_review_due(stats),
                     ]),
                 ]),
             ]),
@@ -116,6 +106,29 @@ export class UserStats {
             ]),
             this.loader(),
         ]);
+    }
+
+    next_review_due(stats) {
+        // If reviews_due_now is > 0 we show the next 'now' even if ms_until_due > 0. This is
+        // because we might be reviewing ahead later today and reviews_due_now takes that into
+        // consideration.
+        let next_review_due_label;
+        if (stats.reviews_due_now > 0) {
+            next_review_due_label = "now";
+        }
+        else {
+            next_review_due_label = this.format_duration_ms(stats.ms_until_due);
+        }
+
+        if (next_review_due_label) {
+            this.start_review_countdown();
+
+            return h('tr', [
+                h('th', 'Next review due'),
+                h('td', next_review_due_label),
+            ]);
+
+        }
     }
 
     error_view(err) {
@@ -140,10 +153,26 @@ export class UserStats {
         }
     }
 
+    start_review_countdown() {
+        if (!this.countdown_interval && this.config.data && this.config.data.ms_until_due > 0) {
+            console.log('Starting countdown');
+            this.countdown_interval = setInterval(() => {
+                this.config.data.ms_until_due = Math.max(0, this.config.data.ms_until_due - 1000);
+                this.render();
+
+                if (this.config.data.ms_until_due <= 0) {
+                    console.log('Countdown done');
+                    clearInterval(this.countdown_interval);
+                    this.request_data();
+                }
+            }, 1000);
+        }
+    }
+
     format_duration_ms(ms) {
-        // If the duration is undefined or null, empty string.
-        if (!ms)
-            return '';
+        // If the duration is undefined or null, the duration is never.
+        if (ms == null || typeof ms === 'undefined')
+            return "never";
         // If the duration is less than or equal to 0ms, the duration is now. 
         else if (ms <= 0)
             return "now";

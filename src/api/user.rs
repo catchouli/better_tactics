@@ -5,7 +5,6 @@ use serde_json::Value;
 use crate::api::{ApiError, ApiResponse};
 use crate::app::AppState;
 use crate::services::user_service::UserService;
-use crate::util;
 
 /// Reset the user's rating to the specified value.
 /// TODO: add this into the settings page.
@@ -49,11 +48,10 @@ pub async fn stats(State(state): State<AppState>)
         map.insert("review_count".into(), stats.review_count.into());
         map.insert("reviews_due_now".into(), stats.reviews_due_now.into());
         map.insert("reviews_due_today".into(), stats.reviews_due_today.into());
-        let next_review_due = util::maybe_review_timestamp_to_human(&stats.next_review_due);
-        map.insert("next_review_due".into(), next_review_due.into());
 
         if let Some(next_review_due) = stats.next_review_due {
             let time_until_due = next_review_due - Local::now().fixed_offset();
+            map.insert("next_review_due".into(), next_review_due.to_rfc3339().into());
             map.insert("ms_until_due".into(), time_until_due.num_milliseconds().into());
         }
 
