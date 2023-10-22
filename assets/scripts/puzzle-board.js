@@ -136,7 +136,7 @@ export class PuzzleBoard {
         }
 
         if (this._remaining_moves.length > 0) {
-            setTimeout(this._make_computer_move.bind(this), this._config.first_move_delay);
+            setTimeout(this._make_computer_move.bind(this), this._config.initial_move_delay);
         }
     }
 
