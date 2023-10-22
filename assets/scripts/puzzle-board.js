@@ -123,6 +123,7 @@ export class PuzzleBoard {
 
         this._game = this._config.fen ? new Chess(this._config.fen) : new Chess();
         this._board_states = [this.initial_board_state()];
+        this._seek_position = 0;
         this.sync_board();
 
         this._remaining_moves = this._moves.slice();
