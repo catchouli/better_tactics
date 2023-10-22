@@ -1,3 +1,13 @@
+[1.9.0] - ????-??-??
+
+Added:
+ * Add simple move seeking (back and forward buttons) that allows you to see the moves played previously, and try playing out variations once
+  the puzzle is over.
+* Enable free movement after the wrong move is played the same as when the puzzle is complete, so you can play out variations and see what would have happened.
+
+Changed:
+* Change initial computer move delay to 500, and make it and the subsequent move delays configurable with the configuration variables UI_INITIAL_MOVE_DELAY and UI_SUBSEQUENT_MOVE_DELAY.
+
 [1.8.0] - 2023-10-21
 
 Added:

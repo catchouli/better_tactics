@@ -43,6 +43,18 @@ impl SrsConfig {
     }
 }
 
+impl Default for SrsConfig {
+    fn default() -> Self {
+        Self {
+            default_ease: 2.5,
+            minimum_ease: 1.3,
+            easy_bonus: 1.3,
+            day_end_hour: NaiveTime::from_hms_opt(4, 0, 0)
+                .expect("Failed to parse default day_end time"),
+        }
+    }
+}
+
 /// Review difficulties.
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Difficulty {
