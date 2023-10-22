@@ -24,6 +24,10 @@
         on_review: submit_review,
         request_data: request_next_puzzle,
         on_skip: on_skip,
+        board_config: {
+            initial_move_delay: {{ ui_config.initial_move_delay }},
+            subsequent_move_delay: {{ ui_config.subsequent_move_delay }},
+        },
     });
     document.puzzle_ui = puzzle_ui;
 

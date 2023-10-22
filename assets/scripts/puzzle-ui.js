@@ -69,6 +69,10 @@ export class PuzzleUi {
             }
         }
 
+        if (config.board_config) {
+            this.puzzle.configure(config.board_config);
+        }
+
         // If a new puzzle is configured.
         if (config.puzzle) {
             // Create puzzle board.

@@ -1,8 +1,6 @@
 import { Chess } from '../deps/chess.js';
 import { Chessground } from '../deps/chessground.min.js';
 
-const COMPUTER_MOVE_DELAY = 250;
-
 export class PuzzleBoard {
     constructor(container, config)
     {
@@ -22,7 +20,14 @@ export class PuzzleBoard {
         this._computer_color = 'b';
 
         this._config = {};
-        this.configure(config ? config : {});
+        this.configure(Object.assign(this.default_config(), config ? config : {}));
+    }
+
+    default_config() {
+        return {
+            initial_move_delay: 500,
+            subsequent_move_delay: 250,
+        };
     }
 
     destroy() {
@@ -110,7 +115,7 @@ export class PuzzleBoard {
         }
 
         if (this._remaining_moves.length > 0) {
-            setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
+            setTimeout(this._make_computer_move.bind(this), this._config.initial_move_delay);
         }
     }
 
@@ -231,7 +236,7 @@ export class PuzzleBoard {
                 this._config.on_move();
 
             // Add a timer to apply the next premove, if there is one.
-            setTimeout(() => this._board.playPremove(), COMPUTER_MOVE_DELAY);
+            setTimeout(() => this._board.playPremove(), this._config.subsequent_move_delay);
         }
     }
 
@@ -306,7 +311,7 @@ export class PuzzleBoard {
                 if (this._config.on_right_move)
                     this._config.on_right_move();
 
-                setTimeout(this._make_computer_move.bind(this), COMPUTER_MOVE_DELAY);
+                setTimeout(this._make_computer_move.bind(this), this._config.subsequent_move_delay);
             }
         }
         else {

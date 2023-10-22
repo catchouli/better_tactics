@@ -24,6 +24,7 @@ pub struct AppConfig {
     pub database_url: Url,
     pub srs: SrsConfig,
     pub backup: BackupConfig,
+    pub ui: UiConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +34,12 @@ pub struct BackupConfig {
     pub hour: NaiveTime,
 }
 
+#[derive(Debug, Clone)]
+pub struct UiConfig {
+    pub initial_move_delay: u32,
+    pub subsequent_move_delay: u32,
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -40,19 +47,29 @@ impl Default for AppConfig {
             bind_port: 3030,
             database_url: Url::parse("sqlite://puzzles.sqlite")
                 .expect("Failed to parse default database_url"),
-            srs: SrsConfig {
-                default_ease: 2.5,
-                minimum_ease: 1.3,
-                easy_bonus: 1.3,
-                day_end_hour: NaiveTime::from_hms_opt(4, 0, 0)
-                    .expect("Failed to parse default day_end time"),
-            },
-            backup: BackupConfig {
-                enabled: false,
-                path: "./backups".to_string(),
-                hour: NaiveTime::from_hms_opt(4, 0, 0)
-                    .expect("Failed to parse default backup hour"),
-            }
+            srs: Default::default(),
+            backup: Default::default(),
+            ui: Default::default(),
+        }
+    }
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            path: "./backups".to_string(),
+            hour: NaiveTime::from_hms_opt(4, 0, 0)
+                .expect("Failed to parse default backup hour"),
+        }
+    }
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        Self {
+            initial_move_delay: 500,
+            subsequent_move_delay: 250,
         }
     }
 }
@@ -86,7 +103,13 @@ impl AppConfig {
                             .ok_or_else(|| format!("Invalid backup hour {}", day_end_hour)))
                     .transpose()?
                     .unwrap_or(defaults.backup.hour),
-            }
+            },
+            ui: UiConfig {
+                initial_move_delay: Self::env_var("UI_INITIAL_MOVE_DELAY")?
+                    .unwrap_or(defaults.ui.initial_move_delay),
+                subsequent_move_delay: Self::env_var("UI_SUBSEQUENT_MOVE_DELAY")?
+                    .unwrap_or(defaults.ui.subsequent_move_delay),
+            },
         })
     }
 

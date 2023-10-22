@@ -1,6 +1,8 @@
 use std::fmt::Display;
 use askama::Template;
-use axum::extract::{Path, Query};
+use axum::extract::{Path, Query, State};
+
+use crate::app::{UiConfig, AppState};
 
 use super::{BaseTemplateData, ControllerError};
 
@@ -33,6 +35,7 @@ impl Display for PuzzleMode {
 pub struct PuzzleTemplate {
     base: BaseTemplateData,
     mode: PuzzleMode,
+    ui_config: UiConfig,
     requested_id: String,
 }
 
@@ -51,34 +54,41 @@ pub struct PuzzleHistoryTemplate {
 }
 
 /// GET /tactics/by_id/{puzzle_id}
-pub async fn specific_puzzle(Path(puzzle_id): Path<String>)
-    -> Result<PuzzleTemplate, ControllerError>
+pub async fn specific_puzzle(
+    State(state): State<AppState>,
+    Path(puzzle_id): Path<String>
+) -> Result<PuzzleTemplate, ControllerError>
 {
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Specific,
+        ui_config: state.app_config.ui,
         requested_id: puzzle_id,
     })
 }
 
 /// GET /tactics/new
-pub async fn random_puzzle()
-    -> Result<PuzzleTemplate, ControllerError>
+pub async fn random_puzzle(
+    State(state): State<AppState>,
+) -> Result<PuzzleTemplate, ControllerError>
 {
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Random,
+        ui_config: state.app_config.ui,
         requested_id: "".to_string(),
     })
 }
 
 /// GET /tactics
-pub async fn next_review()
-    -> Result<PuzzleTemplate, ControllerError>
+pub async fn next_review(
+    State(state): State<AppState>,
+) -> Result<PuzzleTemplate, ControllerError>
 {
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Review,
+        ui_config: state.app_config.ui,
         requested_id: "".to_string(),
     })
 }

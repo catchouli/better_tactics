@@ -10,6 +10,12 @@ The application can be configured by setting the values in <a href="https://gith
 | BIND_PORT | 3030 | The port to bind the web server to, the default is 3030 |
 | DATABASE_URL | sqlite://puzzles.sqlite | The url of the database. "sqlite://path/to/puzzles.sqlite" refers to the relative path "./path/to/puzzles.sqlite", while "sqlite:///path/to/puzzles.sqlite" with an additional slash at the start of the path refers to the absolute path /path/to/puzzles.sqlite |
 
+# User Interface
+| Environment Variable | Default | Description |
+| --- | --- | --- |
+| UI_INITIAL_MOVE_DELAY | 500 | The delay before the first computer move in ms when showing a puzzle |
+| UI_SUBSEQUENT_MOVE_DELAY | 500 | The delay before the subsequent computer moves when in ms |
+
 # Backups
 Once enabled, backups will run once a day. If a backup is due to be run today and hasn't already, it will be attempted when the application starts. Automated backups are stored as .sqlite files with only the user data and no puzzles, but can be loaded back in as the main application database, at which point the puzzles will be automatically re-initialised from the lichess database.
 
