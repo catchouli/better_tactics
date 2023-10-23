@@ -248,7 +248,7 @@ export class StatsChart {
 
     view() {
         if (this.data_request_error) {
-            return error_view(this.data_request_error);
+            return this.error_view(this.data_request_error);
         }
 
         return h(this.container_tag, [

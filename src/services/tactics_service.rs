@@ -1,12 +1,12 @@
 use chrono::Local;
 
 use crate::app::AppConfig;
-use crate::db::{PuzzleDatabase, Puzzle, Review, PuzzleHistoryEntry};
+use crate::db::{PuzzleDatabase, Puzzle, Review, PuzzleHistoryEntry, UserId, PuzzleId};
 use crate::rating::Rating;
-use crate::srs::{Card, Difficulty};
+use crate::srs::{Card, Difficulty, CardId};
 use crate::time::LocalTimeProvider;
 
-use super::ServiceResult;
+use super::{ServiceResult, ServiceError};
 
 /// Encapsulates any kind of application logic to do with tactics.
 #[derive(Clone)]
@@ -23,17 +23,46 @@ impl TacticsService {
         }
     }
 
-    pub async fn get_puzzle_by_id(&self, puzzle_id: &str)
+    pub async fn get_puzzle_and_card_by_puzzle_id(&self, user_id: UserId, puzzle_id: PuzzleId)
         -> ServiceResult<(Option<Puzzle>, Option<Card>)>
     {
         let puzzle = self.db.get_puzzle_by_id(puzzle_id).await?;
+        let card = self.db.get_card_for_puzzle(user_id, puzzle_id).await?;
+
+        Ok((puzzle, card))
+    }
+
+    pub async fn get_puzzle_and_card_by_source_id(&self, user_id: UserId, source_name: &str,
+        source_id: &str) -> ServiceResult<(Option<Puzzle>, Option<Card>)>
+    {
+        let puzzle = self.db.get_puzzle_by_source_id(source_name, source_id).await?;
 
         let card = match puzzle.as_ref() {
-            Some(puzzle) => self.db.get_card_by_id(&puzzle.puzzle_id).await?,
+            Some(puzzle) => {
+                let puzzle_id = puzzle.id
+                    .ok_or_else(|| ServiceError::InternalError("Got puzzle with no id".into()))?;
+                self.db.get_card_for_puzzle(user_id, puzzle_id).await?
+            },
             _ => None
         };
 
         Ok((puzzle, card))
+    }
+
+    pub async fn get_puzzle_and_card_by_card_id(&self, user_id: UserId, card_id: CardId)
+        -> ServiceResult<Option<(Puzzle, Card)>>
+    {
+        if let Some(card) = self.db.get_card_by_id(user_id, card_id).await? {
+            if let Some(puzzle) = self.db.get_puzzle_by_id(card.puzzle_id).await? {
+                Ok(Some((puzzle, card)))
+            }
+            else {
+                Ok(None)
+            }
+        }
+        else {
+            Ok(None)
+        }
     }
 
     pub async fn get_next_review(&self) -> ServiceResult<Option<(Puzzle, Card)>>
@@ -52,12 +81,17 @@ impl TacticsService {
         let next_non_learning_review_due_today =
             self.db.get_next_review_due(review_cutoff_today, max_learning_interval).await?;
 
-        Ok(next_review_due_now
-            .or(next_non_learning_review_due_today)
-            .map(|(a, b)| (b, a)))
+        if let Some(card) = next_review_due_now.or(next_non_learning_review_due_today) {
+            let puzzle = self.db.get_puzzle_by_id(card.puzzle_id).await?
+                .ok_or_else(|| format!("Failed to get puzzle for card {card:?}"))?;
+            Ok(Some((puzzle, card)))
+        }
+        else {
+            Ok(None)
+        }
     }
 
-    pub async fn get_random_puzzle(&self, min_rating: i64, max_rating: i64)
+    pub async fn get_random_puzzle(&self, user_id: UserId, min_rating: i64, max_rating: i64)
         -> ServiceResult<(Option<Puzzle>, Option<Card>)>
     {
         // Clamp min and max rating to those of the puzzle database, or the request may come back
@@ -86,7 +120,9 @@ impl TacticsService {
                 .into_iter().next();
 
             if let Some(puzzle) = puzzle.as_ref() {
-                card = self.db.get_card_by_id(&puzzle.puzzle_id).await?;
+                let puzzle_id = puzzle.id
+                    .ok_or_else(|| ServiceError::InternalError("Got puzzle with no id".into()))?;
+                card = self.db.get_card_for_puzzle(user_id, puzzle_id).await?;
                 // If we got a new puzzle that doesn't already have a card associated, we can just
                 // return at this point. Otherwise we try again up to NEW_RETRY_COUNT times.
                 if card.is_none() {
@@ -103,8 +139,8 @@ impl TacticsService {
         Ok((puzzle, card))
     }
 
-    pub async fn apply_review(&mut self, user_id: &str, user_rating: Rating, mut card: Card,
-        difficulty: Difficulty) -> ServiceResult<()>
+    pub async fn apply_review(&mut self, user_id: UserId, puzzle_id: PuzzleId, user_rating: Rating,
+                              mut card: Card, difficulty: Difficulty) -> ServiceResult<()>
     {
         // Apply the review to the card.
         log::info!("Reviewing card");
@@ -117,8 +153,8 @@ impl TacticsService {
         // Create a review record in the database.
         log::info!("Adding review for user");
         self.db.add_review_for_user(Review {
-            user_id: user_id.to_string(),
-            puzzle_id: card.id.to_string(),
+            user_id,
+            puzzle_id,
             difficulty,
             date: Local::now().fixed_offset(),
             user_rating: Some(user_rating.rating),
@@ -127,7 +163,7 @@ impl TacticsService {
         Ok(())
     }
 
-    pub async fn get_puzzle_history(&self, user_id: &str, offset: i64, count: i64)
+    pub async fn get_puzzle_history(&self, user_id: UserId, offset: i64, count: i64)
         -> ServiceResult<(Vec<PuzzleHistoryEntry>, i64)>
     {
         Ok(self.db
@@ -135,12 +171,14 @@ impl TacticsService {
             .await?)
     }
 
-    pub async fn skip_puzzle(&mut self, user_id: &str, puzzle: &Puzzle)
+    pub async fn skip_puzzle(&mut self, user_id: UserId, puzzle: &Puzzle)
         -> ServiceResult<()>
     {
-        if self.db.get_puzzle_by_id(&puzzle.puzzle_id).await?.is_some() {
+        let puzzle_id = puzzle.id
+            .ok_or_else(|| ServiceError::InternalError("Got puzzle with no id".into()))?;
+        if self.db.get_puzzle_by_id(puzzle_id).await?.is_some() {
             let time_now = Local::now().fixed_offset();
-            self.db.add_skipped_puzzle(user_id, &puzzle.puzzle_id, time_now).await?;
+            self.db.add_skipped_puzzle(user_id, puzzle_id, time_now).await?;
         }
 
         Ok(())

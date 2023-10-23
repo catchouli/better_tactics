@@ -1,7 +1,7 @@
 use chrono::{DateTime, FixedOffset, Local};
 
 use crate::app::AppConfig;
-use crate::db::{PuzzleDatabase, ReviewScoreBucket};
+use crate::db::{PuzzleDatabase, ReviewScoreBucket, UserId, PuzzleId};
 use crate::rating::{Rating, GameResult};
 use crate::srs::Difficulty;
 use crate::time::LocalTimeProvider;
@@ -35,12 +35,12 @@ impl UserService {
 
     /// Get the local user ID. (for now, we just have the local user, but if we ever want to turn
     /// this into a 'proper' web app, we can switch over to using an account system.)
-    pub fn local_user_id() -> &'static str {
-        "local"
+    pub async fn local_user_id(&self) -> ServiceResult<Option<UserId>> {
+        Ok(self.db.get_user_id_by_username("local").await?)
     }
 
     /// Get the user's "next puzzle" if it's set.
-    pub async fn get_user_next_puzzle(&self, user_id: &str) -> ServiceResult<Option<String>> {
+    pub async fn get_user_next_puzzle(&self, user_id: UserId) -> ServiceResult<Option<PuzzleId>> {
         Ok(self.db
            .get_user_by_id(user_id)
            .await?
@@ -49,7 +49,7 @@ impl UserService {
     }
 
     /// Set the user's "next puzzle".
-    pub async fn set_user_next_puzzle(&mut self, user_id: &str, next_puzzle: Option<&str>)
+    pub async fn set_user_next_puzzle(&mut self, user_id: UserId, next_puzzle: Option<PuzzleId>)
         -> ServiceResult<()>
     {
         let mut user = self.db
@@ -57,7 +57,7 @@ impl UserService {
             .await?
             .ok_or_else(|| ServiceError::InternalError(format!("No such user {user_id}")))?;
 
-        user.next_puzzle = next_puzzle.map(ToString::to_string);
+        user.next_puzzle = next_puzzle;
         
         self.db
             .update_user(&user)
@@ -67,7 +67,7 @@ impl UserService {
     }
 
     /// Get the rating for a user.
-    pub async fn get_user_rating(&self, user_id: &str) -> ServiceResult<Rating> {
+    pub async fn get_user_rating(&self, user_id: UserId) -> ServiceResult<Rating> {
         Ok(self.db
             .get_user_by_id(user_id).await?
             .ok_or_else(|| format!("No such user with id {user_id}"))?
@@ -75,7 +75,7 @@ impl UserService {
     }
 
     /// Reset a user's rating to the given value and rating deviation.
-    pub async fn reset_user_rating(&mut self, user_id: &str, rating: i64, deviation: i64, volatility: f64)
+    pub async fn reset_user_rating(&mut self, user_id: UserId, rating: i64, deviation: i64, volatility: f64)
         -> ServiceResult<()>
     {
         let mut user = self.db.get_user_by_id(user_id).await?
@@ -93,8 +93,8 @@ impl UserService {
     }
 
     /// Get the stats for a user.
-    pub async fn get_user_stats(&self, user_id: &str) -> ServiceResult<Stats> {
-        Self::validate_user_id(user_id)?;
+    pub async fn get_user_stats(&self, user_id: UserId) -> ServiceResult<Stats> {
+        self.validate_user_id(user_id).await?;
 
         // Get the current time and day end.
         let now = Local::now().fixed_offset();
@@ -109,7 +109,7 @@ impl UserService {
         let reviews_due_today = self.db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
 
         // Get when the next review is due.
-        let next_review_due = self.db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due);
+        let next_review_due = self.db.get_next_review_due(day_end, None).await?.map(|c| c.due);
 
         Ok(Stats {
             card_count,
@@ -121,10 +121,10 @@ impl UserService {
     }
 
     /// Get the review forecast for a user.
-    pub async fn get_review_forecast(&self, user_id: &str, length_days: i64)
+    pub async fn get_review_forecast(&self, user_id: UserId, length_days: i64)
         -> ServiceResult<Vec<(i64, i64)>>
     {
-        Self::validate_user_id(user_id)?;
+        self.validate_user_id(user_id).await?;
 
         let day_end = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
         let review_forecast = self.db.get_review_forecast(day_end, length_days).await?;
@@ -133,7 +133,7 @@ impl UserService {
     }
 
     /// Get the rating history for a user.
-    pub async fn get_rating_history(&self, user_id: &str)
+    pub async fn get_rating_history(&self, user_id: UserId)
         -> ServiceResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
         Ok(self.db
@@ -142,7 +142,7 @@ impl UserService {
     }
 
     /// Get the review score histogram for a user.
-    pub async fn get_review_score_histogram(&self, user_id: &str, bucket_size: i64)
+    pub async fn get_review_score_histogram(&self, user_id: UserId, bucket_size: i64)
         -> ServiceResult<Vec<ReviewScoreBucket>>
     {
         Ok(self.db
@@ -151,10 +151,10 @@ impl UserService {
     }
 
     /// Update the rating for a user.
-    pub async fn update_rating(&mut self, user_id: &str, difficulty: Difficulty, result: GameResult<i64>)
+    pub async fn update_rating(&mut self, user_id: UserId, difficulty: Difficulty, result: GameResult<i64>)
         -> ServiceResult<Rating>
     {
-        Self::validate_user_id(user_id)?;
+        self.validate_user_id(user_id).await?;
         
         // Get the user.
         let mut user = self.db.get_user_by_id(user_id).await?
@@ -181,11 +181,14 @@ impl UserService {
     }
 
     /// Validate a user id.
-    fn validate_user_id(user_id: &str) -> ServiceResult<()> {
+    async fn validate_user_id(&self, user_id: UserId) -> ServiceResult<()> {
         // For now we only support a local user, so check that it's the local user's stats that are
         // being requested. In the future, we might also want to store the user's stats in the
         // users table and just update them as needed, to avoid having to look them up every time.
-        if user_id == Self::local_user_id() {
+        let local_user_id = self.local_user_id().await?
+            .ok_or_else(|| format!("Failed to get local user"))?;
+
+        if user_id == local_user_id {
             Ok(())
         }
         else {

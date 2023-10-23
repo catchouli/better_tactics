@@ -4,17 +4,16 @@ use serde_json::Value;
 
 use crate::api::{ApiError, ApiResponse};
 use crate::app::AppState;
-use crate::services::user_service::UserService;
 
 /// Reset the user's rating to the specified value.
-/// TODO: add this into the settings page.
 pub async fn reset_rating(
     State(mut state): State<AppState>,
     Path(new_rating): Path<i64>,
 ) -> Result<ApiResponse, ApiError>
 {
     // TODO: use a JWT to get the user_id.
-    let user_id = UserService::local_user_id();
+    let user_id = state.user_service.local_user_id().await?
+        .ok_or_else(|| ApiError::InternalError("Failed to get local user".into()))?;
 
     log::info!("Manually resetting user's rating to {new_rating}");
     state.user_service.reset_user_rating(user_id, new_rating, 250, 0.06)
@@ -30,7 +29,8 @@ pub async fn stats(State(state): State<AppState>)
     -> Result<Json<serde_json::Value>, ApiError>
 {
     // TODO: use a JWT to get the user_id.
-    let user_id = UserService::local_user_id();
+    let user_id = state.user_service.local_user_id().await?
+        .ok_or_else(|| ApiError::InternalError("Failed to get local user".into()))?;
 
     let user_rating = state.user_service.get_user_rating(user_id).await?;
     let stats = state.user_service.get_user_stats(user_id).await?;
@@ -68,7 +68,8 @@ pub async fn review_forecast(
 ) -> Result<Json<Vec<(i64, i64)>>, ApiError>
 {
     // TODO: use a JWT to get the user_id.
-    let user_id = UserService::local_user_id();
+    let user_id = state.user_service.local_user_id().await?
+        .ok_or_else(|| ApiError::InternalError("Failed to get local user".into()))?;
 
     let review_forecast = state.user_service.get_review_forecast(user_id, length_days).await?;
 
@@ -80,7 +81,8 @@ pub async fn rating_history(State(state): State<AppState>)
     -> Result<Json<Vec<(String, i64)>>, ApiError>
 {
     // TODO: use a JWT to get the user_id.
-    let user_id = UserService::local_user_id();
+    let user_id = state.user_service.local_user_id().await?
+        .ok_or_else(|| ApiError::InternalError("Failed to get local user".into()))?;
 
     let rating_history = state.user_service.get_rating_history(user_id).await?
         .into_iter()
@@ -104,7 +106,8 @@ pub async fn review_score_histogram(
     }
 
     // TODO: use a JWT to get the user_id.
-    let user_id = UserService::local_user_id();
+    let user_id = state.user_service.local_user_id().await?
+        .ok_or_else(|| ApiError::InternalError("Failed to get local user".into()))?;
 
     let json_data = Value::Array(state.user_service
         .get_review_score_histogram(user_id, bucket_size)

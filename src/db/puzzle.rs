@@ -1,39 +1,62 @@
+use std::fmt::Display;
+
 use futures::TryStreamExt;
 use sqlx::{Row, Sqlite, QueryBuilder, sqlite::SqliteRow};
 
 use crate::db::{PuzzleDatabase, DbResult};
 
+/// Puzzle id.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PuzzleId(pub i64);
+
+impl Display for PuzzleId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A puzzle record from the db.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Puzzle {
-    pub puzzle_id: String,
+    pub id: Option<PuzzleId>,
+    pub source: i64,
+    pub source_id: String,
     pub fen: String,
     pub moves: String,
     pub rating: i64,
     pub rating_deviation: i64,
     pub popularity: i64,
     pub number_of_plays: i64,
-    pub themes: Vec<String>,
+    //pub themes: Vec<String>,
     pub game_url: String,
-    pub opening_tags: Vec<String>,
+    //pub opening_tags: Vec<String>,
+}
+
+/// A puzzle source.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PuzzleSource {
+    pub id: i64,
+    pub name: String,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
 {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
         Ok(Self {
-            puzzle_id: row.try_get("puzzle_id")?,
+            id: Some(PuzzleId(row.try_get("id")?)),
+            source: row.try_get("source")?,
+            source_id: row.try_get("source_id")?,
             fen: row.try_get("fen")?,
             moves: row.try_get("moves")?,
             rating: row.try_get("rating")?,
             rating_deviation: row.try_get("rating_deviation")?,
             popularity: row.try_get("popularity")?,
             number_of_plays: row.try_get("number_of_plays")?,
-            themes: row.try_get::<String, _>("themes")?
-                .split_whitespace().map(ToString::to_string).collect(),
+            //themes: row.try_get::<String, _>("themes")?
+            //    .split_whitespace().map(ToString::to_string).collect(),
             game_url: row.try_get("game_url")?,
-            opening_tags: row.try_get::<String, _>("opening_tags")?
-                .split_whitespace().map(ToString::to_string).collect(),
+            //opening_tags: row.try_get::<String, _>("opening_tags")?
+            //    .split_whitespace().map(ToString::to_string).collect(),
         })
     }
 }
@@ -43,7 +66,7 @@ impl PuzzleDatabase {
     /// Get the number of puzzles in the database.
     pub async fn get_puzzle_count(&self) -> DbResult<usize> {
         let query = sqlx::query("
-            SELECT count(puzzle_id) as puzzle_count FROM puzzles;
+            SELECT count(id) as puzzle_count FROM puzzles;
         ");
 
         query
@@ -85,16 +108,15 @@ impl PuzzleDatabase {
 
         sqlx::query("
             CREATE TEMPORARY TABLE IF NOT EXISTS lichess_puzzles (
-                puzzle_id TEXT,
+                source INTEGER,
+                source_id TEXT,
                 fen TEXT,
                 moves TEXT,
                 rating INTEGER,
                 rating_deviation INTEGER,
                 popularity INTEGER,
                 number_of_plays INTEGER,
-                themes TEXT,
-                game_url TEXT,
-                opening_tags TEXT
+                game_url TEXT
             );
         ").execute(&mut *conn).await?;
 
@@ -103,24 +125,23 @@ impl PuzzleDatabase {
         // the sqlite crate. Reusing the prepared statement was about the same overhead as just
         // creating it every time, but building the query is much faster.
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
-            "INSERT OR REPLACE INTO lichess_puzzles (puzzle_id, fen, moves, rating, rating_deviation,
-            popularity, number_of_plays, themes, game_url, opening_tags) "
-            );
+            "INSERT OR REPLACE INTO lichess_puzzles (source, source_id, fen, moves, rating,
+            rating_deviation, popularity, number_of_plays, game_url) "
+        );
 
         for batch in puzzles.chunks(BATCH_SIZE) {
             query_builder.reset();
 
             query_builder.push_values(batch, |mut b, puzzle| {
-                b.push_bind(&puzzle.puzzle_id)
+                b.push_bind(&puzzle.source)
+                    .push_bind(&puzzle.source_id)
                     .push_bind(&puzzle.fen)
                     .push_bind(&puzzle.moves)
                     .push_bind(puzzle.rating)
                     .push_bind(puzzle.rating_deviation)
                     .push_bind(puzzle.popularity)
                     .push_bind(puzzle.number_of_plays)
-                    .push_bind(puzzle.themes.join(" "))
-                    .push_bind(&puzzle.game_url)
-                    .push_bind(puzzle.opening_tags.join(" "));
+                    .push_bind(&puzzle.game_url);
             });
 
             query_builder
@@ -130,8 +151,20 @@ impl PuzzleDatabase {
         }
 
         sqlx::query("
-            INSERT OR REPLACE INTO puzzles
-            SELECT * FROM lichess_puzzles;
+            INSERT OR REPLACE INTO puzzles (source, source_id, fen, moves, rating, rating_deviation,
+                popularity, number_of_plays, game_url)
+            SELECT source, source_id, fen, moves, rating, rating_deviation, popularity, number_of_plays,
+                game_url
+            FROM lichess_puzzles
+            WHERE true
+            -- Update values that might change if it already exists.
+            ON CONFLICT(source, source_id)
+            DO UPDATE
+            SET rating = excluded.rating,
+                rating_deviation = excluded.rating_deviation,
+                popularity = excluded.popularity,
+                number_of_plays = excluded.number_of_plays,
+                game_url = excluded.game_url;
 
             DELETE FROM lichess_puzzles;
         ").execute(&mut *conn).await?;
@@ -142,18 +175,37 @@ impl PuzzleDatabase {
     }
 
     /// Get a puzzle by ID.
-    pub async fn get_puzzle_by_id(&self, puzzle_id: &str) -> DbResult<Option<Puzzle>>
+    pub async fn get_puzzle_by_id(&self, id: PuzzleId) -> DbResult<Option<Puzzle>>
     {
-        log::info!("Getting puzzle {puzzle_id}");
+        log::info!("Getting puzzle {id}");
 
         let query = sqlx::query_as("
             SELECT *
             FROM puzzles
-            WHERE puzzle_id = ?
+            WHERE id = ?
         ");
 
         Ok(query
-            .bind(puzzle_id)
+            .bind(id.0)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    /// Get a puzzle by ID.
+    pub async fn get_puzzle_by_source_id(&self, source_name: &str, source_id: &str) -> DbResult<Option<Puzzle>>
+    {
+        log::info!("Getting puzzle {source_name}/{source_id}");
+
+        let query = sqlx::query_as("
+            SELECT * FROM puzzles
+            WHERE source_id = ?
+            AND source = (SELECT id FROM puzzle_sources WHERE name = ?)
+            LIMIT 1
+        ");
+
+        Ok(query
+            .bind(source_id)
+            .bind(source_name)
             .fetch_optional(&self.pool)
             .await?)
     }
@@ -179,5 +231,19 @@ impl PuzzleDatabase {
             .fetch(&self.pool)
             .try_collect()
             .await?)
+    }
+
+    /// Get a puzzle source.
+    pub async fn get_puzzle_source(&self, name: &str) -> DbResult<Option<PuzzleSource>> {
+        let query = sqlx::query_as("
+            SELECT *
+            FROM puzzle_sources
+            WHERE name = ?
+        ");
+
+        Ok(query
+           .bind(name)
+           .fetch_optional(&self.pool)
+           .await?)
     }
 }

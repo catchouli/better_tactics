@@ -4,16 +4,16 @@ use futures::{TryStreamExt, StreamExt};
 use sqlx::{Row, FromRow};
 use sqlx::sqlite::SqliteRow;
 
-use crate::srs::{Card, Difficulty};
+use crate::srs::{Card, Difficulty, CardId};
 use crate::db::{PuzzleDatabase, DbResult, Puzzle, ErrorDetails};
 
-use super::DatabaseError;
+use super::{DatabaseError, UserId, PuzzleId};
 
 /// A review record from the db.
 #[derive(Debug, Clone)]
 pub struct Review {
-    pub user_id: String,
-    pub puzzle_id: String,
+    pub user_id: UserId,
+    pub puzzle_id: PuzzleId,
     pub difficulty: Difficulty,
     pub date: DateTime<FixedOffset>,
     pub user_rating: Option<i64>,
@@ -45,8 +45,8 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
 {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
         Ok(Self {
-            user_id: row.try_get("user_id")?,
-            puzzle_id: row.try_get("user_id")?,
+            user_id: UserId(row.try_get("user_id")?),
+            puzzle_id: PuzzleId(row.try_get("user_id")?),
             difficulty: Difficulty::from_i64(row.try_get("difficulty")?)
                 .map_err(|e| sqlx::Error::ColumnDecode {
                     index: "Difficulty".to_string(),
@@ -65,10 +65,11 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for Review
 impl PuzzleDatabase {
     /// Build a card from a result row. The reason we have it defined here instead of as a FromRow
     /// instance is because we need access to self.srs_config.
-    /// TODO: if we ever want to support multi-user, cards need a user column too.
     fn card_from_row<'r>(&self, row: &'r SqliteRow) -> Result<Card, sqlx::Error> {
         Ok(Card {
-            id: row.try_get("puzzle_id")?,
+            id: Some(CardId(row.try_get("id")?)),
+            user_id: UserId(row.try_get("user_id")?),
+            puzzle_id: PuzzleId(row.try_get("puzzle_id")?),
             interval: Duration::seconds(row.try_get("interval")?),
             review_count: row.try_get("review_count")?,
             ease: row.try_get("ease")?,
@@ -86,21 +87,14 @@ impl PuzzleDatabase {
     /// (e.g. because they're still in learning), because otherwise they'll show up, possibly
     /// repeatedly if learning or relearning, before other cards that are due later today.
     pub async fn get_next_review_due(&self, time: DateTime<FixedOffset>, min_interval: Option<Duration>)
-        -> DbResult<Option<(Card, Puzzle)>>
+        -> DbResult<Option<Card>>
     {
         let min_interval_seconds = min_interval.map(|i| i.num_seconds()).unwrap_or(0);
 
-        // TODO: if the puzzles for a card get deleted it will cause a weird disconnect between the
-        // user's due count and the cards they have due. For now we filter out cards with a NULL
-        // puzzle_id to stop them showing up in reviews but they'll still have more than 0 reviews
-        // forever which is weird.
         let query = sqlx::query("
             SELECT * FROM cards
-            LEFT JOIN puzzles
-                ON cards.puzzle_id = puzzles.puzzle_id
             WHERE datetime(due) <= datetime(?)
             AND interval >= ?
-            AND puzzles.puzzle_id NOT NULL
             ORDER BY datetime(due) ASC
             LIMIT 1
         ");
@@ -110,26 +104,48 @@ impl PuzzleDatabase {
             .bind(min_interval_seconds)
             .fetch_optional(&self.pool)
             .await?
-            .map(|row: SqliteRow| {
-                let card: Card = self.card_from_row(&row)?;
-                let puzzle: Puzzle = sqlx::FromRow::from_row(&row)?;
-                Ok((card, puzzle))
-            })
+            .map(|row: SqliteRow| Ok(self.card_from_row(&row)?))
             .transpose()
     }
 
     /// Get a single card by ID.
-    pub async fn get_card_by_id(&self, puzzle_id: &str) -> DbResult<Option<Card>> {
+    pub async fn get_card_for_puzzle(&self, user_id: UserId, puzzle_id: PuzzleId)
+        -> DbResult<Option<Card>>
+    {
         log::info!("Getting card for puzzle {puzzle_id}");
 
         let query = sqlx::query("
             SELECT *
             FROM cards
-            WHERE puzzle_id = ?
+            WHERE user_id = ?
+            AND puzzle_id = ?
         ");
 
         Ok(query
-            .bind(puzzle_id)
+            .bind(user_id.0)
+            .bind(puzzle_id.0)
+            .map(|row| self.card_from_row(&row))
+            .fetch_optional(&self.pool)
+            .await?
+            .transpose()?)
+    }
+
+    /// Get a single card by ID.
+    pub async fn get_card_by_id(&self, user_id: UserId, card_id: CardId)
+        -> DbResult<Option<Card>>
+    {
+        log::info!("Getting card {card_id}");
+
+        let query = sqlx::query("
+            SELECT *
+            FROM cards
+            WHERE user_id = ?
+            AND id = ?
+        ");
+
+        Ok(query
+            .bind(user_id.0)
+            .bind(card_id.0)
             .map(|row| self.card_from_row(&row))
             .fetch_optional(&self.pool)
             .await?
@@ -138,15 +154,31 @@ impl PuzzleDatabase {
 
     /// Update (or create) a card by ID.
     pub async fn update_or_create_card(&mut self, card: &Card) -> DbResult<()> {
-        log::info!("Updating card for puzzle {}: {card:?}", card.id);
+        log::info!("Updating card {card:?}");
+
+        let card_id = card.id.
+            ok_or_else(|| DatabaseError::QueryError(ErrorDetails {
+                description: format!("update_or_create_card: card id was None"),
+                backend: "sqlite".into(),
+                source: None,
+            }))?;
 
         let query = sqlx::query("
-            INSERT OR REPLACE INTO cards (puzzle_id, due, interval, review_count, ease, learning_stage)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO cards (id, user_id, puzzle_id, due, interval, review_count,
+                ease, learning_stage)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, puzzle_id) DO UPDATE
+            SET due = excluded.due,
+                interval = excluded.interval,
+                review_count = excluded.review_count,
+                ease = excluded.ease,
+                learning_stage = excluded.learning_stage
         ");
 
         query
-            .bind(&card.id)
+            .bind(card_id.0)
+            .bind(card.user_id.0)
+            .bind(card.puzzle_id.0)
             .bind(card.due.to_rfc3339())
             .bind(card.interval.num_seconds())
             .bind(card.review_count)
@@ -167,8 +199,8 @@ impl PuzzleDatabase {
         ");
 
         query
-            .bind(&review.user_id)
-            .bind(&review.puzzle_id)
+            .bind(review.user_id.0)
+            .bind(review.puzzle_id.0)
             .bind(review.difficulty.to_i64())
             .bind(review.date.to_rfc3339())
             .bind(review.user_rating)
@@ -179,7 +211,7 @@ impl PuzzleDatabase {
     }
 
     /// Get a rating history for a user. 
-    pub async fn get_user_rating_history(&self, user_id: &str)
+    pub async fn get_user_rating_history(&self, user_id: UserId)
         -> DbResult<Vec<(DateTime<FixedOffset>, i64)>>
     {
         let query = sqlx::query(r#"
@@ -198,8 +230,8 @@ impl PuzzleDatabase {
         "#);
 
         Ok(query
-            .bind(user_id)
-            .bind(user_id)
+            .bind(user_id.0)
+            .bind(user_id.0)
             .fetch(&self.pool)
             .map(|row: Result<SqliteRow, _>| {
                 let row = row?;
@@ -215,7 +247,7 @@ impl PuzzleDatabase {
     pub async fn get_card_count(&self) -> DbResult<i64> {
         // Get card and review count.
         let query = sqlx::query("
-            SELECT COUNT(*) as card_count
+            SELECT count(id) as card_count
             FROM cards
         ");
 
@@ -248,7 +280,7 @@ impl PuzzleDatabase {
         -> DbResult<i64>
     {
         let query = sqlx::query("
-            SELECT count(*) as card_count
+            SELECT count(id) as card_count
             FROM cards
             WHERE (datetime(due) <= datetime(?)
                     AND cards.interval >= ?)
@@ -272,7 +304,7 @@ impl PuzzleDatabase {
     /// Get the review score history for a user, in buckets of `rating_bucket_span` rating span.
     /// e.g. rating_bucket_span = 50 means you'll get buckets every 50 puzzle rating, so 450-500,
     /// 500-550, etc.
-    pub async fn get_review_score_history(&self, user_id: &str, rating_bucket_span: i64)
+    pub async fn get_review_score_history(&self, user_id: UserId, rating_bucket_span: i64)
         -> DbResult<Vec<ReviewScoreBucket>>
     {
         let query = sqlx::query("
@@ -280,7 +312,7 @@ impl PuzzleDatabase {
                 puzzles.rating - puzzles.rating % ? AS min_rating,
                 count(reviews.difficulty) AS review_count
             FROM reviews
-            JOIN puzzles ON reviews.puzzle_id = puzzles.puzzle_id
+            JOIN puzzles ON reviews.puzzle_id = puzzles.id
             WHERE reviews.user_id = ?
             GROUP BY min_rating, difficulty
             ORDER BY min_rating, difficulty
@@ -288,7 +320,7 @@ impl PuzzleDatabase {
 
         Ok(query
             .bind(rating_bucket_span)
-            .bind(user_id)
+            .bind(user_id.0)
             .fetch(&self.pool)
             .map(|row| {
                 let row = row?;
@@ -341,7 +373,7 @@ impl PuzzleDatabase {
 
     /// Get a list of the most recent reviews for each puzzle, returning a vector of reviews, and the
     /// total number of unique reviews.
-    pub async fn get_distinct_puzzle_history(&self, user_id: &str, offset: i64, limit: i64)
+    pub async fn get_distinct_puzzle_history(&self, user_id: UserId, offset: i64, limit: i64)
         -> DbResult<(Vec<PuzzleHistoryEntry>, i64)>
     {
         let reviews_query = sqlx::query("
@@ -364,7 +396,7 @@ impl PuzzleDatabase {
 
         let mut total_count = 0;
         let reviews = reviews_query
-            .bind(user_id)
+            .bind(user_id.0)
             .bind(limit)
             .bind(offset)
             .fetch(&self.pool)

@@ -51,8 +51,6 @@ impl PuzzleDatabase {
     /// Open the given sqlite database, initialising it with schema if necessary.
     pub async fn open(url: &Url, srs_config: SrsConfig) -> DbResult<Self> {
         // Open sqlite database.
-        // TODO: we aren't really making use of the database pools right now because we have a
-        // single PuzzleDatabase instance behind a mutex.
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
             .connect_with(SqliteConnectOptions::from_url(url)?
@@ -75,6 +73,7 @@ impl PuzzleDatabase {
         // to the database;
         sqlx::query("PRAGMA journal_mode=WAL").execute(&pool).await?;
         sqlx::query("PRAGMA busy_timeout=30000").execute(&pool).await?;
+        sqlx::query("PRAGMA foreign_keys=on").execute(&pool).await?;
 
         Ok(Self {
             pool,

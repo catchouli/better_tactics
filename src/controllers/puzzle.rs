@@ -36,6 +36,7 @@ pub struct PuzzleTemplate {
     base: BaseTemplateData,
     mode: PuzzleMode,
     ui_config: UiConfig,
+    requested_source: String,
     requested_id: String,
 }
 
@@ -53,16 +54,17 @@ pub struct PuzzleHistoryTemplate {
     page: i64,
 }
 
-/// GET /tactics/by_id/{puzzle_id}
+/// GET /tactics/by_id/{puzzle_source}/{puzzle_id}
 pub async fn specific_puzzle(
     State(state): State<AppState>,
-    Path(puzzle_id): Path<String>
+    Path((puzzle_source, puzzle_id)): Path<(String, String)>
 ) -> Result<PuzzleTemplate, ControllerError>
 {
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Specific,
         ui_config: state.app_config.ui,
+        requested_source: puzzle_source,
         requested_id: puzzle_id,
     })
 }
@@ -76,6 +78,7 @@ pub async fn random_puzzle(
         base: Default::default(),
         mode: PuzzleMode::Random,
         ui_config: state.app_config.ui,
+        requested_source: "".to_string(),
         requested_id: "".to_string(),
     })
 }
@@ -89,6 +92,7 @@ pub async fn next_review(
         base: Default::default(),
         mode: PuzzleMode::Review,
         ui_config: state.app_config.ui,
+        requested_source: "".to_string(),
         requested_id: "".to_string(),
     })
 }

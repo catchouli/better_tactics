@@ -110,6 +110,11 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
 
     log::info!("Importing lichess puzzle database in background...");
 
+    // Get the source identifier for lichess puzzles.
+    let puzzle_source = db.get_puzzle_source("lichess").await
+        .map_err(|e| format!("Failed to get lichess puzzle source: {e}"))?
+        .ok_or_else(|| format!("No lichess puzzle source"))?;
+
     if let Ok(decoder) = zstd::stream::Decoder::new(lichess_db_raw) {
         let mut csv_reader = csv::Reader::from_reader(decoder);
 
@@ -146,21 +151,22 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
                 .map_err(|e| format!("Failed to parse popularity field {e}"))?;
             let number_of_plays = record[6].parse()
                 .map_err(|e| format!("Failed to parse number_of_plays field {e}"))?;
-            let themes = record[7].to_string().split_whitespace().map(ToString::to_string).collect();
             let game_url = record[8].to_string();
-            let opening_tags = record[9].to_string().split_whitespace().map(ToString::to_string).collect();
+            // TODO: re-add themes and openings
+            //let themes = record[7].to_string().split_whitespace().map(ToString::to_string).collect();
+            //let opening_tags = record[9].to_string().split_whitespace().map(ToString::to_string).collect();
 
             puzzles.push(Puzzle {
-                puzzle_id,
+                id: None,
+                source: puzzle_source.id,
+                source_id: puzzle_id,
                 fen,
                 moves,
                 rating,
                 rating_deviation,
                 popularity,
                 number_of_plays,
-                themes,
                 game_url,
-                opening_tags,
             });
             puzzles_imported += 1;
 

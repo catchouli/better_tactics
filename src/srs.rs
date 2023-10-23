@@ -1,6 +1,8 @@
 use std::error::Error;
+use std::fmt::Display;
 use lazy_static::lazy_static;
 use chrono::{DateTime, FixedOffset, Duration, NaiveTime};
+use crate::db::{PuzzleId, UserId};
 use crate::time::TimeProvider;
 
 lazy_static! {
@@ -107,10 +109,22 @@ impl serde::Serialize for Difficulty {
     }
 }
 
+/// Card id.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CardId(pub i64);
+
+impl Display for CardId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// A single spaced repetition "card" (e.g. a puzzle).
 #[derive(Debug)]
 pub struct Card {
-    pub id: String,
+    pub id: Option<CardId>,
+    pub user_id: UserId,
+    pub puzzle_id: PuzzleId,
     pub due: DateTime<FixedOffset>,
     pub interval: Duration,
     pub review_count: i64,
@@ -120,10 +134,13 @@ pub struct Card {
 }
 
 impl Card {
-    pub fn new(id: &str, due: DateTime<FixedOffset>, srs_config: SrsConfig) -> Self
+    pub fn new(id: Option<CardId>, user_id: UserId, puzzle_id: PuzzleId, due: DateTime<FixedOffset>,
+               srs_config: SrsConfig) -> Self
     {
         Self {
-            id: id.to_string(),
+            id,
+            user_id,
+            puzzle_id,
             due,
             interval: INITIAL_INTERVALS[0],
             review_count: 0,

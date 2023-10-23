@@ -79,7 +79,7 @@ export class PuzzleUi {
         if (config.puzzle) {
             // Create puzzle board.
             this.puzzle.configure({
-                puzzle_id: config.puzzle ? config.puzzle.puzzle_id : null,
+                puzzle_id: config.puzzle ? config.puzzle.id : null,
                 fen: config.puzzle ? config.puzzle.fen : null,
                 moves: config.puzzle ? config.puzzle.moves : null,
                 puzzle_rating: config.puzzle ? config.puzzle.rating : null,
@@ -181,7 +181,7 @@ export class PuzzleUi {
             }
             else if (mode == "Specific") {
                 if (this.config.puzzle) {
-                    let puzzle_id = this.config.puzzle.puzzle_id;
+                    let puzzle_id = this.config.puzzle.source_id;
                     let review_count = this.config.card ? this.config.card.review_count : 0;
                     let unseen = review_count > 0 ? "" : " (unseen)";
                     return `Reviewing specific puzzle ${puzzle_id}${unseen}`;
@@ -288,8 +288,10 @@ export class PuzzleUi {
                     h('tr', [
                         h('th', 'Lichess puzzle'),
                         h('td', [
-                            h('a', { props: { href: `/tactics/by_id/${this.config.puzzle.puzzle_id}` } },
-                                this.config.puzzle.puzzle_id),
+                            h('a', {
+                                props: { href: `/tactics/by_id/lichess/${this.config.puzzle.source_id}` }
+                            },
+                            this.config.puzzle.source_id),
                         ]),
                     ]),
                     h('tr', [
@@ -376,7 +378,7 @@ export class PuzzleUi {
     source_url() {
         return h('a.analysis-link', { props: {
             target: "_blank",
-            href: `https://lichess.org/training/${this.config.puzzle.puzzle_id}`,
+            href: `https://lichess.org/training/${this.config.puzzle.source_id}`,
         } }, "Source");
     }
 
@@ -633,9 +635,9 @@ export class PuzzleUi {
         }
 
         let card = this.config.card;
-        let puzzle_id = card.id;
+        let card_id = card.id;
         let difficulty = button.data.dataset.difficulty;
-        console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
+        console.log(`Reviewing card ${card_id} with difficulty ${difficulty}`);
 
         if (this.config.on_review) {
             this.disable_review_buttons = true;
@@ -682,10 +684,10 @@ export class PuzzleUi {
     }
 
     skip_puzzle(difficulty, update_rating) {
-        if (this.config.on_skip && this.config.card) {
+        if (this.config.on_skip && this.config.puzzle) {
             this.disable_review_buttons = true;
 
-            this.config.on_skip(this.config.card, difficulty, update_rating)
+            this.config.on_skip(this.config.puzzle, difficulty, update_rating)
                 .then(() => {
                     console.log("Skipped, loading next puzzle");
                     this.request_data();

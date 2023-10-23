@@ -11,6 +11,7 @@
 
     // The puzzle mode.
     const mode = "{{ mode }}";
+    const requested_source = "{{ requested_source }}";
     const requested_id = "{{ requested_id }}";
 
     // The rating variation, i.e. 1.05 means that if the mode is "Random", the requested puzzles
@@ -20,7 +21,6 @@
     // Create puzzle ui.
     let puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), {
         mode,
-        requested_id,
         on_review: submit_review,
         request_data: request_next_puzzle,
         on_skip: on_skip,
@@ -66,7 +66,7 @@
                         });
                 }
                 else if (mode == "Specific") {
-                    return $.ajax(`/api/tactics/by_id/${requested_id}`)
+                    return $.ajax(`/api/tactics/by_id/${requested_source}/${requested_id}`)
                         .then(data => {
                             return Promise.resolve(Object.assign(data, { stats }));
                         });
@@ -85,12 +85,12 @@
             });
     }
 
-    function on_skip(card, difficulty, update_rating) {
+    function on_skip(puzzle, difficulty, update_rating) {
         return $.ajax({
             type: "POST",
             url: "/api/tactics/random/skip",
             data: JSON.stringify({
-                id: card.id,
+                id: puzzle.id,
                 difficulty,
                 update_rating,
             }),

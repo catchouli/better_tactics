@@ -24,7 +24,7 @@ pub fn routes(app_state: AppState) -> Router {
         // Tactics pages.
         .route("/tactics", axum::routing::get(puzzle::next_review))
         .route("/tactics/new", axum::routing::get(puzzle::random_puzzle))
-        .route("/tactics/by_id/:puzzle_id", axum::routing::get(puzzle::specific_puzzle))
+        .route("/tactics/by_id/:puzzle_source/:puzzle_id", axum::routing::get(puzzle::specific_puzzle))
         .route("/tactics/history", axum::routing::get(puzzle::puzzle_history))
 
         .fallback(not_found)
