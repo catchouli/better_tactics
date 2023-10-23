@@ -49,8 +49,11 @@ export class PuzzleHistory {
     }
 
     view() {
+        if (this.data_request_error) {
+            return this.error_view(this.data_request_error);
+        }
+
         return h(this.container_tag, [
-            this.error(),
             this.pagination(),
             this.puzzles(),
             this.pagination(),
@@ -61,16 +64,14 @@ export class PuzzleHistory {
         let error_text = "";
         if (err && err.message) {
             error_text = err.message;
-            console.error(err);
+        }
+        else {
+            error_text = err;
         }
 
-        return h(this.container_tag + '.error.fatal', `Error when building view: ${error_text}`);
-    }
-
-    error() {
-        if (this.data_request_error) {
-            return h('div.error.fatal', this.data_request_error);
-        }
+        return h(this.container_tag + '.error.fatal', [
+            h('p', `Error when building view: ${error_text}`),
+        ]);
     }
 
     pagination() {
@@ -114,7 +115,7 @@ export class PuzzleHistory {
             return [
                 h('div.puzzle-history-board-container', [
                     h('a', {
-                        attrs: { href: `/tactics/by_id/${puzzle.puzzle_id}` }
+                        attrs: { href: `/tactics/by_id/lichess/${puzzle.source_id}` }
                     },
                     [
                         h('div.puzzle-history-board', {
@@ -128,8 +129,8 @@ export class PuzzleHistory {
                             h('tr', [
                                 h('th', 'Lichess puzzle'),
                                 h('td', [
-                                    h('a', { props: { href: `/tactics/by_id/${puzzle.puzzle_id}` } },
-                                        puzzle.puzzle_id),
+                                    h('a', { props: { href: `/tactics/by_id/lichess/${puzzle.source_id}` } },
+                                        puzzle.source_id),
                                 ]),
                             ]),
                             this.difficulty_row(item),
@@ -179,12 +180,12 @@ export class PuzzleHistory {
                     this.render();
                 })
                 .catch(err => {
-                    let error_message = error_message_from_value(err);
-                    this.data_request_error = `Failed to get puzzle history`;
+                    console.error(err);
+                    let error = err.responseText;
+                    console.log(error);
+                    this.data_request_error = `Failed to get puzzle history ${err.responseText}`;
                     this.config.loading = false;
                     this.render();
-
-                    console.error(this.data_request_error);
                 });
         }
     }

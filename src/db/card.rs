@@ -386,7 +386,7 @@ impl PuzzleDatabase {
                 FROM skipped_puzzles
             ) AS row
             JOIN puzzles
-            ON row.puzzle_id = puzzles.puzzle_id
+            ON row.puzzle_id = puzzles.id
             WHERE row.user_id = ?
             GROUP BY row.puzzle_id
             ORDER BY max(datetime(date)) DESC
