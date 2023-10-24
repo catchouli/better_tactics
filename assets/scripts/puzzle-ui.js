@@ -279,9 +279,6 @@ export class PuzzleUi {
     }
 
     puzzle_info() {
-        if (!this.config.puzzle)
-            return;
-
         return h('div#puzzle-info.bt-panel', [
             h('table.stats', [
                 h('tbody', [
@@ -294,7 +291,7 @@ export class PuzzleUi {
                     ]),
                     h('tr', [
                         h('th', 'Puzzle rating'),
-                        h('td', this.config.puzzle.rating),
+                        h('td', this.puzzle.is_complete() ? this.config.puzzle.rating : '?'),
                     ]),
                     h('tr', [
                         h('th', 'User rating'),
@@ -352,13 +349,21 @@ export class PuzzleUi {
     }
 
     puzzle_themes() {
-        if (this.config.puzzle.themes && this.config.puzzle.themes.length > 0 &&
-            this.puzzle && this.puzzle.is_complete())
+        if (this.puzzle.is_complete() && this.config.puzzle.themes.length > 0)
         {
+            let theme_list = this.config.puzzle.themes
+                .map(theme => {
+                    // Convert camel case to a sentence.
+                    return theme.split(/([A-Z][a-z]+)/)
+                        .filter(s => s.length != 0)
+                        .map(s => s.toLowerCase())
+                        .join(' ');
+                })
+
             return h('div#puzzle-themes.bt-panel', [
                 h('p', [
                     h('b', 'Themes: '),
-                    this.config.puzzle.themes.join(', '),
+                    theme_list.join(', '),
                 ]),
             ]);
         }
