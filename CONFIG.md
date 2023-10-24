@@ -34,6 +34,7 @@ See <a href="https://super-memory.com/english/ol/sm2.htm">Supermemo 2 algorithm<
 | SRS_MINIMUM_EASE | 1.3 | The minimum ease factor when the ease is decreased |
 | SRS_EASY_BONUS | 1.3 | The extra multiplier to the card interval when a card is review as 'easy' |
 | SRS_DAY_END_HOUR | 4 | The hour (local time) at which the day is considered to start/end. The review queue will automatically include cards up to this time, so user can review all of today's cards at once. |
+| SRS_REVIEW_ORDER | DueTime | The order for puzzles to show up when reviewing. Valid values are: DueTime (the time the card is due), PuzzleRating (lower rated puzzles are shown first), and Random (reviews are shown in a random order from the pool of due reviews).|
 
 ## Deprecated configuration values
 | Environment Variable | Description |

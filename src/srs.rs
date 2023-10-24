@@ -1,7 +1,9 @@
 use std::error::Error;
 use lazy_static::lazy_static;
 use chrono::{DateTime, FixedOffset, Duration, NaiveTime};
+use strum::IntoEnumIterator;
 use crate::time::TimeProvider;
+use strum_macros::{EnumString, EnumIter, Display};
 
 lazy_static! {
     /// The initial intervals for new cards
@@ -33,6 +35,9 @@ pub struct SrsConfig {
     /// aren't in learning, in which case the interval is less than 24h, usually around 10 minutes, and
     /// we want them to wait until it comes up again naturally.)
     pub day_end_hour: NaiveTime,
+
+    /// The order for reviews to show up in.
+    pub review_order: ReviewOrder,
 }
 
 impl SrsConfig {
@@ -50,8 +55,32 @@ impl Default for SrsConfig {
             minimum_ease: 1.3,
             easy_bonus: 1.3,
             day_end_hour: NaiveTime::from_hms_opt(4, 0, 0)
-                .expect("Failed to parse default day_end time"),
+                    .expect("Failed to parse default day_end time"),
+            review_order: ReviewOrder::DueTime,
         }
+    }
+}
+
+/// Reviewing order.
+#[derive(Debug, Copy, Clone, EnumString, EnumIter, Display)]
+pub enum ReviewOrder {
+    /// Review by the time the card is due.
+    DueTime,
+
+    /// Review by the rating of the puzzle.
+    PuzzleRating,
+
+    /// Review cards in a random order.
+    Random,
+}
+
+impl ReviewOrder {
+    /// A helper to get a list of possible values as a string, for use in error messages.
+    pub fn possible_values() -> String {
+        ReviewOrder::iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 

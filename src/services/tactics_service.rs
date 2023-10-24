@@ -3,7 +3,7 @@ use chrono::Local;
 use crate::app::AppConfig;
 use crate::db::{PuzzleDatabase, Puzzle, Review, PuzzleHistoryEntry};
 use crate::rating::Rating;
-use crate::srs::{Card, Difficulty};
+use crate::srs::{Card, Difficulty, ReviewOrder};
 use crate::time::LocalTimeProvider;
 
 use super::ServiceResult;
@@ -38,6 +38,8 @@ impl TacticsService {
 
     pub async fn get_next_review(&self) -> ServiceResult<Option<(Puzzle, Card)>>
     {
+        let review_order = self.app_config.srs.review_order;
+
         // Get the user's next due review. The logic for this is a little complicated as we want to
         // show cards that are due any time today (before the review cutoff) so the user can do their
         // reviews all at once rather than them trickling in throughout the day. On the other hand, we
@@ -45,16 +47,35 @@ impl TacticsService {
         // before they're due unless there's absolutely no other cards left, because otherwise they'll
         // show up repeatedly in front of other cards that are due later today.
         let time_now = Local::now().fixed_offset();
-        let next_review_due_now = self.db.get_next_review_due(time_now, None).await?;
+        let next_review_due_now = self.db.get_next_review_due(time_now, None, review_order).await?;
 
         let max_learning_interval = crate::srs::INITIAL_INTERVALS.last().map(|d| *d);
         let review_cutoff_today = self.app_config.srs.day_end_datetime::<LocalTimeProvider>();
-        let next_non_learning_review_due_today =
-            self.db.get_next_review_due(review_cutoff_today, max_learning_interval).await?;
+        let non_learning_due_today = self.db.get_next_review_due(review_cutoff_today,
+            max_learning_interval, review_order).await?;
 
-        Ok(next_review_due_now
-            .or(next_non_learning_review_due_today)
-            .map(|(a, b)| (b, a)))
+        if next_review_due_now.is_none() || non_learning_due_today.is_none() {
+            // If at least one is None, we can just return the one that isn't, or None if they're
+            // both None.
+            Ok(next_review_due_now
+               .or(non_learning_due_today)
+               .map(|(a, b)| (b, a)))
+        } else {
+            let (card_a, puzzle_a) = next_review_due_now.unwrap();
+            let (card_b, puzzle_b) = non_learning_due_today.unwrap();
+
+            // Otherwise, we have to take the review_order into account here too, unfortunately,
+            // when determining which one to return.
+            let next_due = match review_order {
+                ReviewOrder::DueTime =>
+                    if card_a.due < card_b.due { (puzzle_a, card_a) } else { (puzzle_b, card_b) },
+                ReviewOrder::PuzzleRating =>
+                    if puzzle_a.rating < puzzle_b.rating { (puzzle_a, card_a) } else { (puzzle_b, card_b) },
+                ReviewOrder::Random => (puzzle_a, card_a),
+            };
+
+            Ok(Some(next_due))
+        }
     }
 
     pub async fn get_random_puzzle(&self, min_rating: i64, max_rating: i64)
