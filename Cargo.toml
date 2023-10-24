@@ -28,3 +28,5 @@ tower-http = { version = "0.4.4", features = ["fs"] }
 mime_guess = "2.0.4"
 tokio-cron-scheduler = "0.9.4"
 url = "2.4.1"
+strum = "0.25.0"
+strum_macros = "0.25.3"

@@ -11,7 +11,7 @@ use url::Url;
 use crate::db::PuzzleDatabase;
 use crate::services::tactics_service::TacticsService;
 use crate::services::user_service::UserService;
-use crate::srs::SrsConfig;
+use crate::srs::{SrsConfig, ReviewOrder};
 
 /// The application useragent, e.g. "better_tactics/0.0.1".
 pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -40,19 +40,19 @@ impl Default for AppConfig {
             bind_port: 3030,
             database_url: Url::parse("sqlite://puzzles.sqlite")
                 .expect("Failed to parse default database_url"),
-            srs: SrsConfig {
-                default_ease: 2.5,
-                minimum_ease: 1.3,
-                easy_bonus: 1.3,
-                day_end_hour: NaiveTime::from_hms_opt(4, 0, 0)
-                    .expect("Failed to parse default day_end time"),
-            },
-            backup: BackupConfig {
-                enabled: false,
-                path: "./backups".to_string(),
-                hour: NaiveTime::from_hms_opt(4, 0, 0)
-                    .expect("Failed to parse default backup hour"),
-            }
+            srs: SrsConfig::default(),
+            backup: BackupConfig::default(),
+        }
+    }
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            path: "./backups".into(),
+            hour: NaiveTime::from_hms_opt(4, 0, 0)
+                .expect("Failed to parse default backup hour"),
         }
     }
 }
@@ -77,6 +77,9 @@ impl AppConfig {
                             .ok_or_else(|| format!("Invalid srs day_end_hour {}", day_end_hour)))
                     .transpose()?
                     .unwrap_or(defaults.srs.day_end_hour),
+                review_order: Self::env_var::<ReviewOrder>("SRS_REVIEW_ORDER")
+                    .map_err(|e| format!("{e}, possible values: {}", ReviewOrder::possible_values()))?
+                    .unwrap_or(defaults.srs.review_order),
             },
             backup: BackupConfig {
                 enabled: Self::env_var("BACKUP_ENABLED")?.unwrap_or(defaults.backup.enabled),

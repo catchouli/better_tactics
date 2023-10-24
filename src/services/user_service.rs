@@ -109,7 +109,8 @@ impl UserService {
         let reviews_due_today = self.db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
 
         // Get when the next review is due.
-        let next_review_due = self.db.get_next_review_due(day_end, None).await?.map(|(c, _)| c.due);
+        let next_review_due = self.db.get_next_review_due(day_end, None, crate::srs::ReviewOrder::DueTime)
+            .await?.map(|(c, _)| c.due);
 
         Ok(Stats {
             card_count,

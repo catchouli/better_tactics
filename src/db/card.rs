@@ -1,10 +1,10 @@
 
 use chrono::{DateTime, FixedOffset, Duration};
 use futures::{TryStreamExt, StreamExt};
-use sqlx::{Row, FromRow};
+use sqlx::{Row, FromRow, QueryBuilder};
 use sqlx::sqlite::SqliteRow;
 
-use crate::srs::{Card, Difficulty};
+use crate::srs::{Card, Difficulty, ReviewOrder};
 use crate::db::{PuzzleDatabase, DbResult, Puzzle, ErrorDetails};
 
 use super::DatabaseError;
@@ -85,27 +85,32 @@ impl PuzzleDatabase {
     /// Get the next due review. min_interval allows us to filter out cards with short intervals
     /// (e.g. because they're still in learning), because otherwise they'll show up, possibly
     /// repeatedly if learning or relearning, before other cards that are due later today.
-    pub async fn get_next_review_due(&self, time: DateTime<FixedOffset>, min_interval: Option<Duration>)
-        -> DbResult<Option<(Card, Puzzle)>>
+    pub async fn get_next_review_due(&self, time: DateTime<FixedOffset>, min_interval: Option<Duration>,
+        review_order: ReviewOrder) -> DbResult<Option<(Card, Puzzle)>>
     {
         let min_interval_seconds = min_interval.map(|i| i.num_seconds()).unwrap_or(0);
 
-        // TODO: if the puzzles for a card get deleted it will cause a weird disconnect between the
-        // user's due count and the cards they have due. For now we filter out cards with a NULL
-        // puzzle_id to stop them showing up in reviews but they'll still have more than 0 reviews
-        // forever which is weird.
-        let query = sqlx::query("
+        // Base query.
+        let mut query_builder = QueryBuilder::new("
             SELECT * FROM cards
             LEFT JOIN puzzles
                 ON cards.puzzle_id = puzzles.puzzle_id
             WHERE datetime(due) <= datetime(?)
             AND interval >= ?
             AND puzzles.puzzle_id NOT NULL
-            ORDER BY datetime(due) ASC
-            LIMIT 1
         ");
 
-        query
+        // Add order by clause based on `review_order`.
+        query_builder.push(match review_order {
+            ReviewOrder::DueTime => "\nORDER BY datetime(due) ASC",
+            ReviewOrder::PuzzleRating => "\nORDER BY puzzles.rating ASC",
+            ReviewOrder::Random => "\nORDER BY random()",
+        });
+
+        // Add limit.
+        query_builder.push("\nLIMIT 1");
+
+        query_builder.build()
             .bind(time.to_rfc3339().as_str())
             .bind(min_interval_seconds)
             .fetch_optional(&self.pool)
