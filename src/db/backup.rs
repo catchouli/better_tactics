@@ -58,7 +58,7 @@ impl PuzzleDatabase {
         where E: Executor<'a, Database = Sqlite>
     {
         log::info!("Attaching backup database");
-        sqlx::query("ATTACH ? AS backup_db")
+        sqlx::query("ATTACH ? AS backup_db;")
             .bind(&path)
             .execute(conn)
             .await?;
@@ -69,7 +69,10 @@ impl PuzzleDatabase {
         where E: Executor<'a, Database = Sqlite>
     {
         log::info!("Detaching backup database");
-        sqlx::query("DETACH backup_db")
+        sqlx::query("
+            DETACH backup_db;
+            PRAGMA foreign_keys = ON;
+        ")
             .execute(conn)
             .await?;
         Ok(())
@@ -82,7 +85,10 @@ impl PuzzleDatabase {
 
         // Back up all tables *except* the puzzles table, which is quite big and can just be
         // imported again at next start.
+        // TODO: backup puzzles and new tables.
         let query = sqlx::query("
+            PRAGMA foreign_keys = OFF;
+
             INSERT OR REPLACE INTO backup_db.app_data
             SELECT * FROM app_data;
 
@@ -100,6 +106,8 @@ impl PuzzleDatabase {
 
             UPDATE backup_db.app_data
             SET lichess_db_imported=0;
+
+            PRAGMA foreign_keys = ON;
         ");
 
         query.execute(conn).await?;

@@ -39,6 +39,27 @@ pub struct PuzzleSource {
     pub name: String,
 }
 
+/// A puzzle theme.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Theme {
+    pub id: i64,
+    pub name: String,
+}
+
+/// A puzzle opening.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct Opening {
+    pub id: i64,
+    pub name: String,
+}
+
+/// Helper struct for adding puzzle themes/opening tags.
+pub struct AddPuzzleTheme {
+    pub source: i64,
+    pub source_id: String,
+    pub theme_id: i64,
+}
+
 impl<'r> sqlx::FromRow<'r, SqliteRow> for Puzzle
 {
     fn from_row(row: &'r SqliteRow) -> Result<Self, sqlx::Error> {
@@ -245,5 +266,153 @@ impl PuzzleDatabase {
            .bind(name)
            .fetch_optional(&self.pool)
            .await?)
+    }
+
+    // Get a puzzle theme.
+    pub async fn get_theme(&self, name: &str) -> DbResult<Option<Theme>> {
+        let query = sqlx::query_as("
+            SELECT *
+            FROM themes
+            WHERE name = ?
+        ");
+
+        Ok(query
+           .bind(name)
+           .fetch_optional(&self.pool)
+           .await?)
+    }
+
+    // Add a puzzle theme.
+    pub async fn add_theme(&self, name: &str) -> DbResult<()> {
+        let query = sqlx::query("
+            INSERT INTO themes (name) VALUES (?)
+        ");
+
+        query
+           .bind(name)
+           .execute(&self.pool)
+           .await?;
+
+        Ok(())
+    }
+
+    // Get a puzzle opening.
+    pub async fn get_opening(&self, name: &str) -> DbResult<Option<Opening>> {
+        let query = sqlx::query_as("
+            SELECT *
+            FROM openings
+            WHERE name = ?
+        ");
+
+        Ok(query
+           .bind(name)
+           .fetch_optional(&self.pool)
+           .await?)
+    }
+
+    // Add a puzzle opening.
+    pub async fn add_opening(&self, name: &str) -> DbResult<()> {
+        let query = sqlx::query("
+            INSERT INTO openings (name) VALUES (?)
+        ");
+
+        query
+           .bind(name)
+           .execute(&self.pool)
+           .await?;
+
+        Ok(())
+    }
+
+    /// Add theme tags to a puzzle.
+    pub async fn add_puzzle_themes(&self, themes: &Vec<AddPuzzleTheme>) -> DbResult<()> {
+        let mut conn = self.pool.begin().await?;
+
+        sqlx::query("
+            CREATE TEMPORARY TABLE IF NOT EXISTS puzzle_themes_temp (
+                source INTEGER,
+                source_id TEXT,
+                theme_id INTEGER
+            );
+        ").execute(&mut *conn).await?;
+
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "INSERT OR REPLACE INTO puzzle_themes_temp (source, source_id, theme_id) "
+        );
+
+        for themes in themes.chunks(1000) {
+            query_builder.reset();
+
+            query_builder.push_values(themes, |mut b, entry| {
+                b.push_bind(&entry.source)
+                    .push_bind(&entry.source_id)
+                    .push_bind(&entry.theme_id);
+            });
+
+            query_builder
+                .build()
+                .execute(&mut *conn)
+                .await?;
+        }
+
+        sqlx::query("
+            INSERT OR REPLACE INTO puzzle_themes
+            SELECT puzzles.id AS puzzle_id, theme_id FROM puzzle_themes_temp
+            JOIN puzzles
+            ON puzzles.source = puzzle_themes_temp.source
+            AND puzzles.source_id = puzzle_themes_temp.source_id;
+
+            DELETE FROM puzzle_themes_temp;
+        ").execute(&mut *conn).await?;
+
+        conn.commit().await?;
+
+        Ok(())
+    }
+
+    /// Add opening tags to a puzzle.
+    pub async fn add_puzzle_openings(&self, openings: &[AddPuzzleTheme]) -> DbResult<()> {
+        let mut conn = self.pool.begin().await?;
+
+        sqlx::query("
+            CREATE TEMPORARY TABLE IF NOT EXISTS puzzle_openings_temp (
+                source INTEGER,
+                source_id TEXT,
+                theme_id INTEGER
+            );
+        ").execute(&mut *conn).await?;
+
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "INSERT OR REPLACE INTO puzzle_openings_temp (source, source_id, theme_id) "
+        );
+
+        for openings in openings.chunks(1000) {
+            query_builder.reset();
+
+            query_builder.push_values(openings, |mut b, entry| {
+                b.push_bind(&entry.source)
+                    .push_bind(&entry.source_id)
+                    .push_bind(&entry.theme_id);
+            });
+
+            query_builder
+                .build()
+                .execute(&mut *conn)
+                .await?;
+        }
+
+        sqlx::query("
+            INSERT OR REPLACE INTO puzzle_openings
+            SELECT puzzles.id AS puzzle_id, theme_id FROM puzzle_openings_temp
+            JOIN puzzles
+            ON puzzles.source = puzzle_openings_temp.source
+            AND puzzles.source_id = puzzle_openings_temp.source_id;
+
+            DELETE FROM puzzle_openings_temp;
+        ").execute(&mut *conn).await?;
+
+        conn.commit().await?;
+
+        Ok(())
     }
 }

@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Write, SeekFrom, Seek};
 use csv::StringRecord;
 use futures::StreamExt;
 
-use crate::db::{PuzzleDatabase, Puzzle};
+use crate::db::{PuzzleDatabase, Puzzle, Opening, Theme, AddPuzzleTheme};
 
 /// Initialise the puzzle db if necessary.
 pub async fn init_db(db: PuzzleDatabase) -> Result<(), String> {
@@ -111,7 +112,7 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
     log::info!("Importing lichess puzzle database in background...");
 
     // Get the source identifier for lichess puzzles.
-    let puzzle_source = db.get_puzzle_source("lichess").await
+    let lichess_puzzle_source = db.get_puzzle_source("lichess").await
         .map_err(|e| format!("Failed to get lichess puzzle source: {e}"))?
         .ok_or_else(|| format!("No lichess puzzle source"))?;
 
@@ -121,7 +122,15 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
         let mut puzzles_imported = 0;
         let mut last_report = 0;
 
+        // Hashmaps for storing theme and opening ids.
+        let mut themes: HashMap<String, Theme> = HashMap::new();
+        let mut openings: HashMap<String, Opening> = HashMap::new();
+
+        // Temporary storage for puzzles we have in memory ready to import.
         let mut puzzles = Vec::new();
+        let mut puzzle_themes: Vec<AddPuzzleTheme> = Vec::new();
+        let mut puzzle_openings: Vec<AddPuzzleTheme> = Vec::new();
+
         let mut record: StringRecord = StringRecord::new();
 
         loop {
@@ -152,14 +161,11 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
             let number_of_plays = record[6].parse()
                 .map_err(|e| format!("Failed to parse number_of_plays field {e}"))?;
             let game_url = record[8].to_string();
-            // TODO: re-add themes and openings
-            //let themes = record[7].to_string().split_whitespace().map(ToString::to_string).collect();
-            //let opening_tags = record[9].to_string().split_whitespace().map(ToString::to_string).collect();
 
             puzzles.push(Puzzle {
                 id: None,
-                source: puzzle_source.id,
-                source_id: puzzle_id,
+                source: lichess_puzzle_source.id,
+                source_id: puzzle_id.clone(),
                 fen,
                 moves,
                 rating,
@@ -170,6 +176,56 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
             });
             puzzles_imported += 1;
 
+            // Parse puzzle themes.
+            for theme_name in record[7].to_string().split_whitespace() {
+                let theme_id = if let Some(theme) = themes.get(theme_name) {
+                    theme.id
+                }
+                else if let Some(theme) = db.get_theme(theme_name).await.map_err(|e| e.to_string())? {
+                    let theme_id = theme.id;
+                    themes.insert(theme_name.into(), theme);
+                    theme_id
+                }
+                else {
+                    db.add_theme(theme_name).await.map_err(|e| e.to_string())?;
+                    let theme = db.get_theme(theme_name).await.map_err(|e| e.to_string())?.unwrap();
+                    let theme_id = theme.id;
+                    themes.insert(theme_name.into(), theme);
+                    theme_id
+                };
+
+                puzzle_themes.push(AddPuzzleTheme {
+                    source: lichess_puzzle_source.id,
+                    source_id: puzzle_id.clone(),
+                    theme_id,
+                });
+            }
+
+            // Parse puzzle openings.
+            for opening_name in record[7].to_string().split_whitespace() {
+                let opening_id = if let Some(opening) = openings.get(opening_name) {
+                    opening.id
+                }
+                else if let Some(opening) = db.get_opening(opening_name).await.map_err(|e| e.to_string())? {
+                    let opening_id = opening.id;
+                    openings.insert(opening_name.into(), opening);
+                    opening_id
+                }
+                else {
+                    db.add_opening(opening_name).await.map_err(|e| e.to_string())?;
+                    let opening = db.get_opening(opening_name).await.map_err(|e| e.to_string())?.unwrap();
+                    let opening_id = opening.id;
+                    openings.insert(opening_name.into(), opening);
+                    opening_id
+                };
+
+                puzzle_openings.push(AddPuzzleTheme {
+                    source: lichess_puzzle_source.id,
+                    source_id: puzzle_id.clone(),
+                    theme_id: opening_id,
+                });
+            }
+
             // Bulk insert if we have enough.
             if puzzles.len() >= PUZZLES_PER_IMPORT_BATCH {
                 if puzzles_imported == PUZZLES_PER_IMPORT_BATCH {
@@ -178,7 +234,14 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
 
                 db.add_puzzles(&puzzles).await
                     .map_err(|e| format!("Failed to add puzzles to db: {e}"))?;
+                db.add_puzzle_themes(&puzzle_themes).await
+                    .map_err(|e| format!("Failed to add puzzle themes to db: {e}"))?;
+                db.add_puzzle_openings(&puzzle_openings).await
+                    .map_err(|e| format!("Failed to add puzzle openings to db: {e}"))?;
+
                 puzzles.clear();
+                puzzle_openings.clear();
+                puzzle_themes.clear();
             }
 
             if puzzles_imported - last_report >= PUZZLES_PER_PROGRESS_UPDATE {
