@@ -24,6 +24,7 @@ pub struct AppConfig {
     pub database_url: Url,
     pub srs: SrsConfig,
     pub backup: BackupConfig,
+    pub ui: UiConfig,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +32,12 @@ pub struct BackupConfig {
     pub enabled: bool,
     pub path: String,
     pub hour: NaiveTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct UiConfig {
+    pub initial_move_delay: u32,
+    pub subsequent_move_delay: u32,
 }
 
 impl Default for AppConfig {
@@ -42,6 +49,7 @@ impl Default for AppConfig {
                 .expect("Failed to parse default database_url"),
             srs: SrsConfig::default(),
             backup: BackupConfig::default(),
+            ui: UiConfig::default(),
         }
     }
 }
@@ -53,6 +61,15 @@ impl Default for BackupConfig {
             path: "./backups".into(),
             hour: NaiveTime::from_hms_opt(4, 0, 0)
                 .expect("Failed to parse default backup hour"),
+        }
+    }
+}
+
+impl Default for UiConfig {
+    fn default() -> Self {
+        Self {
+            initial_move_delay: 500,
+            subsequent_move_delay: 250,
         }
     }
 }
@@ -89,7 +106,13 @@ impl AppConfig {
                             .ok_or_else(|| format!("Invalid backup hour {}", day_end_hour)))
                     .transpose()?
                     .unwrap_or(defaults.backup.hour),
-            }
+            },
+            ui: UiConfig {
+                initial_move_delay: Self::env_var("UI_INITIAL_MOVE_DELAY")?
+                    .unwrap_or(defaults.ui.initial_move_delay),
+                subsequent_move_delay: Self::env_var("UI_SUBSEQUENT_MOVE_DELAY")?
+                    .unwrap_or(defaults.ui.subsequent_move_delay),
+            },
         })
     }
 
