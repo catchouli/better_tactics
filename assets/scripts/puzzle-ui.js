@@ -144,7 +144,9 @@ export class PuzzleUi {
                 h('div.is-two-thirds.column', [
                     h('div#board-container.bt-panel', [
                         // Chessground container.
-                        h('div#board.chessground'),
+                        h('div#board.chessground', {
+                            on: { wheel: this.on_wheel.bind(this) }
+                        }),
 
                         // Promotion ui.
                         this.promotion_ui(),
@@ -319,7 +321,7 @@ export class PuzzleUi {
                 ),
             ]),
             h('a', {
-                dataset: { action: "backwards" },
+                dataset: { action: "prev" },
                 on: { click: this.seek.bind(this) },
                 attrs: { disabled: at_start },
             }, [
@@ -328,7 +330,7 @@ export class PuzzleUi {
                 ),
             ]),
             h('a', {
-                dataset: { action: "forwards" },
+                dataset: { action: "next" },
                 on: { click: this.seek.bind(this) },
                 attrs: { disabled: at_end },
             }, [
@@ -686,6 +688,16 @@ export class PuzzleUi {
         this.skip_puzzle(DIFFICULTY_EASY, true);
     }
 
+    // Scroll wheel.
+    on_wheel(evt) {
+        if (evt.deltaY < 0) {
+            this.puzzle.seek_prev();
+        }
+        else {
+            this.puzzle.seek_next();
+        }
+    }
+
     skip_puzzle(difficulty, update_rating) {
         if (this.config.on_skip && this.config.card) {
             this.disable_review_buttons = true;
@@ -722,15 +734,14 @@ export class PuzzleUi {
 
     seek(button) {
         let action = button.target.dataset.action;
-        console.log(button);
 
         if (action == "start") {
             this.puzzle.seek_start();
         }
-        else if (action == "backwards") {
+        else if (action == "prev") {
             this.puzzle.seek_prev();
         }
-        else if (action == "forwards") {
+        else if (action == "next") {
             this.puzzle.seek_next();
         }
         else if (action == "end") {
