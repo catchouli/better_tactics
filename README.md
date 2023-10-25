@@ -5,22 +5,22 @@ frequently, while puzzles you find easy will be repeated far less often to make 
 
 <!-- Screenshot gallery -->
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1_thumb.jpg" width="15%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1_thumb.jpg">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2_thumb.jpg" width="15%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2_thumb.jpg">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3_thumb.jpg" width="15%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3_thumb.jpg">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4_thumb.jpg" width="15%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4_thumb.jpg">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/5.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/5_thumb.jpg" width="15%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/5_thumb.jpg">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/6.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/6_thumb.jpg" width="15%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/6_thumb.jpg">
 </a>
 
 # Set up
