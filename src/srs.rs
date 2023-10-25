@@ -56,7 +56,7 @@ impl Default for SrsConfig {
             easy_bonus: 1.3,
             day_end_hour: NaiveTime::from_hms_opt(4, 0, 0)
                     .expect("Failed to parse default day_end time"),
-            review_order: ReviewOrder::DueTime,
+            review_order: ReviewOrder::PuzzleRating,
         }
     }
 }
