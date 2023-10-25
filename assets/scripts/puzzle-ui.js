@@ -200,7 +200,7 @@ export class PuzzleUi {
                 else {
                     let due = 'unknown';
                     if (typeof this.config.stats.ms_until_due === "number") {
-                        due = this.human_duration(this.config.stats.ms_until_due);
+                        due = this.countdown_duration(this.config.stats.ms_until_due);
                         this.start_review_countdown();
                     }
 
@@ -431,7 +431,46 @@ export class PuzzleUi {
         return moment.duration(ms, 'ms').humanize();
     }
 
-    human_duration(ms) {
+    human_interval(ms) {
+        const MS_IN_MINUTE = 60 * 1000;
+        const MS_IN_HOUR = 60 * MS_IN_MINUTE;
+        const MS_IN_DAY = 24 * MS_IN_HOUR;
+        const MS_IN_YEAR = 365 * MS_IN_DAY;
+
+        let result = '';
+
+        // Push a value onto the duration string with a given unit, automatically skipping 0 values
+        // and adding pluralisation.
+        let push_part = (value, unit) => {
+            if (value != 0) {
+                let comma = (result.length > 0 ? ', ' : '');
+                let pluralisation = (value != 1 ? 's' : '');
+                result += `${comma}${value} ${unit}${pluralisation}`;
+            }
+        };
+
+        let years = Math.floor(ms / MS_IN_YEAR);
+        let days = Math.floor((ms % MS_IN_YEAR) / MS_IN_DAY);
+        let hours = Math.floor((ms % MS_IN_DAY) / MS_IN_HOUR);
+        let minutes = Math.floor((ms % MS_IN_HOUR) / MS_IN_MINUTE);
+
+        if (years > 0) {
+            push_part(years, 'year');
+            push_part(days, 'day');
+        }
+        else if (days > 0) {
+            push_part(days, 'day');
+            push_part(hours, 'hour');
+        }
+        else {
+            push_part(hours, 'hour');
+            push_part(minutes, 'minute');
+        }
+
+        return result;
+    }
+
+    countdown_duration(ms) {
         if (ms < 0)
             return "now";
         else if (ms > 60 * 60 * 1000)
@@ -551,7 +590,10 @@ export class PuzzleUi {
                             h('button#hard.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: DIFFICULTY_HARD },
-                                attrs: { disabled: this.disable_review_buttons },
+                                attrs: {
+                                    disabled: this.disable_review_buttons,
+                                    title: card ? this.human_interval(card.next_interval_hard) : null,
+                                },
                             }, [
                                 h('p.main-text', 'Hard'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_hard) : null),
@@ -561,7 +603,10 @@ export class PuzzleUi {
                             h('button#good.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: DIFFICULTY_GOOD },
-                                attrs: { disabled: this.disable_review_buttons },
+                                attrs: {
+                                    disabled: this.disable_review_buttons,
+                                    title: card ? this.human_interval(card.next_interval_good) : null,
+                                },
                             }, [
                                 h('p.main-text', 'Good'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_good) : null),
@@ -571,7 +616,10 @@ export class PuzzleUi {
                             h('button#easy.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: DIFFICULTY_EASY },
-                                attrs: { disabled: this.disable_review_buttons },
+                                attrs: {
+                                    disabled: this.disable_review_buttons,
+                                    title: card ? this.human_interval(card.next_interval_easy) : null,
+                                },
                             }, [
                                 h('p.main-text', 'Easy'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_easy) : null),
@@ -592,7 +640,10 @@ export class PuzzleUi {
                             h('button#again.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
                                 dataset: { difficulty: DIFFICULTY_AGAIN },
-                                attrs: { disabled: this.disable_review_buttons },
+                                attrs: {
+                                    disabled: this.disable_review_buttons,
+                                    title: card ? this.human_interval(card.next_interval_again) : null,
+                                },
                             }, [
                                 h('p.main-text', 'Again'),
                                 h('p.sub-text', card ? this.fuzzy_duration(card.next_interval_again) : null),
