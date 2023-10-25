@@ -47,7 +47,7 @@ missing.
 
 # How it works
 
-<img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4.png">
+<img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/puzzle_complete.png">
 
 When you complete a puzzle, the difficulty score you select will be used to calculate how long it should be until you see the puzzle again, and also to update your rating. The scores are interpreted as follows:
 
