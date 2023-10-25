@@ -128,14 +128,6 @@ export class PuzzleBoard {
 
         this._remaining_moves = this._moves.slice();
 
-        if (this._config.locked || this._remaining_moves.length == 0) {
-            this._board.set({
-                movable: {
-                    color: 'none',
-                }
-            });
-        }
-
         if (this._remaining_moves.length > 0) {
             setTimeout(this._make_computer_move.bind(this), this._config.initial_move_delay);
         }
@@ -175,9 +167,13 @@ export class PuzzleBoard {
         if (this._seek_position < this._board_states.length) {
             let board_state = this._board_states[this._seek_position];
 
-            // Let the player make moves for both sides if the puzzle is over.
             let movable_color;
-            if (this.is_complete() || this.is_failed()) {
+            // Disallow movement if the puzzle is locked.
+            if (this._config.locked) {
+                movable_color = 'none';
+            }
+            // Let the player make moves for both sides if the puzzle is over.
+            else if (this.is_complete() || this.is_failed()) {
                 movable_color = board_state.side_to_move == 'b' ? 'black' : 'white';
             }
             // Otherwise only allow them to move their own color.
