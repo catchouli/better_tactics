@@ -1,17 +1,26 @@
 # better-tactics
 
-Better Tactics is a Chess tactics trainer that uses the concept of <a href="https://en.wikipedia.org/wiki/Spaced_repetition">Spaced Repetition</a> to help you master chess tactics. The idea is to help you gain calculation experience and tactical pattern recognition by repeating puzzles over time. Puzzles you've seen will get queued up for review daily, and puzzles you find hard will be repeated more
+Better Tactics is a Chess tactics trainer that uses the concept of <a href="https://en.wikipedia.org/wiki/Spaced_repetition">Spaced Repetition</a> to help you master chess tactics. The idea is to help you improve your tactical pattern recognition and gain experience calcualting tactics, by repeating puzzles you've seen previously over time. Puzzles you complete will get queued up for review daily, and puzzles you find hard will be repeated more
 frequently, while puzzles you find easy will be repeated far less often to make the process more efficient.
 
 <!-- Screenshot gallery -->
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1.png" width="32%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/1_thumb.jpg" width="15%">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2.png" width="32%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/2_thumb.jpg" width="15%">
 </a>
 <a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3.png">
-  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3.png" width="32%">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/3_thumb.jpg" width="15%">
+</a>
+<a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4.png">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/4_thumb.jpg" width="15%">
+</a>
+<a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/5.png">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/5_thumb.jpg" width="15%">
+</a>
+<a href="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/6.png">
+  <img src="https://raw.githubusercontent.com/catchouli/better_tactics/develop/screenshots/6_thumb.jpg" width="15%">
 </a>
 
 # Set up
