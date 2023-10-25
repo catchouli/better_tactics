@@ -2,6 +2,7 @@ pub mod backup;
 
 use std::env::{self, VarError};
 use std::error::Error;
+use std::fmt::Debug;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
 
@@ -16,12 +17,24 @@ use crate::srs::{SrsConfig, ReviewOrder};
 /// The application useragent, e.g. "better_tactics/0.0.1".
 pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
+/// A type for database urls that implements Debug so that we can pretty print the app config
+/// without the URLs printing out all their fields.
+#[derive(Clone)]
+pub struct DatabaseUrl(pub Url);
+
+impl Debug for DatabaseUrl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let DatabaseUrl(url) = self;
+        write!(f, "\"{url}\"")
+    }
+}
+
 /// The application configuration.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub bind_interface: IpAddr,
     pub bind_port: u16,
-    pub database_url: Url,
+    pub database_url: DatabaseUrl,
     pub srs: SrsConfig,
     pub backup: BackupConfig,
     pub ui: UiConfig,
@@ -45,8 +58,8 @@ impl Default for AppConfig {
         Self {
             bind_interface: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             bind_port: 3030,
-            database_url: Url::parse("sqlite://puzzles.sqlite")
-                .expect("Failed to parse default database_url"),
+            database_url: DatabaseUrl(Url::parse("sqlite://puzzles.sqlite")
+                .expect("Failed to parse default database_url")),
             srs: SrsConfig::default(),
             backup: BackupConfig::default(),
             ui: UiConfig::default(),
@@ -117,13 +130,13 @@ impl AppConfig {
     }
 
     /// Get the database address from environment variables.
-    pub fn get_database_url() -> Result<Option<Url>, Box<dyn Error>> {
+    pub fn get_database_url() -> Result<Option<DatabaseUrl>, Box<dyn Error>> {
         let db_url = Self::env_var("DATABASE_URL")?
             // Support old DB_NAME variable.
             .or(Self::env_var("SQLITE_DB_NAME")?
                 .map(|db_name: String| format!("sqlite://{db_name}")))
             // Parse to URL.
-            .map(|s| Url::parse(&s))
+            .map(|s| Ok(DatabaseUrl(Url::parse(&s)?)) as Result<_, Box<dyn Error>>)
             .transpose()?;
 
         Ok(db_url)

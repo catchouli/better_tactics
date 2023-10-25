@@ -22,7 +22,7 @@ use crate::app::{AppConfig, AppState};
 async fn main() -> Result<(), Box<dyn Error>> {
     // Set RUST_LOG to info by default for other peoples' convenience.
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info");
+        env::set_var("RUST_LOG", "none,better_tactics=info");
     }
 
     env_logger::builder().init();
@@ -30,28 +30,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Load app config.
     let app_config = AppConfig::from_env()?;
-    log::info!("{app_config:?}");
+    log::info!("{app_config:#?} (see CONFIG.md for options)");
 
     // Open puzzle database.
-    let puzzle_db = PuzzleDatabase::open(&app_config.database_url, app_config.srs).await?;
+    let puzzle_db = PuzzleDatabase::open(&app_config.database_url.0, app_config.srs).await?;
 
-    // Initialise puzzle database.
-    tokio::spawn({
-        let puzzle_db = puzzle_db.clone();
-        async move {
-            if let Err(e) = lichess::init_db(puzzle_db.clone()).await {
-                log::error!("{e}");
-            }
-        }
-    });
-
-    // Run backup straight away if necessary.
+    // Run backup immediately if due.
     if app_config.backup.enabled {
         try_run_backup(app_config.clone(), puzzle_db.clone()).await;
     }
 
     // Start job scheduler.
     tokio::spawn(start_job_scheduler(app_config.clone(), puzzle_db.clone()));
+
+    // Initialise puzzle database in background if necessary.
+    tokio::spawn({
+        let puzzle_db = puzzle_db.clone();
+        async move {
+            if let Err(e) = lichess::init_db(puzzle_db).await {
+                log::error!("{e}");
+            }
+        }
+    });
 
     // Create application routes.
     let app_state = AppState::new(app_config.clone(), puzzle_db);
@@ -60,13 +60,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .nest_service(assets::STATIC_ASSETS_PATH, assets::routes());
 
     // Start web server.
-    log::info!("The application is now started, access it at {}:{}",
-        app_config.bind_interface, app_config.bind_port);
-
     let socket_addr = SocketAddr::from((app_config.bind_interface, app_config.bind_port));
-    axum::Server::bind(&socket_addr).serve(app.into_make_service()).await?;
+    let server_task = tokio::spawn(axum::Server::bind(&socket_addr).serve(app.into_make_service()));
 
-    Ok(())
+    // Print server address.
+    let url = match app_config.bind_interface.is_unspecified() {
+        true => format!("http://localhost:{}", app_config.bind_port),
+        false => format!("http://{}:{}", app_config.bind_interface, app_config.bind_port),
+    };
+
+    log::info!("The application is now listening on {}:{}", app_config.bind_interface, app_config.bind_port);
+    log::info!("Access it at {url}");
+
+    Ok(server_task.await??)
 }
 
 async fn start_job_scheduler(app_config: AppConfig, db: PuzzleDatabase)
