@@ -13,6 +13,7 @@ mod util;
 use std::env;
 use std::error::Error;
 use std::net::SocketAddr;
+use futures::TryFutureExt;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::db::PuzzleDatabase;
@@ -43,15 +44,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Start job scheduler.
     tokio::spawn(start_job_scheduler(app_config.clone(), puzzle_db.clone()));
 
+    // Web server url, or http://localhost:* if the bind interface was 0.0.0.0.
+    let url = match app_config.bind_interface.is_unspecified() {
+        true => format!("http://localhost:{}", app_config.bind_port),
+        false => format!("http://{}:{}", app_config.bind_interface, app_config.bind_port),
+    };
+
     // Initialise puzzle database in background if necessary.
-    tokio::spawn({
-        let puzzle_db = puzzle_db.clone();
-        async move {
-            if let Err(e) = lichess::init_db(puzzle_db).await {
-                log::error!("{e}");
+    tokio::spawn(lichess::init_db(puzzle_db.clone())
+        .and_then({
+            let app_config = app_config.clone();
+            let url = url.clone();
+            move |data_imported| {
+                if data_imported {
+                    log::info!("Puzzle database import complete");
+                    log::info!("Reminder: the application is now listening on {}:{}",
+                               app_config.bind_interface, app_config.bind_port);
+                    log::info!("Access it at {url}");
+                }
+                async { Ok(()) }
             }
-        }
-    });
+        })
+        .or_else(|e| {
+            log::info!("{e}");
+            async { Err(e) }
+        }));
 
     // Create application routes.
     let app_state = AppState::new(app_config.clone(), puzzle_db);
@@ -64,11 +81,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_task = tokio::spawn(axum::Server::bind(&socket_addr).serve(app.into_make_service()));
 
     // Print server address.
-    let url = match app_config.bind_interface.is_unspecified() {
-        true => format!("http://localhost:{}", app_config.bind_port),
-        false => format!("http://{}:{}", app_config.bind_interface, app_config.bind_port),
-    };
-
     log::info!("The application is now listening on {}:{}", app_config.bind_interface, app_config.bind_port);
     log::info!("Access it at {url}");
 

@@ -5,8 +5,9 @@ use futures::StreamExt;
 
 use crate::db::{PuzzleDatabase, Puzzle};
 
-/// Initialise the puzzle db if necessary.
-pub async fn init_db(db: PuzzleDatabase) -> Result<(), String> {
+/// Initialise the puzzle db if necessary. Returns Ok(true) if the database import was complete,
+/// Ok(false) if the database was already imported, or an error if one occurs.
+pub async fn init_db(db: PuzzleDatabase) -> Result<bool, String> {
     let app_data = db.get_app_data("").await
         .map_err(|e| format!("Failed to get app data: {e}"))?
         .ok_or_else(|| format!("Internal error: no app_data row in database"))?;
@@ -25,14 +26,16 @@ pub async fn init_db(db: PuzzleDatabase) -> Result<(), String> {
         // Initialise our database with it.
         import_lichess_database(db, lichess_db).await
             .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
+
+        Ok(true)
     }
     else {
         let puzzle_count = db.get_puzzle_count().await
             .map_err(|e| format!("Failed to get puzzle count: {e}"))?;
         log::info!("Loaded puzzle database with {puzzle_count} puzzles");
-    }
 
-    Ok(())
+        Ok(false)
+    }
 }
 
 /// Download the lichess puzzles db as a temporary file.
