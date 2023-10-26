@@ -1,4 +1,4 @@
-[1.9.0] - ????-??-??
+[1.9.0] - 2023-10-26
 
 Added:
 * Add simple move seeking (back and forward buttons) that allows you to see the moves played
