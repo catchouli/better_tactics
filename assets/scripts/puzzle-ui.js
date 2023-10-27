@@ -747,6 +747,8 @@ export class PuzzleUi {
         else {
             this.puzzle.seek_next();
         }
+        evt.stopPropagation();
+        evt.preventDefault();
     }
 
     skip_puzzle(difficulty, update_rating) {

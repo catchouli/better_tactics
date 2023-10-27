@@ -1,3 +1,9 @@
+[1.10.0] - ????-??-??
+
+Fixed:
+* A small fix to the scrolwheel behavior on the puzzle board to prevent the page from scrolling
+  if the mousewheel is over the board.
+
 [1.9.0] - 2023-10-26
 
 Added:
@@ -13,7 +19,8 @@ Added:
   the option 'DueTime'.
 
 Changed:
-* Change initial computer move delay to 500, and make it and the subsequent move delays configurable with the configuration variables UI_INITIAL_MOVE_DELAY and UI_SUBSEQUENT_MOVE_DELAY.
+* Change initial computer move delay to 500, and make it and the subsequent move delays
+  configurable with the configuration variables UI_INITIAL_MOVE_DELAY and UI_SUBSEQUENT_MOVE_DELAY.
 
 [1.8.0] - 2023-10-21
 
