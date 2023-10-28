@@ -22,14 +22,16 @@ pub async fn init_db(db: PuzzleDatabase, cancel_import: Arc<AtomicBool>)
             "Puzzle database not fully initialised, initialising from lichess puzzles database in background");
 
         // Download the lichess database.
-        let mut lichess_db = download_puzzle_db().await
+        let mut lichess_db = download_puzzle_db(cancel_import.clone()).await
             .map_err(|e| format!("Failed to download lichess puzzle database: {e}"))?;
         lichess_db.seek(SeekFrom::Start(0))
             .map_err(|e| format!("Failed to seek lichess db file: {e}"))?;
 
         // Initialise our database with it.
-        import_lichess_database(db, lichess_db, cancel_import).await
-            .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
+        if !cancel_import.load(Ordering::Relaxed) {
+            import_lichess_database(db, lichess_db, cancel_import).await
+                .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
+        }
 
         Ok(true)
     }
@@ -43,7 +45,7 @@ pub async fn init_db(db: PuzzleDatabase, cancel_import: Arc<AtomicBool>)
 }
 
 /// Download the lichess puzzles db as a temporary file.
-async fn download_puzzle_db() -> Result<File, String> {
+async fn download_puzzle_db(cancel_import: Arc<AtomicBool>) -> Result<File, String> {
     const LICHESS_DB_NAME: &'static str = "lichess_db_puzzle.csv.zst";
     const LICHESS_DB_URL: &'static str = "https://database.lichess.org/lichess_db_puzzle.csv.zst";
 
@@ -87,6 +89,10 @@ async fn download_puzzle_db() -> Result<File, String> {
             .map_err(|e| format!("Failed to write bytes to temp file: {e}"))?;
 
         while bytes_since_reported > BYTES_PER_PROGRESS_REPORT {
+            if cancel_import.load(Ordering::Relaxed) {
+                return Ok(file);
+            }
+
             log::info!("Lichess puzzle database: {}/{}MB downloaded",
                        counter / BYTES_PER_MEGABYTE,
                        total_length_mb);

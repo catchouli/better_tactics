@@ -155,7 +155,7 @@ async fn shutdown_signal(db: PuzzleDatabase, import_done: Arc<AtomicBool>,
 
         // Wait for the import task to stop.
         while !import_done.load(Ordering::Relaxed) {
-            log::info!("Waiting for lichess puzzle db import to complete...");
+            log::info!("Waiting for lichess puzzle db import to stop...");
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
