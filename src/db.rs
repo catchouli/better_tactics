@@ -82,6 +82,15 @@ impl PuzzleDatabase {
         })
     }
 
+    /// Force an sqlite checkpoint and close the database.
+    pub async fn close(&self) -> DbResult<()> {
+        sqlx::query("PRAGMA wal_checkpoint(TRUNCATE)")
+            .execute(&self.pool)
+            .await?;
+        self.pool.close().await;
+        Ok(())
+    }
+
     pub async fn get_app_data(&self, env: &str) -> DbResult<Option<AppData>> {
         Ok(sqlx::query_as("
                 SELECT *

@@ -1,5 +1,7 @@
 use std::fs::File;
 use std::io::{Write, SeekFrom, Seek};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use csv::StringRecord;
 use futures::StreamExt;
 
@@ -7,7 +9,9 @@ use crate::db::{PuzzleDatabase, Puzzle};
 
 /// Initialise the puzzle db if necessary. Returns Ok(true) if the database import was complete,
 /// Ok(false) if the database was already imported, or an error if one occurs.
-pub async fn init_db(db: PuzzleDatabase) -> Result<bool, String> {
+pub async fn init_db(db: PuzzleDatabase, cancel_import: Arc<AtomicBool>)
+    -> Result<bool, String>
+{
     let app_data = db.get_app_data("").await
         .map_err(|e| format!("Failed to get app data: {e}"))?
         .ok_or_else(|| format!("Internal error: no app_data row in database"))?;
@@ -24,7 +28,7 @@ pub async fn init_db(db: PuzzleDatabase) -> Result<bool, String> {
             .map_err(|e| format!("Failed to seek lichess db file: {e}"))?;
 
         // Initialise our database with it.
-        import_lichess_database(db, lichess_db).await
+        import_lichess_database(db, lichess_db, cancel_import).await
             .map_err(|e| format!("Failed to import lichess puzzle db: {e}"))?;
 
         Ok(true)
@@ -96,8 +100,8 @@ async fn download_puzzle_db() -> Result<File, String> {
 }
 
 /// Import lichess database from file.
-async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
-    -> Result<(), String>
+async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File,
+    cancel_import: Arc<AtomicBool>) -> Result<(), String>
 {
     /// The total number of puzzles in the database. It's a shame to have to have this hardcoded
     /// here, but there's no easy way to tell as we're reading it since we're streaming it from a
@@ -123,6 +127,14 @@ async fn import_lichess_database(mut db: PuzzleDatabase, lichess_db_raw: File)
         let mut record: StringRecord = StringRecord::new();
 
         loop {
+            // Check if termination requested.
+            if cancel_import.load(Ordering::Relaxed) {
+                log::info!("Lichess puzzle database import cancelled.");
+                log::info!(concat!("The process will resume next time the application starts, but ",
+                                   "it's recommended to let it complete fully."));
+                return Ok(());
+            }
+
             let read_record = csv_reader.read_record(&mut record).map_err(|e| {
                 format!("CSV parse error when importing lichess puzzles database: {e}")
             })?;
