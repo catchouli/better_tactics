@@ -11,7 +11,7 @@ pub use puzzle::*;
 pub use user::*;
 pub use card::*;
 
-use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions, SqliteRow};
+use sqlx::sqlite::{SqlitePoolOptions, SqliteConnectOptions, SqliteRow, SqliteJournalMode};
 use sqlx::{SqlitePool, ConnectOptions, Row};
 use url::Url;
 
@@ -58,6 +58,7 @@ impl PuzzleDatabase {
             .connect_with(SqliteConnectOptions::from_url(url)?
               .disable_statement_logging()
               .create_if_missing(true)
+              .journal_mode(SqliteJournalMode::Wal)
             )
             .await
             .map_err(|e| DatabaseError::ConnectionError(ErrorDetails {

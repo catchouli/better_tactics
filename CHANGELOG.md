@@ -1,8 +1,12 @@
 [1.10.0] - ????-??-??
 
 Fixed:
-* A small fix to the scrolwheel behavior on the puzzle board to prevent the page from scrolling
-  if the mousewheel is over the board.
+* A small fix to the scroll wheel behavior on the puzzle board to prevent the page from
+  scrolling if the mousewheel is over the board.
+* Fix countdown timer to next review not starting sometimes.
+
+Changed:
+* Ctrl-c now causes a graceful shutdown and commits the database journal before closing it.
 
 [1.9.0] - 2023-10-26
 
