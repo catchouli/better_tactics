@@ -563,13 +563,16 @@ export class PuzzleUi {
     wrong_move() {
         if (this.puzzle.is_failed()) {
             return h('div#wrong-move.bt-panel.controls-subpanel', [
-                h('b', 'Wrong move'),
+                h('p', 'Wrong move'),
                 h('div.columns.button-container', [
                     h('div.column'),
                     h('div.column', [
                         h('button#try-again.button',
                             { on: { click: () => { this.puzzle.reset(); this.render(); } } },
-                            h('p.main-text', 'Try again')
+                            [
+                                h('p.main-text', 'Reset'),
+                                h('p.sub-text', 'Try again'),
+                            ],
                         ),
                     ]),
                     h('div.column'),
@@ -585,7 +588,7 @@ export class PuzzleUi {
             if (this.first_try) {
                 let card = this.config.card;
                 return h('div#reviewing-ahead.bt-panel.controls-subpanel', [
-                    h('b', 'Puzzle complete'),
+                    h('p', 'Puzzle complete'),
                     h('div.columns.button-container', [
                         h('div.column', [
                             h('button#hard.button.review-button', {
@@ -634,10 +637,7 @@ export class PuzzleUi {
             else {
                 let card = this.config.card;
                 return h('div#reviewing-ahead.bt-panel.controls-subpanel', [
-                    h('p', [
-                        h('b', 'Puzzle complete'),
-                        ' (with mistakes)',
-                    ]),
+                    h('p', 'Puzzle complete (with mistakes)'),
                     h('div.columns.button-container', [
                         h('div.column'),
                         h('div.column', [
@@ -679,10 +679,12 @@ export class PuzzleUi {
             else
                 button_text = 'Show hint';
 
+            let disable_button = this.puzzle.computer_to_move() || this.puzzle.awaiting_promotion();
+
             return h('div#hint-button.bt-panel.controls-subpanel', [
                 h('a.puzzle-link-button', {
                     on: { click: this.on_hint_button_clicked.bind(this) },
-                    attrs: { disabled: this.puzzle.computer_to_move() },
+                    attrs: { disabled: disable_button },
                 }, button_text),
             ]);
         }
