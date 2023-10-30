@@ -1,5 +1,11 @@
 [1.10.0] - ????-??-??
 
+Added:
+* A hint button that shows a hint for the next move, for if the user can't work it out, but doesn't
+  want to (or can't) go to lichess' analysis board to check the engine line. The puzzle will
+  automatically be set to failed if the hint is used, but the user can always override it on the
+  'Puzzle complete' panel and submit a positive response if desired.
+
 Fixed:
 * A small fix to the scrolwheel behavior on the puzzle board to prevent the page from scrolling
   if the mousewheel is over the board.
