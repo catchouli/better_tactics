@@ -3,7 +3,7 @@ use chrono::{DateTime, FixedOffset, Local};
 use crate::app::AppConfig;
 use crate::db::{PuzzleDatabase, ReviewScoreBucket};
 use crate::rating::{Rating, GameResult};
-use crate::srs::Difficulty;
+use crate::srs::{Difficulty, self};
 use crate::time::LocalTimeProvider;
 
 use super::{ServiceResult, ServiceError};
@@ -109,8 +109,8 @@ impl UserService {
         let reviews_due_today = self.db.reviews_due_by(day_end.clone(), day_end.clone()).await?;
 
         // Get when the next review is due.
-        let next_review_due = self.db.get_next_review_due(day_end, None, crate::srs::ReviewOrder::DueTime)
-            .await?.map(|(c, _)| c.due);
+        let next_review_due = self.db.get_next_review_due(day_end + *srs::MAX_INTERVAL,
+            None, crate::srs::ReviewOrder::DueTime).await?.map(|(c, _)| c.due);
 
         Ok(Stats {
             card_count,

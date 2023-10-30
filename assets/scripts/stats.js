@@ -163,6 +163,7 @@ export class UserStats {
                 if (this.config.data.ms_until_due <= 0) {
                     console.log('Countdown done');
                     clearInterval(this.countdown_interval);
+                    this.countdown_interval = null;
                     this.request_data();
                 }
             }, 1000);
