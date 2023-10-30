@@ -36,17 +36,27 @@ export class PuzzleUi {
 
         // Render once and create the puzzle board.
         this.render();
+        
         this.puzzle = new PuzzleBoard(document.getElementById("board"), {
-            on_success: this.render.bind(this),
-            on_move: this.render.bind(this),
-            on_right_move: this.render.bind(this),
-            on_wrong_move: () => { this.first_try = false; this.render(); },
+            on_success: this.on_puzzle_board_change.bind(this),
+            on_move: this.on_puzzle_board_change.bind(this),
+            on_right_move: this.on_puzzle_board_change.bind(this),
+            on_wrong_move: () => { this.first_try = false; this.on_puzzle_board_change(); },
+            on_seek: this.on_puzzle_board_change.bind(this),
             on_promote: this.render.bind(this),
-            on_seek: this.render.bind(this),
         });
 
         this.configure(config ? config : {});
         this.request_data();
+    }
+
+    on_puzzle_board_change() {
+        // If something on the puzzle changes due to user input (e.g. a new move or seeking),
+        // disable the next move hint.
+        this.puzzle.set_next_move_highlight('none');
+
+        // Re-render the ui to reflect the updated puzzle state.
+        this.render();
     }
 
     configure(config) {
@@ -267,15 +277,15 @@ export class PuzzleUi {
                 this.puzzle_info(),
                 this.card_stats(),
                 this.side_to_move(),
-                this.find_the_line(),
                 this.wrong_move(),
-                this.right_move(),
+                this.hint_button(),
                 this.puzzle_complete(),
-                this.puzzle_themes(),
                 this.reviewing_ahead(),
                 this.skip_button(),
                 this.dont_repeat_button(),
+                this.too_easy_button(),
                 this.too_hard_button(),
+                this.puzzle_themes(),
             ]);
         }
     }
@@ -506,14 +516,6 @@ export class PuzzleUi {
         }
     }
 
-    find_the_line() {
-        if (this.puzzle.is_first_move()) {
-            return h('div#find-the-line.bt-panel.controls-subpanel', [
-                h('p', 'Find the line!'),
-            ]);
-        }
-    }
-
     skip_button() {
         if (this.config.mode == 'Random' && this.puzzle && this.puzzle.is_first_move()) {
             return h('div#skip-button.bt-panel.controls-subpanel', [
@@ -537,6 +539,14 @@ export class PuzzleUi {
         if (this.config.mode == 'Random' && is_success) {
             return h('div#dont-repeat.bt-panel.controls-subpanel', [
                 h('a', { on: { click: this.on_dont_repeat_clicked.bind(this) } }, "Don't repeat this puzzle"),
+            ]);
+        }
+    }
+
+    too_easy_button() {
+        let is_success = this.puzzle.is_complete() && this.first_try;
+        if (this.config.mode == 'Random' && is_success) {
+            return h('div#too-easy.bt-panel.controls-subpanel', [
                 h('a', { on: { click: this.on_too_easy_clicked.bind(this) } }, "Too easy (see harder puzzles)"),
             ]);
         }
@@ -553,27 +563,21 @@ export class PuzzleUi {
     wrong_move() {
         if (this.puzzle.is_failed()) {
             return h('div#wrong-move.bt-panel.controls-subpanel', [
-                h('p', 'Wrong move :('),
+                h('p', 'Wrong move'),
                 h('div.columns.button-container', [
                     h('div.column'),
                     h('div.column', [
                         h('button#try-again.button',
                             { on: { click: () => { this.puzzle.reset(); this.render(); } } },
-                            h('p.main-text', "Reset")
+                            [
+                                h('p.main-text', 'Reset'),
+                                h('p.sub-text', 'Try again'),
+                            ],
                         ),
                     ]),
                     h('div.column'),
                 ]),
             ]);
-        }
-    }
-
-    right_move() {
-        if (this.puzzle.is_puzzle_loaded() && !this.puzzle.is_first_move() &&
-            !this.puzzle.is_failed() && !this.puzzle.is_complete())
-        {
-            return h('div#right-move.bt-panel.controls-subpanel',
-                "Right move!");
         }
     }
 
@@ -652,7 +656,7 @@ export class PuzzleUi {
                         h('div.column'),
                     ]),
                     h('p', [
-                        h('a#override-link',
+                        h('a.puzzle-link-button',
                             { on: { click: () => { this.first_try = true; this.render(); } } },
                             'Submit positive answer anyway'
                         ),
@@ -661,6 +665,50 @@ export class PuzzleUi {
                 ]);
             }
         }
+    }
+
+    hint_button() {
+        if (this.puzzle && !this.puzzle.is_complete() && !this.puzzle.is_failed()) {
+            let button_text;
+
+            let mode = this.puzzle.get_next_move_highlight();
+            if (mode == 'move')
+                button_text = 'Hide hint';
+            else if (mode == 'orig')
+                button_text = 'Show hint (move)';
+            else
+                button_text = 'Show hint';
+
+            let disable_button = this.puzzle.computer_to_move() || this.puzzle.awaiting_promotion();
+
+            return h('div#hint-button.bt-panel.controls-subpanel', [
+                h('a.puzzle-link-button', {
+                    on: { click: this.on_hint_button_clicked.bind(this) },
+                    attrs: { disabled: disable_button },
+                }, button_text),
+            ]);
+        }
+    }
+
+    on_hint_button_clicked() {
+        // Set first_try to false to show the 'again' button by default if the user needed a hint.
+        this.first_try = false;
+
+        // If the move is already highlighted, disable the highlight.
+        let cur = this.puzzle.get_next_move_highlight();
+        if (cur == 'move') {
+            this.puzzle.set_next_move_highlight('none');
+        }
+        // If the piece to move is already highlighted, show the move itself.
+        else if (cur == 'orig') {
+            this.puzzle.set_next_move_highlight('move');
+        }
+        // If the mode is 'none', start by highlighting the piece.
+        else {
+            this.puzzle.set_next_move_highlight('orig');
+        }
+
+        this.render();
     }
 
     on_promotion_button_clicked(event) {

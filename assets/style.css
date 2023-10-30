@@ -470,11 +470,6 @@ cg-board {
     flex-basis: 100%;
 }
 
-#dont-repeat a {
-    display: block;
-    margin-bottom: 0.5rem;
-}
-
 .sidebar .bt-panel {
     text-align: center;
 }
@@ -504,15 +499,8 @@ cg-board {
     font-size: 0.8em;
 }
 
-#override-link {
+a.puzzle-link-button {
     user-select: none;
-}
-
-/* Never show these on mobile, it's a bit of a waste of space */
-@media only screen and (max-width: 768px) {
-    #find-the-line, #right-move {
-        display: none !important;
-    }
 }
 
 /* About page - these might apply to other pages too, but I thought I'd try them here first */
@@ -617,7 +605,7 @@ cg-board {
     user-select: none;
 }
 
-.pagination a[disabled] {
+a[disabled] {
     font-weight: unset;
     cursor: unset;
     color: grey !important;

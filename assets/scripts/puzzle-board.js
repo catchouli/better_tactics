@@ -13,6 +13,8 @@ export class PuzzleBoard {
         this._awaiting_promotion = false;
         this._awaiting_promotion_move = null;
 
+        this._next_move_highlight_mode = 'none';
+
         this._failed = false;
 
         this._moves = [];
@@ -119,6 +121,8 @@ export class PuzzleBoard {
         this._awaiting_promotion = false;
         this._awaiting_promotion_move = null;
 
+        this._next_move_highlight_mode = 'none';
+
         this._failed = false;
 
         this._game = this._config.fen ? new Chess(this._config.fen) : new Chess();
@@ -181,6 +185,23 @@ export class PuzzleBoard {
                 movable_color = this._player_color == 'b' ? 'black' : 'white';
             }
 
+            // Add hint shapes.
+            let hint_shapes = [];
+            let next_move = this._remaining_moves && this._remaining_moves.length > 0
+                ? this._remaining_moves[0]
+                : null;
+
+            if (next_move && this._next_move_highlight_mode != 'none') {
+                hint_shapes.push({
+                    orig: next_move.substr(0, 2),
+                    dest: this._next_move_highlight_mode != 'orig'
+                        ? next_move.substr(2)
+                        : null,
+                    brush: 'blue',
+                });
+            }
+
+            // Update board.
             this._board.set({
                 selected: null,
                 fen: board_state.fen,
@@ -198,6 +219,9 @@ export class PuzzleBoard {
                         set: (orig, dest) => { if (this.can_premove()) this._set_premove(orig, dest); },
                         unset: (orig, dest) => { if (this.can_premove()) this._unset_premove(orig, dest); },
                     }
+                },
+                drawable: {
+                    autoShapes: hint_shapes,
                 },
             });
         }
@@ -481,5 +505,19 @@ export class PuzzleBoard {
 
         if (this._config.on_seek)
             this._config.on_seek();
+    }
+
+    // Highlight the next move. Options for `mode` are:
+    // * 'move' - an arrow showing the move
+    // * 'orig' - highlight the piece to move
+    // * 'none' - do not highlight the next move (default)
+    set_next_move_highlight(mode) {
+        this._next_move_highlight_mode = mode;
+        this.sync_board();
+    }
+
+    // Returns the current next move highlight mode.
+    get_next_move_highlight() {
+        return this._next_move_highlight_mode;
     }
 }
