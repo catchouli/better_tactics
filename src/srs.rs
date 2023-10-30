@@ -14,7 +14,7 @@ lazy_static! {
     
     /// Max interval to stop our intervals getting insane if somebody chooses to just review the
     /// same card with 'easy' over and over... (50k weeks = roughly 1000 years)
-    static ref MAX_INTERVAL: Duration = Duration::weeks(52179);
+    pub static ref MAX_INTERVAL: Duration = Duration::weeks(52179);
 
     /// Minimum interval for 'easy' reviews. If a card is really easy it's allowed to leave
     /// learning immediately, and also gets set to this interval. This gives it a bit of a boost
