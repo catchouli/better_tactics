@@ -34,6 +34,9 @@ export class PuzzleUi {
         this.analysis_fen = null;
         this.disable_review_buttons = true;
 
+        this.first_try = true;
+        this.hint_used = false;
+
         // Render once and create the puzzle board.
         this.render();
         
@@ -98,6 +101,7 @@ export class PuzzleUi {
 
         // Store whether it's currently the first try or not, so we know if it's a successful solve or not.
         this.first_try = true;
+        this.hint_used = false;
 
         // Re-render the layout.
         this.config = Object.assign(this.config, config);
@@ -588,7 +592,10 @@ export class PuzzleUi {
             if (this.first_try) {
                 let card = this.config.card;
                 return h('div#reviewing-ahead.bt-panel.controls-subpanel', [
-                    h('p', 'Puzzle complete'),
+                    h('p', [
+                        'Puzzle complete',
+                        (this.hint_used ? ' (hint used)' : ''),
+                    ]),
                     h('div.columns.button-container', [
                         h('div.column', [
                             h('button#hard.button.review-button', {
@@ -637,7 +644,10 @@ export class PuzzleUi {
             else {
                 let card = this.config.card;
                 return h('div#reviewing-ahead.bt-panel.controls-subpanel', [
-                    h('p', 'Puzzle complete (with mistakes)'),
+                    h('p', [
+                        'Puzzle complete',
+                        (this.hint_used ? ' (hint used)' : ' (with mistakes)'),
+                    ]),
                     h('div.columns.button-container', [
                         h('div.column'),
                         h('div.column', [
@@ -672,12 +682,15 @@ export class PuzzleUi {
             let button_text;
 
             let mode = this.puzzle.get_next_move_highlight();
+            // If the move is already shown it should be a 'hide hints' button.
             if (mode == 'move')
-                button_text = 'Hide hint';
+                button_text = 'Hide hints';
+            // If the piece is already highlighted it should be a 'show move' button.
             else if (mode == 'orig')
                 button_text = 'Show hint (move)';
+            // If nothing is currently highlighted it should be a 'show piece' button.
             else
-                button_text = 'Show hint';
+                button_text = 'Show hint (piece)';
 
             let disable_button = this.puzzle.computer_to_move() || this.puzzle.awaiting_promotion();
 
@@ -693,9 +706,12 @@ export class PuzzleUi {
     on_hint_button_clicked() {
         // Set first_try to false to show the 'again' button by default if the user needed a hint.
         this.first_try = false;
+        this.hint_used = true;
+
+        // Get the current hint mode.
+        let cur = this.puzzle.get_next_move_highlight();
 
         // If the move is already highlighted, disable the highlight.
-        let cur = this.puzzle.get_next_move_highlight();
         if (cur == 'move') {
             this.puzzle.set_next_move_highlight('none');
         }
