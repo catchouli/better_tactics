@@ -47,6 +47,16 @@ a {
     background: #1D1A26 !important;
 }
 
+.my-navbar-menu {
+    padding: 0.5rem 0;
+}
+
+.menu-label {
+    margin-top: 0.5rem;
+    margin-bottom: 0 !important;
+    text-align: center;
+}
+
 .bt-panel > .title {
     text-align: center;
 }
