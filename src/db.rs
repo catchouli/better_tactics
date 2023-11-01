@@ -28,6 +28,8 @@ pub struct AppData {
     pub environment: String,
     pub lichess_db_imported: bool,
     pub last_backup_date: Option<DateTime<FixedOffset>>,
+    /// Application version.
+    pub version: Option<String>,
 }
 
 impl<'r> sqlx::FromRow<'r, SqliteRow> for AppData
@@ -43,6 +45,7 @@ impl<'r> sqlx::FromRow<'r, SqliteRow> for AppData
                     index: "date".to_string(),
                     source: e.to_string().into(),
                 })?,
+            version: row.try_get("version")?,
         })
     }
 }
@@ -105,12 +108,13 @@ impl PuzzleDatabase {
 
     pub async fn set_app_data(&self, app_data: &AppData) -> DbResult<()> {
         sqlx::query("
-            INSERT OR REPLACE INTO app_data (environment, lichess_db_imported, last_backup_date)
-            VALUES (?, ?, ?)
+            INSERT OR REPLACE INTO app_data (environment, lichess_db_imported, last_backup_date, version)
+            VALUES (?, ?, ?, ?)
         ")
         .bind(&app_data.environment)
         .bind(&app_data.lichess_db_imported)
         .bind(&app_data.last_backup_date.as_ref().map(DateTime::to_rfc3339))
+        .bind(&app_data.version)
         .execute(&self.pool)
         .await?;
 

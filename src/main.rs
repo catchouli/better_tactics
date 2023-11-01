@@ -39,6 +39,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Open puzzle database.
     let puzzle_db = PuzzleDatabase::open(&app_config.database_url.0, app_config.srs).await?;
 
+    // Check the database version is correct.
+    check_db_version(puzzle_db.clone()).await?;
+
     // Run backup immediately if due.
     if app_config.backup.enabled {
         try_run_backup(app_config.clone(), puzzle_db.clone()).await;
@@ -99,6 +102,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
     log::info!("Access it at {url}");
 
     Ok(server_task.await??)
+}
+
+async fn check_db_version(db: PuzzleDatabase) -> Result<(), Box<dyn Error>> {
+    const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+    // Get the app_data to find out the current version.
+    let mut app_data = db.get_app_data("").await?
+        .ok_or_else(|| format!("Failed to get app_data from database"))?;
+
+    // Warn if the database version is newer than the current version. For now we don't disallow
+    // this, as some minor version differences might work anyway, and there may be a legitimate
+    // reason to roll back a minor version.
+    if let Some(db_version) = app_data.version.as_ref() {
+    }
+
+    // If the version is None (it wasn't used before v1.10.0), set it to the current version.
+    if app_data.version.is_none() {
+        log::info!("Updating app_data.version to {APP_VERSION}");
+        app_data.version = Some(APP_VERSION.to_string());
+        db.set_app_data(&app_data).await?;
+    }
+    Ok(())
 }
 
 async fn start_job_scheduler(app_config: AppConfig, db: PuzzleDatabase)
