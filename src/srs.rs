@@ -11,6 +11,9 @@ lazy_static! {
         Duration::seconds(10 * 60),
         Duration::seconds(24 * 60 * 60),
     ];
+
+    /// Min interval, the initial interval for a card.
+    pub static ref MIN_INTERVAL: Duration = Duration::minutes(1);
     
     /// Max interval to stop our intervals getting insane if somebody chooses to just review the
     /// same card with 'easy' over and over... (50k weeks = roughly 1000 years)
@@ -154,7 +157,7 @@ impl Card {
         Self {
             id: id.to_string(),
             due,
-            interval: INITIAL_INTERVALS[0],
+            interval: *MIN_INTERVAL,
             review_count: 0,
             ease: srs_config.default_ease,
             learning_stage: 0,
@@ -176,7 +179,7 @@ impl Card {
 
         // Scores of 'again' should always reset the interval to default.
         if score == Difficulty::Again {
-            INITIAL_INTERVALS[0]
+            *MIN_INTERVAL
         }
         // Scores of 'hard' should stop the interval from growing, but shouldn't ever be any less
         // than a score of 'again' would result in.
@@ -223,10 +226,13 @@ impl Card {
             self.learning_stage = 0;
         }
         else if self.in_learning() {
+            // Easy should skip the learning stage to the last one.
             if score == Difficulty::Easy {
                 self.learning_stage = INITIAL_INTERVALS.len() as i64;
             }
-            else {
+            // Good should increment it by one, but hard shouldn't affect it, as it doesn't cause
+            // the interval to grow either.
+            else if score == Difficulty::Good {
                 self.learning_stage += 1;
             }
         }

@@ -8,6 +8,10 @@ Added:
 
 Changed:
 * Ctrl-c now causes a graceful shutdown and commits the database journal before closing it.
+* The default interval for cards is now 1 minute. This doesn't affect much, but it makes it so that
+  initially the 'Hard' and 'Good' buttons do something different (i.e. 1 minute and 10 minutes
+  respectively), and so that pressing 'Again' on a puzzle makes it come up again in 1 minute
+  instead of 10.
 
 Fixed:
 * A small fix to the scroll wheel behavior on the puzzle board to prevent the page from scrolling
