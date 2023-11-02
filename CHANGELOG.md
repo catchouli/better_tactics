@@ -1,9 +1,9 @@
 [1.11.0] - ????-??-??
 
-[1.10.0] - 2023-11-02
-
 Important: if you're building yourself, (i.e. not with the provided Dockerfile), npm is now needed
            in order to build the frontend. https://nodejs.org/en/download
+
+[1.10.0] - 2023-11-02
 
 Added:
 * A hint button that shows a hint for the next move, for if the user can't work it out, but doesn't
