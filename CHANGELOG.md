@@ -1,4 +1,4 @@
-[1.10.0] - ????-??-??
+[1.10.0] - 2023-11-02
 
 Added:
 * A hint button that shows a hint for the next move, for if the user can't work it out, but doesn't
