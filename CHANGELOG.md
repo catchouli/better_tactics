@@ -1,3 +1,5 @@
+[1.11.0] - ????-??-??
+
 [1.10.0] - 2023-11-02
 
 Important: if you're building yourself, (i.e. not with the provided Dockerfile), npm is now needed
