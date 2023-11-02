@@ -1,5 +1,8 @@
 [1.10.0] - ????-??-??
 
+Important: if you're building yourself, (i.e. not with the provided Dockerfile), npm is now needed
+           in order to build the frontend. https://nodejs.org/en/download
+
 Added:
 * A hint button that shows a hint for the next move, for if the user can't work it out, but doesn't
   want to (or can't) go to lichess' analysis board to check the engine line. The puzzle will

@@ -6,7 +6,8 @@ import {
     datasetModule,
     eventListenersModule,
     h,
-} from '../deps/snabbdom.js';
+    VNode,
+} from 'snabbdom';
 
 const patch = init([
     classModule,
@@ -16,44 +17,46 @@ const patch = init([
     datasetModule,
 ]);
 
+import { Chart, ChartType } from 'chart.js/auto';
+import moment from 'moment';
+import 'chartjs-adapter-moment';
+
 // Set default text color for charts.js.
 Chart.defaults.color = "rgb(221, 211, 211)";
 
-// Get an error message from a value depending on the type.
-function error_message_from_value(err) {
-    if (typeof err === "string") {
-        return err;
-    }
-    else if (typeof err === "object") {
-        if (typeof err.message === "string") {
-            return err.message;
-        }
-        else if (typeof err.error == "string") {
-            return err.error;
-        }
-        else if (typeof err.responseJSON === "object" && typeof err.responseJSON.error === "string") {
-            return err.responseJSON.error;
-        }
-        else {
-            return "";
-        }
-    }
+// User stats config.
+interface UserStatsConfig {
+    loading: boolean;
+    data: any;
+    request_data: Function;
 }
 
 // User stats.
 export class UserStats {
-    constructor(element, config) {
+    vnode: VNode | Element;
+    config: UserStatsConfig;
+    container_tag: string = 'div#stats-panel.column.bt-panel.stats-panel';
+    data_request_error: string = null;
+    countdown_interval: number = null;
+
+    constructor(element: Element, config: UserStatsConfig) {
         this.vnode = element;
-        this.config = {};
-        this.container_tag = 'div#stats-panel.column.bt-panel.stats-panel';
-        this.data_request_error = null;
+        this.config = this.default_config();
 
         this.configure(config ? config : {});
     }
 
+    default_config() {
+        return {
+            loading: true,
+            data: null,
+            request_data: null,
+        };
+    }
+
     configure(config) {
         console.log(config);
-        this.config = Object.assign(config, this.config);
+        this.config = Object.assign(this.config, config);
         this.render();
         this.request_data();
     }
@@ -194,6 +197,7 @@ export class UserStats {
             this.config.loading = true;
             this.render();
 
+            console.log(this.config);
             this.config.request_data()
                 .then(data => {
                     this.config.data = data;
@@ -214,6 +218,16 @@ export class UserStats {
 
 // A stats chart.
 export class StatsChart {
+    vnode: VNode | Element;
+    config: any;
+    container_id: string;
+    canvas_id: string;
+    container_tag: string;
+    chart_data: any;
+    data_request_error: string = null;
+    chart_mode: any;
+    chart: Chart = null;
+
     constructor(element, config) {
         this.vnode = element;
         this.container_id = element.id;
@@ -221,7 +235,6 @@ export class StatsChart {
         this.container_tag = `div#${this.container_id}.column.bt-panel.chart-panel.stats-panel`;
         this.config = {};
         this.chart_data = {};
-        this.data_request_error = null;
 
         let chart_modes = this.chart_modes();
         this.chart_mode = this.default_mode();
@@ -232,7 +245,7 @@ export class StatsChart {
     configure(config) {
         console.log(config);
 
-        this.config = Object.assign(config, this.config);
+        this.config = Object.assign(this.config, config);
         this.render();
         this.request_data();
     }
@@ -249,7 +262,7 @@ export class StatsChart {
 
     view() {
         if (this.data_request_error) {
-            return error_view(this.data_request_error);
+            return this.error_view(this.data_request_error);
         }
 
         return h(this.container_tag, [
@@ -321,6 +334,10 @@ export class StatsChart {
         });
     }
 
+    chart_type() {
+        return <ChartType> 'bar';
+    }
+
     chart_title() {
         return '';
     }
@@ -347,7 +364,7 @@ export class StatsChart {
             this.chart.destroy();
         }
 
-        let canvas = document.getElementById(this.canvas_id);
+        let canvas = <HTMLCanvasElement> document.getElementById(this.canvas_id);
         this.chart = new Chart(canvas, {
             type: this.chart_type(),
             data: this.config.data,
@@ -383,7 +400,7 @@ export class ReviewForecastChart extends StatsChart {
     }
 
     chart_type() {
-        return 'bar';
+        return <ChartType> 'bar';
     }
 
     chart_modes() {
@@ -434,7 +451,7 @@ export class RatingHistoryChart extends StatsChart {
     }
 
     chart_type() {
-        return 'line';
+        return <ChartType> 'line';
     }
 
     chart_modes() {
@@ -495,7 +512,7 @@ export class ReviewScoreChart extends StatsChart {
     }
 
     chart_type() {
-        return 'bar';
+        return <ChartType> 'bar';
     }
 
     chart_modes() {
@@ -520,9 +537,6 @@ export class ReviewScoreChart extends StatsChart {
 
         return {
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: true },
-            },
             scales: {
                 x: {
                     stacked: true,
@@ -549,6 +563,7 @@ export class ReviewScoreChart extends StatsChart {
                 yAxisKey: y_axis_key,
             },
             plugins: {
+                legend: { display: true },
                 tooltip: {
                     callbacks: {
                         label: item => `${item.raw.review_count} (${item.raw.review_percentage.toFixed(2)}%)`,
@@ -556,5 +571,26 @@ export class ReviewScoreChart extends StatsChart {
                 },
             }
         };
+    }
+}
+
+// Get an error message from a value depending on the type.
+function error_message_from_value(err) {
+    if (typeof err === "string") {
+        return err;
+    }
+    else if (typeof err === "object") {
+        if (typeof err.message === "string") {
+            return err.message;
+        }
+        else if (typeof err.error == "string") {
+            return err.error;
+        }
+        else if (typeof err.responseJSON === "object" && typeof err.responseJSON.error === "string") {
+            return err.responseJSON.error;
+        }
+        else {
+            return "";
+        }
     }
 }

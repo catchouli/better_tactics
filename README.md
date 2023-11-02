@@ -30,6 +30,8 @@ There are three options to get it up and running:
 * From source, using cargo\*: `cargo run --release`
 * Using Docker, a prebuilt image is available at: <a href="https://hub.docker.com/r/catchouli/better-tactics">catchouli/better-tactics</a>. See docker-compose.yml for an example.
 
+Npm needs to be installed to build the frontend, but it is automatically invoked when building with cargo. If you don't have it, then install Node from: https://nodejs.org/en/download
+
 \* Note: For a standalone/portable build use the release build, as it compiles the static assets in, but the debug build references them from the ./assets directory.
 
 Once it says it's serving the site go to e.g. http://localhost:3030 to use the app. The lichess puzzles database will be automatically downloaded and imported in the background the first time you run the application. If you don't let it finish, it'll start over again the next time you run it. The layout also has support for mobile devices; if you change BIND_INTERFACE to 0.0.0.0 (bind on all interfaces, see CONFIG.md and .env), you will also be able to access it from a phone browser over your local network.

@@ -7,8 +7,10 @@ import {
     datasetModule,
     eventListenersModule,
     h,
-} from '../deps/snabbdom.js';
-import { Chess } from '../deps/chess.js';
+    VNode,
+} from 'snabbdom';
+import moment from 'moment';
+import { Chess } from 'chess.js';
 import { PuzzleBoard } from './puzzle-board.js';
 import { asset_path } from './util.js';
 
@@ -27,15 +29,23 @@ const DIFFICULTY_GOOD = 2;
 const DIFFICULTY_EASY = 3;
 
 export class PuzzleUi {
+    config: any;
+    vnode: Element | VNode;
+
+    analysis_fen: string = null;
+
+    disable_review_buttons: boolean = true;
+
+    first_try: boolean = true;
+    hint_used: boolean = false;
+
+    puzzle: PuzzleBoard = null;
+
+    countdown_interval: number = null;
+
     constructor(container, config) {
         this.config = {};
         this.vnode = container;
-
-        this.analysis_fen = null;
-        this.disable_review_buttons = true;
-
-        this.first_try = true;
-        this.hint_used = false;
 
         // Render once and create the puzzle board.
         this.render();
@@ -139,8 +149,7 @@ export class PuzzleUi {
                     this.render();
                 })
                 .catch(err => {
-                    let error_message = error_message_from_value(err);
-                    this.config.error = `Failed to get data: ${error_message}`;
+                    this.config.error = `Failed to get data: ${err.responseJSON.error}`;
                     this.config.loading = false;
                     this.render();
 
@@ -600,7 +609,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#hard.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: DIFFICULTY_HARD },
+                                dataset: { difficulty: DIFFICULTY_HARD.toString() },
                                 attrs: {
                                     disabled: this.disable_review_buttons,
                                     title: card ? this.human_interval(card.next_interval_hard) : null,
@@ -613,7 +622,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#good.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: DIFFICULTY_GOOD },
+                                dataset: { difficulty: DIFFICULTY_GOOD.toString() },
                                 attrs: {
                                     disabled: this.disable_review_buttons,
                                     title: card ? this.human_interval(card.next_interval_good) : null,
@@ -626,7 +635,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#easy.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: DIFFICULTY_EASY },
+                                dataset: { difficulty: DIFFICULTY_EASY.toString() },
                                 attrs: {
                                     disabled: this.disable_review_buttons,
                                     title: card ? this.human_interval(card.next_interval_easy) : null,
@@ -653,7 +662,7 @@ export class PuzzleUi {
                         h('div.column', [
                             h('button#again.button.review-button', {
                                 on: { click: function() { ui.on_review_button_clicked(this); } },
-                                dataset: { difficulty: DIFFICULTY_AGAIN },
+                                dataset: { difficulty: DIFFICULTY_AGAIN.toString() },
                                 attrs: {
                                     disabled: this.disable_review_buttons,
                                     title: card ? this.human_interval(card.next_interval_again) : null,
