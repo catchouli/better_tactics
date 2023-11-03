@@ -4,6 +4,7 @@
     "build": "esbuild --bundle src/better-tactics.ts --outdir=../assets --platform=neutral --minify --sourcemap --main-fields=module,main"
   },
   "dependencies": {
+    "@bity/oauth2-auth-code-pkce": "^2.13.0",
     "chart.js": "^4.4.0",
     "chartjs-adapter-moment": "^1.0.1",
     "chess.js": "^1.0.0-beta.6",
