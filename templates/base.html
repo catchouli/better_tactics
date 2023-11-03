@@ -21,36 +21,6 @@
         <link rel="stylesheet" type="text/css" href="/assets_{{base.assets_version}}/style.css" />
 
         <script src="/assets_{{base.assets_version}}/deps/jquery-3.7.1.min.js"></script>
-
-        <script type="module">
-            import { LichessApiClient } from '/assets_{{base.assets_version}}/better-tactics.js';
-            let lichess = new LichessApiClient;
-            document.lichess = lichess;
-            try {
-                await lichess.init();
-            }
-            catch (e) {
-                console.log(`Error initialising lichess api client: ${e.toString()}`);
-
-                // If something goes wrong initialising the client, try logging out and back in,
-                // in case the persistent state somehow got weird, because otherwise the user has
-                // no way of fixing it. If it still doesn't work after this though, there must be
-                // an issue somewhere else.
-                lichess.logout();
-                await lichess.init();
-            }
-
-            try {
-                console.log("fetching puzzle activity");
-                let response = await lichess.fetch('api/puzzle/activity?max=5');
-                let data = await response.text();
-                console.log("puzzle data:");
-                console.log(data);
-            }
-            catch (e) {
-                console.error(`Error fetching puzzle activity: ${e.toString()}`);
-            }
-        </script>
     </head>
     <body data-assets-path="/assets_{{base.assets_version}}">
         <div class="hero" id="main-container">

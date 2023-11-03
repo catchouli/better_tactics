@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="columns" id="puzzle-interface">
+</div>
+
+<script type="module">
+    import { PuzzleUi, LichessRetryPuzzleUi } from '/assets_{{base.assets_version}}/better-tactics.js';
+
+    // Create puzzle ui.
+    let puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"));
+    window.puzzle_ui = puzzle_ui;
+
+    // Create lichess puzzle thingy.
+    let ui = new LichessRetryPuzzleUi(puzzle_ui);
+    window.lichess_ui = ui;
+    await ui.init();
+</script>
+
+{% endblock %}

@@ -1,6 +1,7 @@
 mod index;
 mod puzzle;
 mod about;
+mod lichess;
 
 use askama::Template;
 use axum::Router;
@@ -26,6 +27,9 @@ pub fn routes(app_state: AppState) -> Router {
         .route("/tactics/new", axum::routing::get(puzzle::random_puzzle))
         .route("/tactics/by_id/:puzzle_id", axum::routing::get(puzzle::specific_puzzle))
         .route("/tactics/history", axum::routing::get(puzzle::puzzle_history))
+
+        // Lichess integration.
+        .route("/lichess", axum::routing::get(lichess::lichess_page))
 
         .fallback(not_found)
 
