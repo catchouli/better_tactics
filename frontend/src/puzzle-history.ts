@@ -7,7 +7,8 @@ import {
     attributesModule,
     eventListenersModule,
     h,
-} from '../deps/snabbdom.js';
+    VNode,
+} from 'snabbdom';
 import { PuzzleBoard } from './puzzle-board.js';
 
 const patch = init([
@@ -21,19 +22,24 @@ const patch = init([
 
 // Puzzle history.
 export class PuzzleHistory {
+    vnode: Element | VNode;
+    config: any;
+    boards: any[];
+    data: any;
+    data_request_error: string = null;
+    container_tag: string = 'div#puzzle-history';
+
     constructor(element, config) {
         this.vnode = element;
         this.config = {};
         this.boards = [];
-        this.data_request_error = null;
-        this.container_tag = 'div#puzzle-history';
 
         this.configure(config ? config : {});
     }
 
     configure(config) {
         console.log(config);
-        this.config = Object.assign(config, this.config);
+        this.config = Object.assign(this.config, config);
         this.render();
         this.request_data();
     }
@@ -179,8 +185,7 @@ export class PuzzleHistory {
                     this.render();
                 })
                 .catch(err => {
-                    let error_message = error_message_from_value(err);
-                    this.data_request_error = `Failed to get puzzle history`;
+                    this.data_request_error = `Failed to get puzzle history: ${err.responseJSON.error}`;
                     this.config.loading = false;
                     this.render();
 
@@ -216,15 +221,20 @@ export class PuzzleHistory {
             puzzles[item.puzzle.puzzle_id] = item.puzzle;
         });
 
+        let index = 0;
         let boards = this.boards;
-        $('div.puzzle-history-board').each(function(index) {
-            let puzzle = puzzles[this.dataset.id];
-            if (!boards[index]) {
-                boards[index] = new PuzzleBoard(this);
+        for (const container of document.getElementsByClassName('puzzle-history-board')) {
+            if (container instanceof HTMLElement) {
+                let puzzle = puzzles[container.dataset.id];
+
+                if (!boards[index]) {
+                    boards[index] = new PuzzleBoard(container, {});
+                }
+                boards[index].configure(Object.assign({
+                    locked: true,
+                }, puzzle));
             }
-            boards[index].configure(Object.assign({
-                locked: true,
-            }, puzzle));
-        });
+            index += 1;
+        }
     }
 }

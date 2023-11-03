@@ -1,4 +1,9 @@
-[1.10.0] - ????-??-??
+[1.11.0] - ????-??-??
+
+Important: if you're building yourself, (i.e. not with the provided Dockerfile), npm is now needed
+           in order to build the frontend. https://nodejs.org/en/download
+
+[1.10.0] - 2023-11-02
 
 Added:
 * A hint button that shows a hint for the next move, for if the user can't work it out, but doesn't
@@ -8,6 +13,10 @@ Added:
 
 Changed:
 * Ctrl-c now causes a graceful shutdown and commits the database journal before closing it.
+* The default interval for cards is now 1 minute. This doesn't affect much, but it makes it so that
+  initially the 'Hard' and 'Good' buttons do something different (i.e. 1 minute and 10 minutes
+  respectively), and so that pressing 'Again' on a puzzle makes it come up again in 1 minute
+  instead of 10.
 
 Fixed:
 * A small fix to the scroll wheel behavior on the puzzle board to prevent the page from scrolling

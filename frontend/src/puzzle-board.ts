@@ -1,29 +1,37 @@
-import { Chess } from '../deps/chess.js';
-import { Chessground } from '../deps/chessground.min.js';
+import { Chess, Square } from 'chess.js';
+import { Chessground } from 'chessground';
 
 export class PuzzleBoard {
-    constructor(container, config)
-    {
+    _container: HTMLElement;
+    _config: any;
+
+    _board: any;
+
+    _game: Chess = null;
+
+    _premove: string[] = null;
+
+    _awaiting_promotion: boolean = false;
+    _awaiting_promotion_move: string[] = null;
+
+    _next_move_highlight_mode: string = 'none';
+
+    _failed: boolean = false;
+
+    _moves: string[] = [];
+    _remaining_moves: string[] = [];
+
+    _board_states: any[];
+    _seek_position: number = 0;
+
+    _player_color: string = 'w';
+    _computer_color: string = 'b';
+
+    constructor(container: HTMLElement, config) {
         this._container = container;
         this._config = {};
 
         this._board = Chessground(this._container);
-
-        this._premove = null;
-        this._awaiting_promotion = false;
-        this._awaiting_promotion_move = null;
-
-        this._next_move_highlight_mode = 'none';
-
-        this._failed = false;
-
-        this._moves = [];
-
-        this._board_states = [this.initial_board_state()];
-        this._seek_position = 0;
-
-        this._player_color = 'w';
-        this._computer_color = 'b';
 
         this.configure(Object.assign(this.default_config(), config ? config : {}));
     }
@@ -87,7 +95,7 @@ export class PuzzleBoard {
         // Save computer and player colors.
         if (this._moves[0]) {
             let first_move_origin_square = this._moves[0].slice(0, 2);
-            this._computer_color = this._game.get(first_move_origin_square).color;
+            this._computer_color = this._game.get(<Square> first_move_origin_square).color;
             this._player_color = this._computer_color == 'w' ? 'b' : 'w';
         }
 
@@ -447,10 +455,10 @@ export class PuzzleBoard {
 
         // Now we're actually done validating / making sure a promotion has been specified and are
         // ready to make the move.
-        this._make_player_move(orig, dest);
+        this._make_player_move(orig, dest, null);
     }
 
-    _set_premove(orig, dest) {
+    _set_premove(orig: string, dest: string) {
         this._premove = [orig, dest];
     }
 
