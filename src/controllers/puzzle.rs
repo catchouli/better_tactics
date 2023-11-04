@@ -2,7 +2,7 @@ use std::fmt::Display;
 use askama::Template;
 use axum::extract::{Path, Query, State};
 
-use crate::app::{UiConfig, AppState};
+use crate::app::{UiConfig, AppState, TacticsConfig};
 
 use super::{BaseTemplateData, ControllerError};
 
@@ -35,6 +35,7 @@ impl Display for PuzzleMode {
 pub struct PuzzleTemplate {
     base: BaseTemplateData,
     mode: PuzzleMode,
+    tactics_config: TacticsConfig,
     ui_config: UiConfig,
     requested_id: String,
 }
@@ -62,6 +63,7 @@ pub async fn specific_puzzle(
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Specific,
+        tactics_config: state.app_config.tactics,
         ui_config: state.app_config.ui,
         requested_id: puzzle_id,
     })
@@ -75,6 +77,7 @@ pub async fn random_puzzle(
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Random,
+        tactics_config: state.app_config.tactics,
         ui_config: state.app_config.ui,
         requested_id: "".to_string(),
     })
@@ -88,6 +91,7 @@ pub async fn next_review(
     Ok(PuzzleTemplate {
         base: Default::default(),
         mode: PuzzleMode::Review,
+        tactics_config: state.app_config.tactics,
         ui_config: state.app_config.ui,
         requested_id: "".to_string(),
     })

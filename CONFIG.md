@@ -10,6 +10,12 @@ The application can be configured by setting the values in <a href="https://gith
 | BIND_PORT | 3030 | The port to bind the web server to, the default is 3030 |
 | DATABASE_URL | sqlite://puzzles.sqlite | The url of the database. "sqlite://path/to/puzzles.sqlite" refers to the relative path "./path/to/puzzles.sqlite", while "sqlite:///path/to/puzzles.sqlite" with an additional slash at the start of the path refers to the absolute path /path/to/puzzles.sqlite |
 
+# Tactics
+| Environment Variable | Default | Description |
+| --- | --- | --- |
+| TACTICS_PUZZLE_RATING_VARIATION_DOWN | 0.05 | The percentage below your rating random puzzles can be shown on the 'next puzzle' page. 0.05 means 5%, so if the user's rating is 1000, the rating for selected puzzles can be as low as 950. |
+| TACTICS_PUZZLE_RATING_VARIATION_UP | 0.0 | The percentage above your rating random puzzles can be shown on the 'next puzzle' page. This is set to 0% by default to avoid showing puzzles too high, but can be changed to the previous default of 0.05 to show puzzles a little above your current rating. |
+
 # User Interface
 | Environment Variable | Default | Description |
 | --- | --- | --- |

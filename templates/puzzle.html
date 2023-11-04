@@ -15,7 +15,8 @@
 
     // The rating variation, i.e. 1.05 means that if the mode is "Random", the requested puzzles
     // will be rated +-5% of the user's rating.
-    const PUZZLE_RATING_VARIATION = 1.05;
+    const puzzle_rating_variation_up = {{ tactics_config.puzzle_rating_variation_up }};
+    const puzzle_rating_variation_down = {{ tactics_config.puzzle_rating_variation_down }};
 
     // Create puzzle ui.
     let puzzle_ui = new PuzzleUi(document.getElementById("puzzle-interface"), {
@@ -73,8 +74,10 @@
                 }
                 else {
                     // Random in range.
-                    let min_rating = Math.floor(stats.user_rating.rating / PUZZLE_RATING_VARIATION);
-                    let max_rating = Math.floor(stats.user_rating.rating * PUZZLE_RATING_VARIATION);
+                    let min_rating = stats.user_rating.rating -
+                        Math.floor(stats.user_rating.rating * puzzle_rating_variation_down);
+                    let max_rating = stats.user_rating.rating +
+                        Math.floor(stats.user_rating.rating * puzzle_rating_variation_up);
                     puzzle_ui.configure({ rating_range: [min_rating, max_rating] });
 
                     return $.ajax(`/api/tactics/random/${min_rating}/${max_rating}`)

@@ -765,7 +765,7 @@ export class PuzzleUi {
 
         let card = this.config.card;
         let puzzle_id = card.id;
-        let difficulty = button.data.dataset.difficulty;
+        let difficulty = parseInt(button.data.dataset.difficulty);
         console.log(`Reviewing ${puzzle_id} with difficulty ${difficulty}`);
 
         if (this.config.on_review) {

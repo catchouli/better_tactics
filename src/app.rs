@@ -35,9 +35,16 @@ pub struct AppConfig {
     pub bind_interface: IpAddr,
     pub bind_port: u16,
     pub database_url: DatabaseUrl,
+    pub tactics: TacticsConfig,
     pub srs: SrsConfig,
     pub backup: BackupConfig,
     pub ui: UiConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct TacticsConfig {
+    pub puzzle_rating_variation_up: f32,
+    pub puzzle_rating_variation_down: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -60,9 +67,19 @@ impl Default for AppConfig {
             bind_port: 3030,
             database_url: DatabaseUrl(Url::parse("sqlite://puzzles.sqlite")
                 .expect("Failed to parse default database_url")),
+            tactics: TacticsConfig::default(),
             srs: SrsConfig::default(),
             backup: BackupConfig::default(),
             ui: UiConfig::default(),
+        }
+    }
+}
+
+impl Default for TacticsConfig {
+    fn default() -> Self {
+        Self {
+            puzzle_rating_variation_up: 0.0,
+            puzzle_rating_variation_down: 0.05,
         }
     }
 }
@@ -110,6 +127,12 @@ impl AppConfig {
                 review_order: Self::env_var::<ReviewOrder>("SRS_REVIEW_ORDER")
                     .map_err(|e| format!("{e}, possible values: {}", ReviewOrder::possible_values()))?
                     .unwrap_or(defaults.srs.review_order),
+            },
+            tactics: TacticsConfig {
+                puzzle_rating_variation_up: Self::env_var("TACTICS_PUZZLE_RATING_VARIATION_UP")?
+                    .unwrap_or(defaults.tactics.puzzle_rating_variation_up),
+                puzzle_rating_variation_down: Self::env_var("TACTICS_PUZZLE_RATING_VARIATION_DOWN")?
+                    .unwrap_or(defaults.tactics.puzzle_rating_variation_down),
             },
             backup: BackupConfig {
                 enabled: Self::env_var("BACKUP_ENABLED")?.unwrap_or(defaults.backup.enabled),

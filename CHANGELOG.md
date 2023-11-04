@@ -3,6 +3,12 @@
 Important: if you're building yourself, (i.e. not with the provided Dockerfile), npm is now needed
            in order to build the frontend. https://nodejs.org/en/download
 
+Changed:
+* The default rating variation on the 'Next puzzle' page is now 5% below the user's rating level,
+  but not above the user's rating level anymore, as there was too much of a risk of showing puzzles
+  that are too hard, especially as the user's rating level increased. There's now configuration
+  values that can be changed to override this behavior if you preferred the previous +-5%.
+
 [1.10.0] - 2023-11-02
 
 Added:
